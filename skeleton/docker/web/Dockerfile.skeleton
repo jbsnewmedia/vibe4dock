@@ -1,0 +1,24 @@
+FROM webdevops/php-apache-dev:{{VIBE4DOCK_PHP_VERSION}}
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TERM=xterm-256color
+
+USER root
+
+RUN apt-get update && apt-get install -y --no-install-recommends nano curl ca-certificates gnupg git tmux sudo && mkdir -p /etc/apt/keyrings \
+    && curl -L https://github.com/webdevops/go-replace/releases/download/1.1.2/go-replace.linux.amd64 -o /usr/bin/go-replace \
+    && chmod +x /usr/bin/go-replace \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -L https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.x86_64 -o /usr/bin/ttyd && chmod +x /usr/bin/ttyd
+
+# DYNAMIC PROVISIONING
+COPY provision.sh* /usr/local/bin/provision.sh
+RUN if [ -f /usr/local/bin/provision.sh ]; then chmod +x /usr/local/bin/provision.sh && /usr/local/bin/provision.sh; fi
+
+COPY entrypoint-dev.sh /usr/local/bin/entrypoint-dev.sh
+RUN chmod +x /usr/local/bin/entrypoint-dev.sh
+
+{{VIBE4DOCK_FIREBIRD_INSTALL}}USER application
+
+CMD ["/usr/local/bin/entrypoint-dev.sh"]

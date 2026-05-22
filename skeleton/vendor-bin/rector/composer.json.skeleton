@@ -1,0 +1,14 @@
+{
+    "require-dev": {
+        "rector/rector": "^2.3"
+    },
+    "config": {
+        "platform": {
+            "php": "8.2"
+        },
+        "allow-plugins": {
+            "bamarni/composer-bin-plugin": true
+        }
+    },
+    "sort-packages": true
+}

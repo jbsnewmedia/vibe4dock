@@ -1,0 +1,19 @@
+# {{VIBE4DOCK_PROJECT_NAME}}
+
+Minimal Vibe4Dock project template.
+
+## Start
+
+```bash
+docker compose up -d --build
+```
+
+## Endpoints
+
+- App: `http://localhost:{{VIBE4DOCK_WEB_HOST_PORT}}`
+- Tools: `http://localhost:{{VIBE4DOCK_TOOLS_HOST_PORT}}`
+- Root shell: `http://localhost:{{VIBE4DOCK_ROOT_SHELL_HOST_PORT}}`
+- App shell: `http://localhost:{{VIBE4DOCK_APP_SHELL_HOST_PORT}}`
+- {{VIBE4DOCK_DB_LABEL}}: `localhost:{{VIBE4DOCK_DB_HOST_PORT}}`
+
+Use `docker/bash.sh` or `docker/root.sh` to enter the container.

@@ -1,0 +1,21 @@
+{
+  "settings": [
+    {
+      "id": "git-config",
+      "category": "settings",
+      "label": "Git Config",
+      "type": "setting",
+      "setting_enabled_key": "GIT_CONFIG_ENABLED",
+      "fields": [
+        {
+          "key": "GIT_USER_NAME",
+          "label": "Name"
+        },
+        {
+          "key": "GIT_USER_EMAIL",
+          "label": "Email"
+        }
+      ]
+    }
+  ]
+}

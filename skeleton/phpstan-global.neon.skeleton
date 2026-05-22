@@ -1,0 +1,6 @@
+# Basis for core and plugin code quality
+parameters:
+    treatPhpDocTypesAsCertain: false
+    paths:
+        - src
+    level: max

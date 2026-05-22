@@ -1,0 +1,5 @@
+/docker/mariadb/
+/.idea/
+/docker/web/provision.sh
+/docker/web/settings/
+/docker-compose.override.yml

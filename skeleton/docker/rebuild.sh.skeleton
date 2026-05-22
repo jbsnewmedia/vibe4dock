@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Vibe4Dock Rebuild Script
+# This script rebuilds the web container to apply new mounts and provisions.
+
+echo "Stopping containers..."
+docker compose down
+
+echo "Rebuilding web container (no-cache)..."
+docker compose build --no-cache web
+
+echo "Starting containers..."
+docker compose up -d
+
+echo "Clearing rebuild hint..."
+docker compose exec -T -u root web sh -lc 'rm -f /app/docker/web/settings/rebuild_required.hint /app/docker/web/settings/restart_required.json'
+
+echo "Done. Vibe4Dock is restarting."

@@ -1,0 +1,15 @@
+{
+    "require-dev": {
+        "phpstan/phpstan": "^2.0",
+        "phpstan/extension-installer": "^1.0",
+        "phpstan/phpstan-doctrine": "^2.0",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "phpstan/phpstan-symfony": "^2.0"
+    },
+    "config": {
+        "allow-plugins": {
+            "phpstan/extension-installer": true,
+            "bamarni/composer-bin-plugin": true
+        }
+    }
+}

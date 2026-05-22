@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+set -e
+
+# CLEAR REBUILD HINT AFTER A SUCCESSFUL RESTART OF THE WEB CONTAINER
+rm -f /app/docker/web/settings/rebuild_required.hint
+rm -f /app/docker/web/settings/restart_required.json
+
+# LOAD .env.local IF EXISTS
+if [ -f /app/.env.local ]; then
+  # Only export keys that match the pattern (simple check)
+  while IFS='=' read -r key value; do
+    # Skip comments and empty lines
+    [[ "$key" =~ ^#.*$ ]] && continue
+    [[ -z "$key" ]] && continue
+    # Strip quotes from value
+    value=$(echo "$value" | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+    export "$key=$value"
+  done < /app/.env.local
+fi
+
+# APPLY GIT CONFIG IF ENABLED
+if [ "$GIT_CONFIG_ENABLED" = "1" ]; then
+  if [ -n "$GIT_USER_NAME" ]; then
+    git config --global user.name "$GIT_USER_NAME"
+  fi
+  if [ -n "$GIT_USER_EMAIL" ]; then
+    git config --global user.email "$GIT_USER_EMAIL"
+  fi
+fi
+
+# INSTALL TOOLS FROM SAVED LIST
+if [ -f /app/docker/web/settings/installed_tools.json ] && [ -f /app/docker/tools/config.php ]; then
+  installed_ids=$(php -r '$ids = json_decode(file_get_contents("/app/docker/web/settings/installed_tools.json"), true) ?: array(); foreach ($ids as $id) { echo $id . PHP_EOL; }')
+  for tool_id in $installed_ids; do
+    commands=$(php -r '
+      require "/app/docker/tools/config.php";
+      $config = loadToolConfig("/app/docker/tools");
+      $toolId = $argv[1];
+
+      foreach ($config["tools"] as $tool) {
+          if (isset($tool["id"]) && $tool["id"] === $toolId && isset($tool["check"], $tool["install"])) {
+              echo $tool["check"] . PHP_EOL . $tool["install"];
+              exit(0);
+          }
+
+          if (isset($tool["type"]) && $tool["type"] === "versioned" && isset($tool["versions"]) && is_array($tool["versions"])) {
+              foreach ($tool["versions"] as $version) {
+                  if (isset($version["id"]) && $version["id"] === $toolId && isset($version["check"], $version["install"])) {
+                      echo $version["check"] . PHP_EOL . $version["install"];
+                      exit(0);
+                  }
+              }
+          }
+      }
+    ' "$tool_id")
+
+    check_cmd=$(printf '%s\n' "$commands" | sed -n '1p')
+    install_cmd=$(printf '%s\n' "$commands" | sed -n '2,$p')
+
+    if [ -n "$install_cmd" ] && [ -n "$check_cmd" ]; then
+      echo "Checking tool: $tool_id"
+      if ! eval "$check_cmd" >/dev/null 2>&1; then
+        echo "Installing tool: $tool_id"
+        eval "$install_cmd"
+      else
+        echo "Tool $tool_id already installed"
+      fi
+    fi
+  done
+fi
+
+# SYNC VOLUMES
+# Automatically restore any directory that has a corresponding _bak directory
+# and ensure correct permissions for the application user
+# We also ensure permissions for known mounts even if no backup exists
+# Note: Use -a in find to include hidden directories starting with .
+find /home/application -maxdepth 2 -name ".*_bak" -o -name "*_bak" | while read bak_dir; do
+  target_dir="${bak_dir%_bak}"
+  if [ -d "$target_dir" ] && [ -d "$bak_dir" ]; then
+    # If the target directory is empty (only has lost+found or is empty), restore from backup
+    if [ ! "$(ls -A "$target_dir" 2>/dev/null)" ] || [ "$(ls -A "$target_dir" 2>/dev/null)" = "lost+found" ]; then
+      echo "Restoring $target_dir from backup $bak_dir..."
+      cp -rp "$bak_dir/." "$target_dir/"
+    fi
+  fi
+done
+
+# Ensure application user owns its home directory and all mounts
+# This fixes EACCES issues when tools try to create subdirectories
+echo "Ensuring permissions for /home/application..."
+chown -R application:application /home/application
+
+export VIBE4DOCK_SHELL_HINT='Vibe4Dock, Copyright (c) 2026+ JBS New Media GmbH, Juergen Schwind | MIT License | https://github.com/jbsnewmedia/vibe4dock'
+
+# ROOT TERMINAL
+ttyd \
+  --writable \
+  --port {{VIBE4DOCK_ROOT_SHELL_CONTAINER_PORT}} \
+  --interface 0.0.0.0 \
+  env VIBE4DOCK_SHELL_HINT="$VIBE4DOCK_SHELL_HINT" bash -lc 'printf "\033]0;%s\007" "$VIBE4DOCK_SHELL_HINT"; exec tmux start-server \; set-option -g status on \; set-option -g status-position top \; set-option -g status-style "bg=cyan,fg=black" \; set-option -g status-left-style "bg=cyan,fg=black" \; set-option -g status-right-style "bg=cyan,fg=black" \; set-option -g status-left-length 240 \; set-option -g status-right "" \; set-option -g status-left " $VIBE4DOCK_SHELL_HINT " \; set-option -g window-status-format "" \; set-option -g window-status-current-format "" \; set-option -g default-command "env VIBE4DOCK_SHELL_HINT=\"$VIBE4DOCK_SHELL_HINT\" bash --noprofile --rcfile /app/docker/web/root-shell.bashrc" \; new-session -A -s root' &
+
+# APPLICATION USER TERMINAL
+ttyd \
+  --writable \
+  --port {{VIBE4DOCK_APP_SHELL_CONTAINER_PORT}} \
+  --interface 0.0.0.0 \
+  sudo -u application env VIBE4DOCK_SHELL_HINT="$VIBE4DOCK_SHELL_HINT" bash -lc 'printf "\033]0;%s\007" "$VIBE4DOCK_SHELL_HINT"; exec tmux start-server \; set-option -g status on \; set-option -g status-position top \; set-option -g status-style "bg=cyan,fg=black" \; set-option -g status-left-style "bg=cyan,fg=black" \; set-option -g status-right-style "bg=cyan,fg=black" \; set-option -g status-left-length 240 \; set-option -g status-right "" \; set-option -g status-left " $VIBE4DOCK_SHELL_HINT " \; set-option -g window-status-format "" \; set-option -g window-status-current-format "" \; set-option -g default-command "env VIBE4DOCK_SHELL_HINT=\"$VIBE4DOCK_SHELL_HINT\" bash --noprofile --rcfile /app/docker/web/application-shell.bashrc" \; new-session -A -s main' &
+
+exec /entrypoint supervisord

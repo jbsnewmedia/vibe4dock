@@ -1,0 +1,36 @@
+services:
+  web:
+    build: ./docker/web
+    working_dir: /app
+    user: application
+    ports:
+      - "{{VIBE4DOCK_WEB_HOST_PORT}}:{{VIBE4DOCK_WEB_CONTAINER_PORT}}"
+      - "{{VIBE4DOCK_ROOT_SHELL_HOST_PORT}}:{{VIBE4DOCK_ROOT_SHELL_CONTAINER_PORT}}"
+      - "{{VIBE4DOCK_APP_SHELL_HOST_PORT}}:{{VIBE4DOCK_APP_SHELL_CONTAINER_PORT}}"
+    volumes:
+      - ./:/app
+    tmpfs:
+      - /tmp:exec,mode=1777
+    environment:
+      - WEB_DOCUMENT_ROOT=/app/public
+      - PHP_DISPLAY_ERRORS=1
+      - PHP_MEMORY_LIMIT=512M
+      - PHP_MAX_EXECUTION_TIME=300
+      - PHP_POST_MAX_SIZE=200M
+      - PHP_UPLOAD_MAX_FILESIZE=100M
+      - PHP_DISMOD=ioncube
+      - TERM=xterm-256color
+  tools:
+    build: ./docker/tools
+    ports:
+      - "{{VIBE4DOCK_TOOLS_HOST_PORT}}:{{VIBE4DOCK_TOOLS_CONTAINER_PORT}}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./:/app
+    environment:
+      - TARGET_CONTAINER={{VIBE4DOCK_TARGET_CONTAINER}}
+      - ROOT_SHELL_HOST_PORT={{VIBE4DOCK_ROOT_SHELL_HOST_PORT}}
+      - APP_SHELL_HOST_PORT={{VIBE4DOCK_APP_SHELL_HOST_PORT}}
+    restart: unless-stopped
+  db:
+{{VIBE4DOCK_DB_SERVICE_DEFINITION}}

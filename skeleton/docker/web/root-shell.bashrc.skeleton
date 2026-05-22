@@ -1,0 +1,11 @@
+# shellcheck shell=bash
+
+if [ -f /etc/bash.bashrc ]; then
+    . /etc/bash.bashrc
+fi
+
+if [ -f "$HOME/.bashrc" ]; then
+    . "$HOME/.bashrc"
+fi
+
+PROMPT_COMMAND='printf "\033]0;%s\007" "$VIBE4DOCK_SHELL_HINT"'

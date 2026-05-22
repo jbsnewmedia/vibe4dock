@@ -1,0 +1,218 @@
+<?php
+
+function renderDashboard($config, $envValues, $installedTools, $isOffline)
+{
+    $phpVersion = phpversion();
+    $composerVersion = '---';
+    $nodeVersion = '---';
+    $rootShellHostPort = (int) (getenv('ROOT_SHELL_HOST_PORT') ?: {{VIBE4DOCK_ROOT_SHELL_HOST_PORT}});
+    $appShellHostPort = (int) (getenv('APP_SHELL_HOST_PORT') ?: {{VIBE4DOCK_APP_SHELL_HOST_PORT}});
+
+    if (!$isOffline) {
+        $composerResult = runInWebContainer("composer --version 2>/dev/null | awk '{print \$3}'");
+        $composerVersion = $composerResult['ok'] ? trim($composerResult['output']) : '---';
+        $nodeResult = runInWebContainer('node -v 2>&1');
+        $nodeVersion = $nodeResult['ok'] ? trim($nodeResult['output'], "v \n\r\t") : '---';
+    }
+
+    // RAM info
+    $ramInfo = '---';
+    if (!$isOffline) {
+        $ramResult = runInWebContainer("free -m | awk '/Mem:/ { print $3 \" / \" $2 \" MB (Free: \" $4 \" MB)\" }'");
+        $ramInfo = $ramResult['ok'] ? $ramResult['output'] : '---';
+    }
+
+    // Disk info
+    $diskInfo = '---';
+    if (!$isOffline) {
+        $diskResult = runInWebContainer("df -h /app | awk 'NR==2 { print $3 \" / \" $2 \" (Free: \" $4 \")\" }'");
+        $diskInfo = $diskResult['ok'] ? $diskResult['output'] : '---';
+    }
+
+    // Databases info
+    $dbInfo = [];
+    if (!$isOffline) {
+        $mysqlCheck = runInWebContainer("mysqladmin -h db -u root -proot ping 2>&1");
+        if ($mysqlCheck['ok']) {
+            $dbInfo[] = ['label' => 'MariaDB/MySQL', 'value' => 'Connected'];
+        }
+        $psqlCheck = runInWebContainer("pg_isready -h db -U root 2>&1");
+        if ($psqlCheck['ok']) {
+            $dbInfo[] = ['label' => 'PostgreSQL', 'value' => 'Connected'];
+        }
+        $fbCheck = runInWebContainer("ls /usr/bin/isql-fb 2>/dev/null");
+        if ($fbCheck['ok']) {
+            $dbInfo[] = ['label' => 'Firebird', 'value' => 'Installed'];
+        }
+    }
+
+    $toolContent = '<h1>Dashboard</h1>';
+
+    // Shell Buttons
+    $host = $_SERVER['HTTP_HOST'];
+    if (strpos($host, ':') !== false) {
+        $host = explode(':', $host)[0];
+    }
+
+    $toolContent .= '<div class="dashboard-grid">';
+    $toolContent .= '<div class="stat-card"><h3>Application Shell</h3>';
+    $toolContent .= sprintf('<a href="http://%s:%d" target="_blank" class="btn-shell">Open Shell</a>', $host, $appShellHostPort);
+    $toolContent .= '</div>';
+    $toolContent .= '<div class="stat-card"><h3>Root Shell</h3>';
+    $toolContent .= sprintf('<a href="http://%s:%d" target="_blank" class="btn-shell">Open Shell</a>', $host, $rootShellHostPort);
+    $toolContent .= '</div>';
+    $toolContent .= '</div><div class="dashboard-grid">';
+
+    // System Overview Card
+    $toolContent .= '<div class="stat-card"><h3>System Overview</h3>';
+    $toolContent .= '<div class="stat-item"><span class="stat-label">PHP Version</span><span class="stat-value">' . $phpVersion . '</span></div>';
+    $toolContent .= '<div class="stat-item"><span class="stat-label">Composer Version</span><span class="stat-value">' . $composerVersion . '</span></div>';
+    $toolContent .= '<div class="stat-item"><span class="stat-label">RAM Usage</span><span id="stat-ram" class="stat-value">' . $ramInfo . '</span></div>';
+    $toolContent .= '<div class="stat-item"><span class="stat-label">Disk Space</span><span id="stat-disk" class="stat-value">' . $diskInfo . '</span></div>';
+    $toolContent .= '</div>';
+
+    // Configuration Status Card
+    global $settingsConfig;
+    $gitSetting = null;
+    foreach ($settingsConfig['settings'] as $s) {
+        if ($s['id'] === 'git-config') {
+            $gitSetting = $s;
+            break;
+        }
+    }
+    $gitEnabled = false;
+    if ($gitSetting && isset($gitSetting['setting_enabled_key'])) {
+        $gitEnabled = isset($envValues[$gitSetting['setting_enabled_key']]) && $envValues[$gitSetting['setting_enabled_key']] === '1';
+    }
+
+    $gitUser = '-';
+    if ($isOffline) {
+        $gitEnabledStatus = '---';
+    } else {
+        $gitEnabledStatus = $gitEnabled ? 'Enabled' : 'Disabled';
+        if ($gitEnabled) {
+            $gitUser = htmlspecialchars(isset($envValues['GIT_USER_NAME']) ? $envValues['GIT_USER_NAME'] : '-');
+        }
+    }
+
+    $toolContent .= '<div class="stat-card"><h3>Configuration</h3>';
+    $toolContent .= '<div class="stat-item"><span class="stat-label">Git Config</span><span class="stat-value">' . $gitEnabledStatus . '</span></div>';
+    if ($isOffline || $gitEnabled) {
+        $toolContent .= '<div class="stat-item"><span class="stat-label">User</span><span class="stat-value">' . $gitUser . '</span></div>';
+    }
+    $toolContent .= '</div>';
+    $toolContent .= '</div>'; // End grid
+
+    // Databases info
+    if (!empty($dbInfo)) {
+        $toolContent .= '<h2>Databases</h2>';
+        $toolContent .= '<div class="dashboard-grid">';
+        foreach ($dbInfo as $db) {
+            $toolContent .= '<div class="stat-card">';
+            $toolContent .= '<h3>' . $db['label'] . '</h3>';
+            $toolContent .= '<div class="stat-item"><span class="stat-label">Status</span><span class="stat-value">' . $db['value'] . '</span></div>';
+            $toolContent .= '</div>';
+        }
+        $toolContent .= '</div>';
+    }
+
+    $toolContent .= '<h2>Installed Tools</h2>';
+
+    $hasInstalledTools = false;
+    // Group tools by category order from category.json
+    foreach ($config['categories'] as $cat) {
+        $catTools = [];
+        foreach ($config['tools'] as $tool) {
+            if ($tool['category'] === $cat['id']) {
+                $catTools[] = $tool;
+            }
+        }
+        
+        if (empty($catTools)) continue;
+        
+        // Render tools in this category if they are installed
+        foreach ($catTools as $tool) {
+            $isVersioned = isset($tool['type']) && $tool['type'] === 'versioned';
+            $found = false;
+            $toolLabel = $tool['label'];
+            $versionInfo = '';
+
+            if ($isOffline) {
+                $hasInstalledTools = true;
+                // In offline mode we show them as offline if not a setting (settings are filtered anyway here)
+                $toolContent .= sprintf('
+                    <div class="tool-card">
+                        <div class="tool-header">
+                            <div>
+                                <strong style="font-size: 1.1em; color: var(--text-dim);">%s</strong>
+                                <div style="margin-top: 5px; color: var(--text-dim); font-size: 0.9em; line-height: 1.4;">
+                                    <div><span style="color: var(--text-dim);">Version:</span> ---</div>
+                                    <div><span style="color: var(--text-dim);">Categorie:</span> <a href="%s" style="color: var(--text-dim); text-decoration: none;">%s</a></div>
+                                </div>
+                            </div>
+                            <div class="tool-actions">
+                                <span class="status status-missing">Offline</span>
+                            </div>
+                        </div>
+                    </div>',
+                    htmlspecialchars($tool['label']),
+                    addTimestamp('/category/' . $tool['category']),
+                    htmlspecialchars($cat['label'])
+                );
+                continue;
+            }
+
+            if ($isVersioned) {
+                foreach ($tool['versions'] as $v) {
+                    if (in_array($v['id'], $installedTools)) {
+                        $found = true;
+                        $versionResult = runInWebContainer($v['check']);
+                        $versionInfo = $versionResult['ok'] ? $versionResult['output'] : $v['label'];
+                        break;
+                    }
+                }
+            } else {
+                if (in_array($tool['id'], $installedTools)) {
+                    $found = true;
+                    $versionResult = runInWebContainer($tool['check']);
+                    $versionInfo = $versionResult['ok'] ? $versionResult['output'] : 'Installed';
+                }
+            }
+
+            if ($found) {
+                $hasInstalledTools = true;
+                $toolContent .= sprintf('
+                    <div class="tool-card">
+                        <div class="tool-header">
+                            <div>
+                                <strong style="font-size: 1.1em; color: var(--primary);">%s</strong>
+                                <div style="margin-top: 5px; font-size: 0.9em; line-height: 1.4;">
+                                    <div><span style="color: var(--text-dim);">Version:</span> %s</div>
+                                    <div><span style="color: var(--text-dim);">Categories:</span> <a href="%s" style="color: var(--text-dim); text-decoration: none;">%s</a></div>
+                                </div>
+                            </div>
+                            <div class="tool-actions">
+                                <span class="status status-installed">Active</span>
+                            </div>
+                        </div>
+                    </div>',
+                    htmlspecialchars($toolLabel),
+                    htmlspecialchars(trim($versionInfo)),
+                    addTimestamp('/category/' . $tool['category']),
+                    htmlspecialchars($cat['label'])
+                );
+            }
+        }
+    }
+
+    if (!$hasInstalledTools) {
+        $toolContent .= '
+            <div class="tool-card" style="border-style: dashed; opacity: 0.7;">
+                <div style="text-align: center; padding: 20px; color: var(--text-dim);">
+                    No tools installed yet. Visit the categories to install new tools.
+                </div>
+            </div>';
+    }
+
+    return $toolContent;
+}

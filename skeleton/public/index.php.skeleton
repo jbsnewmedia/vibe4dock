@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vibe4Dock</title>
+    <style>
+        :root {
+            --bg: #0f1115;
+            --panel: #171a21;
+            --border: #2a2f3a;
+            --text: #f2f5f7;
+            --muted: #a7b0bc;
+            --accent: #88eeff;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            background: var(--bg);
+            color: var(--text);
+            font: 16px/1.5 "Segoe UI", system-ui, sans-serif;
+        }
+
+        .card {
+            width: min(760px, 100%);
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+        }
+
+        .notice {
+            margin-bottom: 22px;
+            padding: 14px 16px;
+            border: 1px solid rgba(136, 238, 255, 0.25);
+            border-radius: 12px;
+            background: rgba(136, 238, 255, 0.08);
+            color: var(--muted);
+        }
+
+        .meta-line {
+            margin-top: 6px;
+            font-size: 0.95rem;
+        }
+
+        .notice strong,
+        h1 {
+            color: var(--text);
+        }
+
+        a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        ul {
+            margin: 18px 0 0;
+            padding-left: 20px;
+        }
+
+        code {
+            color: var(--accent);
+        }
+    </style>
+</head>
+<body>
+<main class="card">
+    <div class="notice">
+        <strong>Vibe4Dock</strong><br>
+        <div class="meta-line">
+            Vibe4Dock, Copyright (c) 2026+ JBS New Media GmbH, Juergen Schwind | MIT License |
+            <a href="https://github.com/jbsnewmedia/vibe4dock" target="_blank" rel="noopener noreferrer">https://github.com/jbsnewmedia/vibe4dock</a>
+        </div>
+    </div>
+
+    <h1>Vibe4Dock is running</h1>
+    <p>
+        Your container setup is ready. Use the browser shells or the tools UI to continue working in this environment.
+    </p>
+    <ul>
+        <li>Tools UI: <code>/docker/tools</code> service</li>
+        <li>Application shell: configured ttyd endpoint</li>
+        <li>Root shell: configured ttyd endpoint</li>
+    </ul>
+</main>
+</body>
+</html>

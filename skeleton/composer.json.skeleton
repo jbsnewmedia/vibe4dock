@@ -1,0 +1,109 @@
+{
+  "require-dev": {
+    "../vendor/bamarni/composer-bin-plugin": "^1.8"
+  },
+  "config": {
+    "allow-plugins": {
+      "bamarni/composer-bin-plugin": true
+    }
+  },
+  "extra": {
+    "bamarni-bin": {
+      "bin-links": false,
+      "target-directory": "vendor-bin",
+      "forward-command": true
+    }
+  },
+  "scripts": {
+    "bin-ecs-install": [
+      "composer bin ../vendor-bin/ecs install"
+    ],
+    "bin-ecs-update": [
+      "composer bin ../vendor-bin/ecs update"
+    ],
+    "bin-ecs": [
+      "vendor-bin/ecs/vendor/bin/php-cs-fixer check --allow-risky=yes"
+    ],
+    "bin-ecs-fix": [
+      "vendor-bin/ecs/vendor/bin/php-cs-fixer fix --allow-risky=yes"
+    ],
+    "bin-ecs-v": [
+      "vendor-bin/ecs/vendor/bin/php-cs-fixer -V"
+    ],
+    "bin-phpstan-install": [
+      "composer bin ../vendor-bin/phpstan install"
+    ],
+    "bin-phpstan-update": [
+      "composer bin ../vendor-bin/phpstan update"
+    ],
+    "bin-phpstan": [
+      "vendor-bin/phpstan/vendor/bin/phpstan analyse --configuration=phpstan-global.neon"
+    ],
+    "bin-phpstan-v": [
+      "vendor-bin/phpstan/vendor/bin/phpstan -V"
+    ],
+    "bin-phpunit-install": [
+      "composer bin ../vendor-bin/phpunit install"
+    ],
+    "bin-phpunit-update": [
+      "composer bin ../vendor-bin/phpunit update"
+    ],
+    "bin-phpunit": [
+      "vendor-bin/phpunit/vendor/bin/phpunit"
+    ],
+    "bin-phpunit-no-coverage": [
+      "vendor-bin/phpunit/vendor/bin/phpunit --configuration=phpunit-no-coverage.xml.dist"
+    ],
+    "bin-phpunit-coverage": [
+      "XDEBUG_MODE=coverage vendor-bin/phpunit/vendor/bin/phpunit --configuration=phpunit-coverage.xml.dist --coverage-html var/coverage"
+    ],
+    "bin-phpunit-v": [
+      "vendor-bin/phpunit/vendor/bin/phpunit --version"
+    ],
+    "bin-rector-install": [
+      "composer bin ../vendor-bin/rector install"
+    ],
+    "bin-rector-update": [
+      "composer bin ../vendor-bin/rector update"
+    ],
+    "bin-rector": [
+      "vendor-bin/rector/vendor/bin/rector --dry-run"
+    ],
+    "bin-rector-process": [
+      "vendor-bin/rector/vendor/bin/rector process"
+    ],
+    "bin-rector-v": [
+      "vendor-bin/rector/vendor/bin/rector -V"
+    ],
+    "test": [
+      "@bin-phpunit-no-coverage"
+    ],
+    "test-coverage": [
+      "@bin-phpunit-coverage"
+    ],
+    "test-full": [
+      "@bin-phpunit"
+    ],
+    "test-watch": [
+      "@bin-phpunit --testdox"
+    ],
+    "ci": [
+      "@bin-ecs",
+      "@bin-rector",
+      "@bin-phpstan",
+      "@bin-phpunit-no-coverage"
+    ],
+    "ci-fix": [
+      "@bin-ecs-fix",
+      "@bin-rector-process",
+      "@bin-phpstan",
+      "@bin-phpunit-no-coverage"
+    ],
+    "ci-coverage": [
+      "@bin-ecs",
+      "@bin-rector",
+      "@bin-phpstan",
+      "@bin-phpunit-coverage"
+    ]
+  }
+}

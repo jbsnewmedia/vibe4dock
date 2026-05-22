@@ -1,0 +1,40 @@
+<?php
+
+require_once __DIR__ . '/config.php';
+
+$settingsConfig = loadSettingsConfig(__DIR__);
+
+function renderSettingFields($setting, $envValues)
+{
+    $html = '';
+    if (isset($setting['fields'])) {
+        foreach ($setting['fields'] as $field) {
+            $value = isset($envValues[$field['key']]) ? $envValues[$field['key']] : '';
+            $html .= sprintf('
+                <div class="form-group">
+                    <label>%s</label>
+                    <input type="text" name="%s" value="%s" placeholder="%s">
+                </div>',
+                htmlspecialchars($field['label']),
+                htmlspecialchars($field['key']),
+                htmlspecialchars($value),
+                htmlspecialchars($field['key'])
+            );
+        }
+    }
+    return $html;
+}
+
+function handleSettingSave($setting, $postData)
+{
+    $newValues = array();
+    if (isset($setting['fields'])) {
+        foreach ($setting['fields'] as $field) {
+            $newValues[$field['key']] = isset($postData[$field['key']]) ? $postData[$field['key']] : '';
+        }
+    }
+    if (isset($setting['setting_enabled_key'])) {
+        $newValues[$setting['setting_enabled_key']] = isset($postData['_enabled']) ? '1' : '0';
+    }
+    return setEnvLocalValues($newValues);
+}

@@ -1,0 +1,189 @@
+<?php
+
+function renderCategory($config, $categoryId, $envValues, $installedTools)
+{
+    $settingsContent = '';
+    $toolsContent = '';
+
+    global $settingsConfig;
+    foreach ($settingsConfig['settings'] as $tool) {
+        if ($tool['category'] === $categoryId) {
+            $enabledKey = isset($tool['setting_enabled_key']) ? $tool['setting_enabled_key'] : null;
+            $installed = $enabledKey && isset($envValues[$enabledKey]) && ($envValues[$enabledKey] === '1' || $envValues[$enabledKey] === 'true');
+
+            $metaHtml = '<div style="font-size:0.9em; margin-top:5px; line-height:1.4;"></div>';
+            $actions = sprintf('
+                <label class="switch">
+                    <input type="checkbox" name="_enabled" value="1" %s onchange="this.closest(\'form\').querySelector(\'.fields-container\').style.display = this.checked ? \'block\' : \'none\'">
+                    <span class="slider"></span>
+                </label>
+            ', $installed ? 'checked' : '');
+            $actions .= sprintf('<button class="btn-install" formaction="%s">Save</button>', addTimestamp('/action/' . $tool['id'] . '/save'));
+
+            $settingsContent .= sprintf('
+                <div class="tool-card">
+                    <form method="post">
+                        <div class="tool-header">
+                            <div>
+                                <strong style="font-size: 1.1em; color: var(--primary);">%s</strong>
+                            </div>
+                            <div class="tool-actions">
+                                <div style="margin-bottom: 5px; text-align: right;">
+                                    <span class="status %s" style="display: inline-block;">
+                                        %s
+                                    </span>
+                                </div>
+                                %s
+                            </div>
+                            <div class="tool-info-full">
+                                %s
+                            </div>
+                        </div>
+                        <div class="fields-container" style="display: %s;">
+                            %s
+                        </div>
+                    </form>
+                </div>',
+                htmlspecialchars($tool['label']),
+                $installed ? 'status-installed' : 'status-missing',
+                $installed ? 'Active' : 'Disabled',
+                $actions,
+                $metaHtml,
+                $installed ? 'block' : 'none',
+                renderSettingFields($tool, $envValues)
+            );
+        }
+    }
+
+    foreach ($config['tools'] as $tool) {
+        if ($tool['category'] === $categoryId) {
+            $isSetting = isset($tool['type']) && $tool['type'] === 'setting';
+            $isVersioned = isset($tool['type']) && $tool['type'] === 'versioned';
+
+            $versionInfo = '';
+            $installedVersion = null;
+            if ($isSetting) {
+                $enabledKey = isset($tool['setting_enabled_key']) ? $tool['setting_enabled_key'] : null;
+                $installed = $enabledKey && isset($envValues[$enabledKey]) && ($envValues[$enabledKey] === '1' || $envValues[$enabledKey] === 'true');
+            } elseif ($isVersioned) {
+                $installed = false;
+                foreach ($tool['versions'] as $v) {
+                    $statusResult = runInWebContainer($v['check']);
+                    if ($statusResult['ok']) {
+                        $installed = true;
+                        $installedVersion = $v['id'];
+                        $versionInfo = trim($statusResult['output']);
+                        break;
+                    }
+                }
+            } else {
+                $statusResult = runInWebContainer($tool['check']);
+                $installed = $statusResult['ok'];
+                if ($installed) {
+                    $versionInfo = trim($statusResult['output']);
+                }
+            }
+
+            $metaHtml = '<div style="font-size:0.9em; margin-top:5px; line-height:1.4;">';
+            if (isset($tool['description'])) {
+                $metaHtml .= '<div style="color: var(--text-dim); margin-bottom: 5px;">' . htmlspecialchars($tool['description']) . '</div>';
+            }
+            if (isset($tool['usage']) && $tool['usage'] !== '') {
+                $metaHtml .= '<div style="margin-bottom: 5px;"><code>' . htmlspecialchars($tool['usage']) . '</code></div>';
+            }
+            if ($installed && $versionInfo) {
+                $metaHtml .= '<div><span style="color: var(--text-dim);">Version:</span> ' . htmlspecialchars($versionInfo) . '</div>';
+            }
+            $metaHtml .= '</div>';
+
+            $actions = '';
+            if ($isSetting) {
+                $actions .= sprintf('
+                    <label class="switch">
+                        <input type="checkbox" name="_enabled" value="1" %s onchange="this.closest(\'form\').querySelector(\'.fields-container\').style.display = this.checked ? \'block\' : \'none\'">
+                        <span class="slider"></span>
+                    </label>
+                ', $installed ? 'checked' : '');
+                $actions .= sprintf('<button class="btn-install" formaction="%s">Save</button>', addTimestamp('/action/' . $tool['id'] . '/save'));
+            } elseif ($isVersioned) {
+                $actions .= '<select name="version">';
+                $defaultVersion = isset($tool['default_version']) ? $tool['default_version'] : null;
+                foreach ($tool['versions'] as $v) {
+                    $selected = ($installed && $v['id'] === $installedVersion) || (!$installed && $v['id'] === $defaultVersion) ? 'selected' : '';
+                    $actions .= sprintf('<option value="%s" %s>%s</option>', htmlspecialchars($v['id']), $selected, htmlspecialchars($v['label']));
+                }
+                $actions .= '</select>';
+                $actions .= sprintf('<button class="btn-install" formaction="%s">%s</button>', addTimestamp('/action/' . $tool['id'] . '/install'), $installed ? 'Switch/Update' : 'Install');
+                if ($installed) {
+                    $actions .= sprintf('<button class="btn-uninstall" formaction="%s">Uninstall</button>', addTimestamp('/action/' . $tool['id'] . '/uninstall'));
+                }
+            } else {
+                $actions .= sprintf('<button class="btn-install" formaction="%s">%s</button>', addTimestamp('/action/' . $tool['id'] . '/install'), $installed ? 'Update' : 'Install');
+                if ($installed) {
+                    $actions .= sprintf('<button class="btn-uninstall" formaction="%s">Uninstall</button>', addTimestamp('/action/' . $tool['id'] . '/uninstall'));
+                }
+            }
+
+            $depHtml = '';
+            if (isset($tool['dependencies'])) {
+                $deps = [];
+                foreach ($tool['dependencies'] as $dep) {
+                    if ($dep === 'node') {
+                        $deps[] = '<a href="' . addTimestamp('/category/system') . '" style="color: var(--primary); text-decoration: none;">node</a>';
+                    } else {
+                        $deps[] = htmlspecialchars($dep);
+                    }
+                }
+                $depHtml = '<div style="font-size:0.85em; color: var(--text-dim); padding-top: 5px;">Dependencies: ' . implode(', ', $deps) . '</div>';
+            }
+
+            $cardHtml = sprintf('
+                <div class="tool-card">
+                    <form method="post">
+                        <div class="tool-header">
+                            <div>
+                                <strong style="font-size: 1.1em; color: var(--primary);">%s</strong>
+                            </div>
+                            <div class="tool-actions">
+                                <div style="margin-bottom: 5px; text-align: right;">
+                                    <span class="status %s" style="display: inline-block;">
+                                        %s
+                                    </span>
+                                </div>
+                                %s
+                            </div>
+                            <div class="tool-info-full">
+                                %s
+                                %s
+                            </div>
+                        </div>
+                        %s
+                    </form>
+                </div>',
+                htmlspecialchars($tool['label']),
+                $installed ? 'status-installed' : 'status-missing',
+                $installed ? 'Active/Installed' : ($isSetting ? 'Disabled' : 'Not installed'),
+                $actions,
+                $metaHtml,
+                $depHtml,
+                $isSetting ? sprintf('<div class="fields-container" style="display: %s;">%s</div>', $installed ? 'block' : 'none', renderSettingFields($tool, $envValues)) : ''
+            );
+
+            if ($isSetting) {
+                $settingsContent .= $cardHtml;
+            } else {
+                $toolsContent .= $cardHtml;
+            }
+        }
+    }
+
+    $toolContent = '';
+    if ($settingsContent) {
+        $toolContent .= $settingsContent;
+    }
+    if ($toolsContent) {
+        $toolContent .= ($settingsContent ? '<h2>Tools</h2>' : '') . $toolsContent;
+    }
+
+    return $toolContent;
+}

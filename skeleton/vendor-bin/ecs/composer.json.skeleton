@@ -1,0 +1,13 @@
+{
+    "require-dev": {
+        "symplify/easy-coding-standard": "*",
+        "friendsofphp/php-cs-fixer": "*"
+    },
+    "config": {
+        "allow-plugins": {
+            "bamarni/composer-bin-plugin": true,
+            "phpstan/extension-installer": true
+        }
+    },
+    "sort-packages": true
+}

@@ -1,0 +1,159 @@
+<?php
+
+function loadToolConfig($baseDir = __DIR__)
+{
+    $config = loadMergedConfigDirectory(
+        $baseDir,
+        'category',
+        array(
+            'categories' => 'unique_key',
+            'tools' => 'id',
+        ),
+        array(
+            'categories' => array(),
+            'tools' => array(),
+        ),
+        array(
+            'category.json',
+        )
+    );
+
+    if (isset($config['categories']) && is_array($config['categories'])) {
+        usort($config['categories'], function ($a, $b) {
+            $orderA = isset($a['order']) ? (int) $a['order'] : PHP_INT_MAX;
+            $orderB = isset($b['order']) ? (int) $b['order'] : PHP_INT_MAX;
+
+            if ($orderA !== $orderB) {
+                return $orderA <=> $orderB;
+            }
+
+            return strcasecmp(
+                isset($a['label']) ? $a['label'] : (isset($a['id']) ? $a['id'] : ''),
+                isset($b['label']) ? $b['label'] : (isset($b['id']) ? $b['id'] : '')
+            );
+        });
+    }
+
+    if (isset($config['tools']) && is_array($config['tools'])) {
+        usort($config['tools'], function ($a, $b) {
+            return strcasecmp($a['label'], $b['label']);
+        });
+    }
+
+    return $config;
+}
+
+function loadSettingsConfig($baseDir = __DIR__)
+{
+    return loadMergedConfigDirectory(
+        $baseDir,
+        'settings',
+        array(
+            'settings' => 'id',
+        ),
+        array(
+            'settings' => array(),
+        ),
+        array(
+            'settings.json',
+        )
+    );
+}
+
+function loadMergedConfigDirectory($baseDir, $directoryName, $sectionKeys, $defaultConfig, $legacyFiles = array())
+{
+    $directoryPath = rtrim($baseDir, '/') . '/' . $directoryName;
+    $files = array();
+
+    if (is_dir($directoryPath)) {
+        $files = glob($directoryPath . '/*.json');
+        if ($files === false) {
+            $files = array();
+        }
+        natcasesort($files);
+        $files = array_values($files);
+    }
+
+    if (empty($files)) {
+        foreach ($legacyFiles as $legacyFile) {
+            $legacyPath = rtrim($baseDir, '/') . '/' . $legacyFile;
+            if (file_exists($legacyPath)) {
+                $files[] = $legacyPath;
+            }
+        }
+    }
+
+    if (empty($files)) {
+        die("Config directory not found or empty: " . $directoryPath);
+    }
+
+    $mergedConfig = $defaultConfig;
+
+    foreach ($files as $file) {
+        $fileConfig = decodeJsonFile($file);
+
+        foreach ($sectionKeys as $section => $uniqueField) {
+            if (!isset($mergedConfig[$section]) || !is_array($mergedConfig[$section])) {
+                $mergedConfig[$section] = array();
+            }
+
+            if (empty($fileConfig[$section])) {
+                continue;
+            }
+
+            foreach ($fileConfig[$section] as $item) {
+                if (!is_array($item)) {
+                    die("Invalid entry in " . $file . " for section " . $section);
+                }
+
+                $itemKey = null;
+                if (isset($item[$uniqueField])) {
+                    $itemKey = $item[$uniqueField];
+                } elseif ($section === 'categories' && isset($item['id'])) {
+                    $itemKey = $item['id'];
+                }
+
+                if (!is_string($itemKey) || $itemKey === '') {
+                    die("Missing unique key '" . $uniqueField . "' in " . $file . " for section " . $section);
+                }
+
+                $existingIndex = findConfigItemIndex($mergedConfig[$section], $uniqueField, $itemKey);
+                if ($existingIndex === -1 && $section === 'categories' && $uniqueField !== 'id') {
+                    $existingIndex = findConfigItemIndex($mergedConfig[$section], 'id', $itemKey);
+                }
+
+                if ($existingIndex === -1) {
+                    $mergedConfig[$section][] = $item;
+                    continue;
+                }
+
+                $mergedConfig[$section][$existingIndex] = array_replace_recursive($mergedConfig[$section][$existingIndex], $item);
+            }
+        }
+    }
+
+    return $mergedConfig;
+}
+
+function decodeJsonFile($filePath)
+{
+    $contents = file_get_contents($filePath);
+    $decoded = json_decode($contents, true);
+
+    if ($decoded === null && json_last_error() !== JSON_ERROR_NONE) {
+        die("Invalid JSON in " . $filePath . ": " . json_last_error_msg());
+    }
+
+    return $decoded;
+}
+
+function findConfigItemIndex($items, $keyField, $keyValue)
+{
+    foreach ($items as $index => $item) {
+        if (isset($item[$keyField]) && $item[$keyField] === $keyValue) {
+            return $index;
+        }
+    }
+
+    return -1;
+}
