@@ -263,6 +263,8 @@ Current base configuration:
 ### PHP & Frameworks
 
 - Symfony CLI
+- Laravel CLI
+- WordPress CLI
 
 ## How tool installation works
 

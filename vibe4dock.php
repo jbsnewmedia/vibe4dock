@@ -714,6 +714,7 @@ class Vibe4DockSetup
         $content = [];
         $content[] = 'services:';
         $content[] = '  web:';
+        $content[] = '    container_name: ' . $this->getTargetContainer();
         $content[] = '    build: ./docker/web';
         $content[] = '    working_dir: /app';
         $content[] = '    user: application';

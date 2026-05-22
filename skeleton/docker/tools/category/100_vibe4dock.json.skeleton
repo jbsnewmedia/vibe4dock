@@ -31,6 +31,26 @@
       "uninstall": "rm /usr/local/bin/symfony"
     },
     {
+      "id": "laravel-cli",
+      "category": "php-frameworks",
+      "label": "Laravel CLI",
+      "description": "The Laravel installer for creating and managing Laravel applications from the terminal.",
+      "usage": "untested",
+      "check": "laravel --version 2>/dev/null | grep -oP '\\d+\\.\\d+\\.\\d+' | head -n1 | grep .",
+      "install": "composer global require laravel/installer --no-interaction && COMPOSER_BIN_DIR=$(composer global config bin-dir --absolute --quiet) && ln -sf \"$COMPOSER_BIN_DIR/laravel\" /usr/local/bin/laravel",
+      "uninstall": "composer global remove laravel/installer --no-interaction || true && rm -f /usr/local/bin/laravel"
+    },
+    {
+      "id": "wordpress-cli",
+      "category": "php-frameworks",
+      "label": "WordPress CLI",
+      "description": "WP-CLI for managing WordPress installations, plugins, themes, and content from the command line.",
+      "usage": "untested",
+      "check": "wp cli version --allow-root 2>/dev/null | grep .",
+      "install": "curl -fsSL -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x /usr/local/bin/wp",
+      "uninstall": "rm -f /usr/local/bin/wp"
+    },
+    {
       "id": "node",
       "category": "system",
       "label": "Node.js",
@@ -166,7 +186,7 @@
         "./docker/web/settings/codex:/home/application/.codex"
       ],
       "description": "OpenAI's local coding agent for the terminal.",
-      "usage": "",
+      "usage": "untested",
       "dependencies": [
         "node"
       ],
@@ -214,7 +234,7 @@
         "./docker/web/settings/hermes:/home/application/.hermes"
       ],
       "description": "Nous Research's self-improving coding and automation agent.",
-      "usage": "",
+      "usage": "untested",
       "check": "hermes --version 2>/dev/null | grep .",
       "install": "sudo -u application env HOME=/home/application bash -lc 'curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash -s -- --skip-setup --skip-browser' && ln -sf /home/application/.local/bin/hermes /usr/local/bin/hermes",
       "uninstall": "rm -f /usr/local/bin/hermes && sudo -u application env HOME=/home/application bash -lc 'rm -f ~/.local/bin/hermes && rm -rf ~/.hermes' || true"
@@ -227,7 +247,7 @@
         "./docker/web/settings/junie:/home/application/.junie"
       ],
       "description": "JetBrains' agentic coding tool for the terminal.",
-      "usage": "",
+      "usage": "untested",
       "dependencies": [
         "node"
       ],

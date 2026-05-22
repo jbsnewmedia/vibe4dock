@@ -1,5 +1,6 @@
 services:
   web:
+    container_name: {{VIBE4DOCK_TARGET_CONTAINER}}
     build: ./docker/web
     working_dir: /app
     user: application
