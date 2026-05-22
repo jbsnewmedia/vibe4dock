@@ -63,6 +63,8 @@ class Vibe4DockSetup
         $this->dbPort = $this->getDefaultDbPort($this->dbType);
         $this->addCodeQuality = false;
         $this->codeQualityTools = [];
+
+        $this->loadExistingEnvironmentDefaults();
     }
 
     private function interactiveSetup(): void
@@ -75,25 +77,31 @@ class Vibe4DockSetup
         $this->phpVersion = $this->ask('PHP Version', $this->phpVersion);
 
         echo self::NL . 'Database Configuration:' . self::NL;
+        $currentDbType = $this->dbType;
         $this->dbType = $this->askChoice('Database Type', self::DB_TYPES, $this->dbType);
+        if ($this->dbType !== $currentDbType) {
+            $this->dbPort = $this->getDefaultDbPort($this->dbType);
+        }
         $this->mariadbVersion = $this->dbType === 'mariadb' ? $this->ask('MariaDB Version', $this->mariadbVersion) : '12.2';
         $this->postgresVersion = $this->dbType === 'postgres' ? $this->ask('PostgreSQL Version', $this->postgresVersion) : '18.4';
         $this->mysqlVersion = $this->dbType === 'mysql' ? $this->ask('MySQL Version', $this->mysqlVersion) : '9.7';
         $this->firebirdVersion = $this->dbType === 'firebird' ? $this->ask('Firebird Version', $this->firebirdVersion) : '3';
 
         echo self::NL . 'Code Quality Tools:' . self::NL;
-        $this->addCodeQuality = $this->askConfirm('Add Code Quality Tools?', 'yes');
+        $existingCodeQualityTools = $this->codeQualityTools;
+        $this->addCodeQuality = $this->askConfirm('Add Code Quality Tools?', $this->addCodeQuality ? 'yes' : 'no');
+        $this->codeQualityTools = [];
         if ($this->addCodeQuality) {
-            if ($this->askConfirm('Add ECS (Easy Coding Standard)?', 'yes')) {
+            if ($this->askConfirm('Add ECS (Easy Coding Standard)?', in_array('ecs', $existingCodeQualityTools, true) ? 'yes' : 'no')) {
                 $this->codeQualityTools[] = 'ecs';
             }
-            if ($this->askConfirm('Add Rector?', 'yes')) {
+            if ($this->askConfirm('Add Rector?', in_array('rector', $existingCodeQualityTools, true) ? 'yes' : 'no')) {
                 $this->codeQualityTools[] = 'rector';
             }
-            if ($this->askConfirm('Add PHPStan?', 'yes')) {
+            if ($this->askConfirm('Add PHPStan?', in_array('phpstan', $existingCodeQualityTools, true) ? 'yes' : 'no')) {
                 $this->codeQualityTools[] = 'phpstan';
             }
-            if ($this->askConfirm('Add PHPUnit?', 'yes')) {
+            if ($this->askConfirm('Add PHPUnit?', in_array('phpunit', $existingCodeQualityTools, true) ? 'yes' : 'no')) {
                 $this->codeQualityTools[] = 'phpunit';
             }
         }
@@ -103,7 +111,7 @@ class Vibe4DockSetup
         $this->toolsPort = $this->askPort('Tools UI Port', (string) $this->toolsPort);
         $this->rootShellPort = $this->askPort('Root Shell Port', (string) $this->rootShellPort);
         $this->appShellPort = $this->askPort('Application Shell Port', (string) $this->appShellPort);
-        $this->dbPort = $this->askPort($this->getDatabaseLabel() . ' Port', (string) $this->getDefaultDbPort($this->dbType));
+        $this->dbPort = $this->askPort($this->getDatabaseLabel() . ' Port', (string) $this->dbPort);
 
         echo self::NL;
         $this->outputDir = $this->ask('Output Directory', $this->outputDir);
@@ -208,6 +216,177 @@ class Vibe4DockSetup
         }
 
         return 0;
+    }
+
+    private function loadExistingEnvironmentDefaults(): void
+    {
+        $environmentDir = $this->detectExistingEnvironmentDirectory();
+        if ($environmentDir === null) {
+            return;
+        }
+
+        $dockerCompose = $this->readFileIfExists($environmentDir . DIRECTORY_SEPARATOR . 'docker-compose.yml');
+        if ($dockerCompose !== null) {
+            $this->applyComposeDefaults($dockerCompose);
+        }
+
+        $webDockerfile = $this->readFileIfExists(
+            $environmentDir . DIRECTORY_SEPARATOR . 'docker' . DIRECTORY_SEPARATOR . 'web' . DIRECTORY_SEPARATOR . 'Dockerfile'
+        );
+        if ($webDockerfile !== null) {
+            $this->applyPhpVersionDefaults($webDockerfile);
+        }
+
+        $composerJson = $this->readFileIfExists($environmentDir . DIRECTORY_SEPARATOR . 'composer.json');
+        if ($composerJson !== null) {
+            $this->applyCodeQualityDefaults($composerJson);
+        }
+    }
+
+    private function detectExistingEnvironmentDirectory(): ?string
+    {
+        $candidate = getcwd();
+
+        $requiredFiles = [
+            $candidate . DIRECTORY_SEPARATOR . 'docker-compose.yml',
+            $candidate . DIRECTORY_SEPARATOR . 'docker' . DIRECTORY_SEPARATOR . 'web' . DIRECTORY_SEPARATOR . 'Dockerfile',
+            $candidate . DIRECTORY_SEPARATOR . 'docker' . DIRECTORY_SEPARATOR . 'tools' . DIRECTORY_SEPARATOR . 'Dockerfile',
+        ];
+
+        foreach ($requiredFiles as $file) {
+            if (!is_file($file)) {
+                return null;
+            }
+        }
+
+        return $candidate;
+    }
+
+    private function readFileIfExists(string $path): ?string
+    {
+        if (!is_file($path)) {
+            return null;
+        }
+
+        $content = file_get_contents($path);
+        if ($content === false) {
+            return null;
+        }
+
+        return $content;
+    }
+
+    private function applyComposeDefaults(string $dockerCompose): void
+    {
+        $projectName = $this->extractProjectNameFromCompose($dockerCompose);
+        if ($projectName !== null) {
+            $this->projectName = $projectName;
+        }
+
+        $webService = $this->extractComposeServiceBlock($dockerCompose, 'web');
+        $toolsService = $this->extractComposeServiceBlock($dockerCompose, 'tools');
+        $dbService = $this->extractComposeServiceBlock($dockerCompose, 'db');
+
+        $this->webPort = $this->extractHostPortForContainerPort($webService, self::WEB_CONTAINER_PORT) ?? $this->webPort;
+        $this->rootShellPort = $this->extractHostPortForContainerPort($webService, self::ROOT_SHELL_CONTAINER_PORT) ?? $this->rootShellPort;
+        $this->appShellPort = $this->extractHostPortForContainerPort($webService, self::APP_SHELL_CONTAINER_PORT) ?? $this->appShellPort;
+        $this->toolsPort = $this->extractHostPortForContainerPort($toolsService, self::TOOLS_CONTAINER_PORT) ?? $this->toolsPort;
+
+        $this->applyDatabaseDefaults($dbService);
+    }
+
+    private function extractProjectNameFromCompose(string $dockerCompose): ?string
+    {
+        if (!preg_match('/TARGET_CONTAINER=([A-Za-z0-9._-]+)-web-1/', $dockerCompose, $matches)) {
+            return null;
+        }
+
+        return $matches[1];
+    }
+
+    private function extractComposeServiceBlock(string $dockerCompose, string $serviceName): ?string
+    {
+        $pattern = '/^  ' . preg_quote($serviceName, '/') . ":\n((?:    .*?(?:\n|$))*)/m";
+        if (!preg_match($pattern, $dockerCompose, $matches)) {
+            return null;
+        }
+
+        return $matches[1];
+    }
+
+    private function extractHostPortForContainerPort(?string $serviceBlock, int $containerPort): ?int
+    {
+        if ($serviceBlock === null) {
+            return null;
+        }
+
+        if (!preg_match_all('/-\s*"?(?<host>\d+):(?<container>\d+)"?/', $serviceBlock, $matches, PREG_SET_ORDER)) {
+            return null;
+        }
+
+        foreach ($matches as $match) {
+            if ((int) $match['container'] === $containerPort) {
+                return (int) $match['host'];
+            }
+        }
+
+        return null;
+    }
+
+    private function applyDatabaseDefaults(?string $dbService): void
+    {
+        if ($dbService === null) {
+            return;
+        }
+
+        if (preg_match('/^\s*image:\s*([^\s:]+(?:\/[^\s:]+)?):([^\s]+)\s*$/m', $dbService, $matches)) {
+            $image = strtolower($matches[1]);
+            $version = $matches[2];
+
+            if (str_contains($image, 'postgres')) {
+                $this->dbType = 'postgres';
+                $this->postgresVersion = $version;
+            } elseif (str_contains($image, 'firebird')) {
+                $this->dbType = 'firebird';
+                $this->firebirdVersion = $version;
+            } elseif ($image === 'mysql') {
+                $this->dbType = 'mysql';
+                $this->mysqlVersion = $version;
+            } else {
+                $this->dbType = 'mariadb';
+                $this->mariadbVersion = $version;
+            }
+        }
+
+        $this->dbPort = $this->extractHostPortForContainerPort($dbService, $this->getDatabaseContainerPort())
+            ?? $this->getDefaultDbPort($this->dbType);
+    }
+
+    private function applyPhpVersionDefaults(string $webDockerfile): void
+    {
+        if (!preg_match('/^FROM\s+\S+:(\d+(?:\.\d+)?)/m', $webDockerfile, $matches)) {
+            return;
+        }
+
+        $this->phpVersion = $matches[1];
+    }
+
+    private function applyCodeQualityDefaults(string $composerJson): void
+    {
+        $composerData = json_decode($composerJson, true);
+        if (!is_array($composerData)) {
+            return;
+        }
+
+        $detectedTools = [];
+        foreach (['ecs', 'rector', 'phpstan', 'phpunit'] as $tool) {
+            if (isset($composerData['scripts']['bin-' . $tool])) {
+                $detectedTools[] = $tool;
+            }
+        }
+
+        $this->codeQualityTools = $detectedTools;
+        $this->addCodeQuality = !empty($this->codeQualityTools);
     }
 
     private function validateInputs(): void
