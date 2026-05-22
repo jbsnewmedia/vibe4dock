@@ -32,8 +32,8 @@ The setup CLI creates a new Vibe4Dock project from the bundled `skeleton/` templ
 The CLI itself only requires PHP CLI version 8 or newer. No additional dependencies or Composer installation are required to run the setup tool.
 
 ```bash
-git clone https://github.com/jschwind/ttyd.git
-cd ttyd
+git clone https://github.com/jbsnewmedia/vibe4dock.git
+cd vibe4dock
 chmod +x vibe4dock
 ```
 

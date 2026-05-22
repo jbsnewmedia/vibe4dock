@@ -30,8 +30,8 @@ Die Setup-CLI erzeugt ein neues Vibe4Dock-Projekt ausschließlich aus dem mitgel
 Für die CLI selbst wird nur PHP CLI ab Version 8 benötigt. Weitere Abhängigkeiten oder Composer-Installationen sind für das Starten des Setup-Tools nicht notwendig.
 
 ```bash
-git clone https://github.com/jschwind/ttyd.git
-cd ttyd
+git clone https://github.com/jbsnewmedia/vibe4dock.git
+cd vibe4dock
 chmod +x vibe4dock
 ```
 
