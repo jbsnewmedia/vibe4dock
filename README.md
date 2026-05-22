@@ -247,24 +247,24 @@ Current base configuration:
 
 ### AI CLI
 
-- GitHub Copilot CLI
-- Codex CLI
 - Claude Code
 - Cline CLI
-- Hermes CLI
-- Junie CLI
+- Codex CLI **(untested)**
+- GitHub Copilot CLI
+- Hermes CLI **(untested)**
+- Junie CLI **(untested)**
 
 ### System & Runtime
 
 - Node.js (multiple versions)
-- Yarn (multiple versions)
 - pnpm (multiple versions)
+- Yarn (multiple versions)
 
 ### PHP & Frameworks
 
+- Laravel CLI **(untested)**
 - Symfony CLI
-- Laravel CLI
-- WordPress CLI
+- WordPress CLI **(untested)**
 
 ## How tool installation works
 

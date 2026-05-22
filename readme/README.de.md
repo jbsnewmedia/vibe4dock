@@ -245,24 +245,26 @@ Stand der aktuellen Basiskonfiguration:
 
 ### AI CLI
 
-- GitHub Copilot CLI
-- Codex CLI
+### AI CLI
+
 - Claude Code
 - Cline CLI
-- Hermes CLI
-- Junie CLI
+- Codex CLI **(ungetestet)**
+- GitHub Copilot CLI
+- Hermes CLI **(ungetestet)**
+- Junie CLI **(ungetestet)**
 
 ### System & Runtime
 
-- Node.js (mehrere Versionen)
-- Yarn (mehrere Versionen)
-- pnpm (mehrere Versionen)
+- Node.js (multiple versions)
+- pnpm (multiple versions)
+- Yarn (multiple versions)
 
 ### PHP & Frameworks
 
+- Laravel CLI **(ungetestet)**
 - Symfony CLI
-- Laravel CLI
-- WordPress CLI
+- WordPress CLI **(ungetestet)**
 
 ## Wie Tool-Installation technisch funktioniert
 
