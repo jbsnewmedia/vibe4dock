@@ -4,21 +4,70 @@ require_once __DIR__ . '/config.php';
 
 $settingsConfig = loadSettingsConfig(__DIR__);
 
+function settingHasConfiguredValues($setting, $envValues)
+{
+    if (!isset($setting['fields']) || !is_array($setting['fields'])) {
+        return false;
+    }
+
+    foreach ($setting['fields'] as $field) {
+        if (!isset($field['key'])) {
+            continue;
+        }
+
+        $value = isset($envValues[$field['key']]) ? trim((string) $envValues[$field['key']]) : '';
+        if ($value !== '') {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function isSettingEnabled($setting, $envValues)
+{
+    if (isset($setting['setting_enabled_key'])) {
+        $enabledValue = isset($envValues[$setting['setting_enabled_key']]) ? $envValues[$setting['setting_enabled_key']] : '';
+        if ($enabledValue === '1' || $enabledValue === 'true') {
+            return true;
+        }
+
+        if ($enabledValue === '0' || $enabledValue === 'false') {
+            return false;
+        }
+
+        return settingHasConfiguredValues($setting, $envValues);
+    }
+
+    return settingHasConfiguredValues($setting, $envValues);
+}
+
+function shouldShowSettingFields($setting, $envValues)
+{
+    return !isset($setting['setting_enabled_key']) || isSettingEnabled($setting, $envValues);
+}
+
 function renderSettingFields($setting, $envValues)
 {
     $html = '';
     if (isset($setting['fields'])) {
         foreach ($setting['fields'] as $field) {
             $value = isset($envValues[$field['key']]) ? $envValues[$field['key']] : '';
+            $fieldType = isset($field['type']) ? $field['type'] : 'text';
+            $placeholder = isset($field['placeholder']) ? $field['placeholder'] : $field['key'];
+            $helpText = isset($field['help_text']) ? $field['help_text'] : '';
             $html .= sprintf('
                 <div class="form-group">
                     <label>%s</label>
-                    <input type="text" name="%s" value="%s" placeholder="%s">
+                    <input type="%s" name="%s" value="%s" placeholder="%s">
+                    %s
                 </div>',
                 htmlspecialchars($field['label']),
+                htmlspecialchars($fieldType),
                 htmlspecialchars($field['key']),
                 htmlspecialchars($value),
-                htmlspecialchars($field['key'])
+                htmlspecialchars($placeholder),
+                $helpText !== '' ? sprintf('<div class="form-help">%s</div>', htmlspecialchars($helpText)) : ''
             );
         }
     }

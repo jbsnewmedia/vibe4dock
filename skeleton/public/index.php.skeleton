@@ -27,6 +27,7 @@
             background: var(--bg);
             color: var(--text);
             font: 16px/1.5 "Segoe UI", system-ui, sans-serif;
+            overflow-y: scroll;
         }
 
         .card {

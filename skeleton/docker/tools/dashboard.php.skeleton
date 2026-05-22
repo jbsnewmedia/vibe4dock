@@ -85,6 +85,16 @@ function renderDashboard($config, $envValues, $installedTools, $isOffline)
         $gitEnabled = isset($envValues[$gitSetting['setting_enabled_key']]) && $envValues[$gitSetting['setting_enabled_key']] === '1';
     }
 
+    $toolsProtected =
+        isset($envValues['TOOLS_USERNAME']) && trim((string) $envValues['TOOLS_USERNAME']) !== '' &&
+        isset($envValues['TOOLS_PASSWORD']) && trim((string) $envValues['TOOLS_PASSWORD']) !== '';
+    $appShellProtected =
+        isset($envValues['APP_SHELL_USERNAME']) && trim((string) $envValues['APP_SHELL_USERNAME']) !== '' &&
+        isset($envValues['APP_SHELL_PASSWORD']) && trim((string) $envValues['APP_SHELL_PASSWORD']) !== '';
+    $rootShellProtected =
+        isset($envValues['ROOT_SHELL_USERNAME']) && trim((string) $envValues['ROOT_SHELL_USERNAME']) !== '' &&
+        isset($envValues['ROOT_SHELL_PASSWORD']) && trim((string) $envValues['ROOT_SHELL_PASSWORD']) !== '';
+
     $gitUser = '-';
     if ($isOffline) {
         $gitEnabledStatus = '---';
@@ -95,13 +105,105 @@ function renderDashboard($config, $envValues, $installedTools, $isOffline)
         }
     }
 
+    $renderProtectionRow = static function ($label, $isProtected, $modalId) {
+        $status = $isProtected ? 'Protected' : 'Unprotected';
+        $helpButton = '';
+        if (!$isProtected) {
+            $helpButton = sprintf(
+                ' <button type="button" class="btn-install" style="padding: 2px 8px; font-size: 0.75em;" onclick="showProtectionHelp(\'%s\')">Help</button>',
+                htmlspecialchars($modalId, ENT_QUOTES)
+            );
+        }
+
+        return '<div class="stat-item"><span class="stat-label">' . htmlspecialchars($label) . '</span><span class="stat-value">' . $status . $helpButton . '</span></div>';
+    };
+
     $toolContent .= '<div class="stat-card"><h3>Configuration</h3>';
     $toolContent .= '<div class="stat-item"><span class="stat-label">Git Config</span><span class="stat-value">' . $gitEnabledStatus . '</span></div>';
     if ($isOffline || $gitEnabled) {
         $toolContent .= '<div class="stat-item"><span class="stat-label">User</span><span class="stat-value">' . $gitUser . '</span></div>';
     }
+    $toolContent .= $renderProtectionRow('Tools UI', $toolsProtected, 'protection-modal-tools');
+    $toolContent .= $renderProtectionRow('Application Shell', $appShellProtected, 'protection-modal-app-shell');
+    $toolContent .= $renderProtectionRow('Root Shell', $rootShellProtected, 'protection-modal-root-shell');
     $toolContent .= '</div>';
     $toolContent .= '</div>'; // End grid
+
+    $toolContent .= '
+        <div id="protection-modal-tools" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,0.8); align-items:center; justify-content:center;">
+            <div style="background:#1e1e1e; padding:20px; border-radius:8px; border:1px solid #333; max-width:560px; width:90%;">
+                <h3 style="margin-top:0;">Protect the Tools UI</h3>
+                <p>Add both values to <strong>.env.local</strong> and restart the tools container.</p>
+                <div style="background:#000; padding:10px; border-radius:4px; margin-bottom:10px;">
+                    <pre style="margin:0; color:#fff;">TOOLS_USERNAME="tools"
+TOOLS_PASSWORD="change-me-tools"</pre>
+                </div>
+                <div style="display:flex; gap:10px; align-items:center; background:#000; padding:10px; border-radius:4px;">
+                    <pre id="cmd-tools-protection" style="margin:0; color:#fff; flex:1;">docker compose restart tools</pre>
+                    <button class="btn-install" style="padding:2px 8px; font-size:0.75em;" onclick="copyProtectionCommand(event, \'cmd-tools-protection\')">Copy</button>
+                </div>
+                <div style="text-align:right; margin-top:20px;">
+                    <button class="btn-install" onclick="hideProtectionHelp(\'protection-modal-tools\')">Close</button>
+                </div>
+            </div>
+        </div>
+        <div id="protection-modal-app-shell" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,0.8); align-items:center; justify-content:center;">
+            <div style="background:#1e1e1e; padding:20px; border-radius:8px; border:1px solid #333; max-width:560px; width:90%;">
+                <h3 style="margin-top:0;">Protect the Application Shell</h3>
+                <p>Add both values to <strong>.env.local</strong> and restart the web container.</p>
+                <div style="background:#000; padding:10px; border-radius:4px; margin-bottom:10px;">
+                    <pre style="margin:0; color:#fff;">APP_SHELL_USERNAME="application"
+APP_SHELL_PASSWORD="change-me-application"</pre>
+                </div>
+                <div style="display:flex; gap:10px; align-items:center; background:#000; padding:10px; border-radius:4px;">
+                    <pre id="cmd-app-shell-protection" style="margin:0; color:#fff; flex:1;">docker compose restart web</pre>
+                    <button class="btn-install" style="padding:2px 8px; font-size:0.75em;" onclick="copyProtectionCommand(event, \'cmd-app-shell-protection\')">Copy</button>
+                </div>
+                <div style="text-align:right; margin-top:20px;">
+                    <button class="btn-install" onclick="hideProtectionHelp(\'protection-modal-app-shell\')">Close</button>
+                </div>
+            </div>
+        </div>
+        <div id="protection-modal-root-shell" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,0.8); align-items:center; justify-content:center;">
+            <div style="background:#1e1e1e; padding:20px; border-radius:8px; border:1px solid #333; max-width:560px; width:90%;">
+                <h3 style="margin-top:0;">Protect the Root Shell</h3>
+                <p>Add both values to <strong>.env.local</strong> and restart the web container.</p>
+                <div style="background:#000; padding:10px; border-radius:4px; margin-bottom:10px;">
+                    <pre style="margin:0; color:#fff;">ROOT_SHELL_USERNAME="root"
+ROOT_SHELL_PASSWORD="change-me-root"</pre>
+                </div>
+                <div style="display:flex; gap:10px; align-items:center; background:#000; padding:10px; border-radius:4px;">
+                    <pre id="cmd-root-shell-protection" style="margin:0; color:#fff; flex:1;">docker compose restart web</pre>
+                    <button class="btn-install" style="padding:2px 8px; font-size:0.75em;" onclick="copyProtectionCommand(event, \'cmd-root-shell-protection\')">Copy</button>
+                </div>
+                <div style="text-align:right; margin-top:20px;">
+                    <button class="btn-install" onclick="hideProtectionHelp(\'protection-modal-root-shell\')">Close</button>
+                </div>
+            </div>
+        </div>
+        <script>
+            function showProtectionHelp(modalId) {
+                const modal = document.getElementById(modalId);
+                if (modal) {
+                    modal.style.display = "flex";
+                }
+            }
+            function hideProtectionHelp(modalId) {
+                const modal = document.getElementById(modalId);
+                if (modal) {
+                    modal.style.display = "none";
+                }
+            }
+            function copyProtectionCommand(event, elementId) {
+                const text = document.getElementById(elementId).innerText;
+                navigator.clipboard.writeText(text).then(() => {
+                    const btn = event.target;
+                    const originalText = btn.innerText;
+                    btn.innerText = "Copied!";
+                    setTimeout(() => { btn.innerText = originalText; }, 2000);
+                });
+            }
+        </script>';
 
     // Databases info
     if (!empty($dbInfo)) {

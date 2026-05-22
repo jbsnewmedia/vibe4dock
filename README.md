@@ -67,7 +67,7 @@ Alternative:
 php vibe4dock.php
 ```
 
-Without options, the setup runs interactively and asks for the project name, PHP version, database type, database version, ports, output directory, and optional code quality tooling.
+Without options, the setup runs interactively and asks for the project name, PHP version, database type, database version, ports, output directory, and optional code quality tooling. If you run it inside an existing Vibe4Dock project, the detected settings are prefilled automatically.
 
 ### CLI help
 
@@ -395,6 +395,19 @@ Currently one settings group is included:
 
 The values are written into `.env.local` and applied when the web container starts.
 
+Generated projects also include a commented `.env.local.example` with optional HTTP Basic Auth credentials for the Tools UI, the application shell, and the root shell.
+
+To enable that protection, copy the file to `.env.local`, uncomment the variables you need, and replace the placeholder passwords before starting the stack:
+
+```dotenv
+TOOLS_USERNAME="tools"
+TOOLS_PASSWORD="replace-with-a-strong-password"
+APP_SHELL_USERNAME="application"
+APP_SHELL_PASSWORD="replace-with-a-strong-password"
+ROOT_SHELL_USERNAME="root"
+ROOT_SHELL_PASSWORD="replace-with-a-strong-password"
+```
+
 ## Persistence
 
 Persistent data is intentionally stored outside the image in mounted directories under `docker/web/settings/`.
@@ -435,15 +448,16 @@ The application shell starts through `tmux` so sessions can persist.
 ### Start
 
 ```bash
+cp .env.local.example .env.local
 docker compose up -d --build
 ```
 
 After that, the most important endpoints are:
 
 - application: `http://localhost:80`
-- tools UI: `http://localhost:8090`
-- root shell: `http://localhost:7681`
-- application shell: `http://localhost:7682`
+- tools UI: `http://localhost:8090` (protected if both `TOOLS_USERNAME` and `TOOLS_PASSWORD` are set in `.env.local`)
+- root shell: `http://localhost:7681` (protected if both `ROOT_SHELL_USERNAME` and `ROOT_SHELL_PASSWORD` are set in `.env.local`)
+- application shell: `http://localhost:7682` (protected if both `APP_SHELL_USERNAME` and `APP_SHELL_PASSWORD` are set in `.env.local`)
 - database: `localhost:<db-port>` depending on `--db-type`
 
 ## Typical workflow
@@ -492,7 +506,10 @@ Vibe4Dock is clearly intended as a development tool, not as a hardened multi-ten
 - the tools container has access to `/var/run/docker.sock`,
 - installation commands are executed inside the web container,
 - some tools install software directly as root,
+- generated projects can optionally protect the Tools UI and both browser shells via `.env.local`,
 - persistent mounts may contain logins, tokens, and local configuration.
+
+If you want to use Vibe4Dock beyond localhost, at minimum enable the HTTP Basic Auth credentials from `.env.local`, replace all placeholder passwords, and put the setup behind additional network-level protection such as a VPN, reverse proxy access control, or a private subnet.
 
 Because of that, this setup is not intended for direct public internet exposure without additional hardening.
 

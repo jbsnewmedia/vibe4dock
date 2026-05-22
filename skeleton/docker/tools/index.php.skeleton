@@ -286,18 +286,59 @@ function runInWebContainer($command)
     );
 }
 
+function parseEnvContent($content)
+{
+    $values = array();
+    $lines = explode("\n", $content);
+    foreach ($lines as $line) {
+        if ($line === '' || strpos(ltrim($line), '#') === 0 || strpos($line, '=') === false) {
+            continue;
+        }
+
+        list($key, $val) = explode('=', $line, 2);
+        $values[trim($key)] = trim($val, " \t\n\r\0\x0B\"'");
+    }
+
+    return $values;
+}
+
 function getEnvLocalValues()
 {
-    $result = runInWebContainer('cat /app/.env.local 2>/dev/null || echo ""');
-    $lines = explode("\n", $result['output']);
-    $values = array();
-    foreach ($lines as $line) {
-        if (strpos($line, '=') !== false) {
-            list($key, $val) = explode('=', $line, 2);
-            $values[trim($key)] = trim($val, " \t\n\r\0\x0B\"'");
-        }
+    $hostEnvLocal = '/app/.env.local';
+    if (file_exists($hostEnvLocal)) {
+        return parseEnvContent((string) file_get_contents($hostEnvLocal));
     }
-    return $values;
+
+    $result = runInWebContainer('cat /app/.env.local 2>/dev/null || echo ""');
+    if (!$result['ok']) {
+        return array();
+    }
+
+    return parseEnvContent($result['output']);
+}
+
+function sendBasicAuthChallenge($realm)
+{
+    header('WWW-Authenticate: Basic realm="' . str_replace('"', '\"', $realm) . '"');
+    http_response_code(401);
+    echo 'Authentication required.';
+    exit;
+}
+
+function enforceToolsAuthentication($envValues)
+{
+    $expectedUser = isset($envValues['TOOLS_USERNAME']) ? trim((string) $envValues['TOOLS_USERNAME']) : '';
+    $expectedPassword = isset($envValues['TOOLS_PASSWORD']) ? trim((string) $envValues['TOOLS_PASSWORD']) : '';
+    if ($expectedUser === '' || $expectedPassword === '') {
+        return;
+    }
+
+    $user = isset($_SERVER['PHP_AUTH_USER']) ? (string) $_SERVER['PHP_AUTH_USER'] : '';
+    $password = isset($_SERVER['PHP_AUTH_PW']) ? (string) $_SERVER['PHP_AUTH_PW'] : '';
+
+    if ($user !== $expectedUser || !hash_equals($expectedPassword, $password)) {
+        sendBasicAuthChallenge('Vibe4Dock Login');
+    }
 }
 
 function setEnvLocalValues($newValues)
@@ -348,6 +389,36 @@ function setEnvLocalValues($newValues)
         'ok' => $cpReturn === 0,
         'output' => $cpReturn === 0 ? "Saved to .env.local" : "Error saving to .env.local"
     );
+}
+
+function renderMessagePage($title, $headline, $message, $statusCode, $backUrl = '/dashboard', $currentCategoryId = null)
+{
+    http_response_code($statusCode);
+
+    $safeTitle = htmlspecialchars($title);
+    $safeHeadline = htmlspecialchars($headline);
+    $safeMessage = nl2br(htmlspecialchars($message));
+    $safeBackUrl = htmlspecialchars(addTimestamp($backUrl));
+    $badgeClass = $statusCode >= 400 ? 'status-missing' : 'status-installed';
+    $badgeLabel = $statusCode >= 400 ? 'Error' : 'Info';
+
+    $content = <<<HTML
+        <div class="tool-card">
+            <a href="$safeBackUrl" class="back">← back</a>
+            <div class="tool-header" style="margin-bottom: 0;">
+                <div>
+                    <h1 style="margin: 0 0 10px 0;">$safeHeadline</h1>
+                    <div style="color: var(--text-dim); line-height: 1.6;">$safeMessage</div>
+                </div>
+                <div class="tool-actions">
+                    <span class="status $badgeClass">$badgeLabel $statusCode</span>
+                </div>
+            </div>
+        </div>
+HTML;
+
+    echo renderLayout($safeTitle, $content, $currentCategoryId);
+    exit;
 }
 
 function addTimestamp($url)
@@ -479,7 +550,7 @@ function renderLayout($title, $content, $currentCategoryId = null)
             --status-text-missing: #888;
             --status-border-missing: #444;
           }
-          body { font-family: 'Segoe UI', system-ui, sans-serif; max-width: 1000px; margin: 0 auto; background: var(--bg-body); color: var(--text); padding: 0 20px; line-height: 1.5; display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; }
+          body { font-family: 'Segoe UI', system-ui, sans-serif; max-width: 1000px; margin: 0 auto; background: var(--bg-body); color: var(--text); padding: 0 20px; line-height: 1.5; display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; overflow-y: scroll; }
           header { border-bottom: 1px solid var(--border); padding: 20px 0 15px 0; margin-bottom: 30px; }
           .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
           .brand-wrapper { display: flex; align-items: center; }
@@ -533,6 +604,8 @@ function renderLayout($title, $content, $currentCategoryId = null)
           .form-group { margin-top: 15px; }
           .form-group label { display: block; font-size: 0.85em; margin-bottom: 6px; color: var(--text-dim); }
           .form-group input[type="text"] { background: var(--bg-black); border: 1px solid var(--border); color: var(--text-white); padding: 10px; border-radius: 6px; width: 100%; box-sizing: border-box; }
+          .form-group input[type="password"] { background: var(--bg-black); border: 1px solid var(--border); color: var(--text-white); padding: 10px; border-radius: 6px; width: 100%; box-sizing: border-box; }
+          .form-help { margin-top: 6px; color: var(--text-dim); font-size: 0.8em; }
           code { color: var(--primary); background: var(--primary-dim); padding: 2px 6px; border-radius: 4px; font-family: monospace; }
           pre { background: var(--bg-black); padding: 20px; border-radius: 12px; overflow-x: auto; color: #ccc; border: 1px solid var(--border); line-height: 1.4; }
           a.back { color: var(--primary); text-decoration: none; font-weight: bold; display: inline-block; margin-bottom: 20px; }
@@ -717,6 +790,10 @@ HTML;
 $requestUri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
 $method = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : '';
 
+if (php_sapi_name() !== 'cli') {
+    enforceToolsAuthentication(getEnvLocalValues());
+}
+
 // Global container check
 $containerCheck = runInWebContainer('ls /app');
 $isOffline = !$containerCheck['ok'];
@@ -787,9 +864,14 @@ if (isset($categoryId)) {
     }
 
     if (!$category) {
-        http_response_code(404);
-        echo "Category not found";
-        exit;
+        renderMessagePage(
+            'Category not found',
+            'Category not found',
+            'The requested category does not exist anymore or the URL is invalid.',
+            404,
+            '/dashboard',
+            'dashboard'
+        );
     }
 
     if ($categoryId === 'dashboard') {
@@ -837,9 +919,14 @@ if ($method === 'POST' && preg_match('#^/action/([^/]+)/([^/?]+)#', $requestUri,
     }
 
     if (!$tool || !in_array($action, array('install', 'uninstall', 'save'))) {
-        http_response_code(404);
-        echo "Tool or action not found";
-        exit;
+        renderMessagePage(
+            'Action not found',
+            'Tool or action not found',
+            'The requested tool action is unavailable. Please go back and retry it from the regular UI.',
+            404,
+            '/dashboard',
+            'dashboard'
+        );
     }
 
     if ($isSettingAction && $action === 'save') {
@@ -854,9 +941,14 @@ if ($method === 'POST' && preg_match('#^/action/([^/]+)/([^/?]+)#', $requestUri,
             $selectedVersion = resolveVersionedToolSelection($tool);
 
             if ($requestedVersionId !== '' && !$selectedVersion) {
-                http_response_code(400);
-                echo "Unknown version selected for this action.";
-                exit;
+                renderMessagePage(
+                    'Unknown version',
+                    'Unknown version selected',
+                    'The selected version is not valid for this action anymore. Please reload the page and choose a listed version.',
+                    400,
+                    '/category/' . $tool['category'],
+                    $tool['category']
+                );
             }
 
             if ($selectedVersion) {
@@ -875,9 +967,14 @@ if ($method === 'POST' && preg_match('#^/action/([^/]+)/([^/?]+)#', $requestUri,
         }
 
         if (!$command) {
-            http_response_code(400);
-            echo "No command found for this action.";
-            exit;
+            renderMessagePage(
+                'Action unavailable',
+                'No command found for this action',
+                'This action is currently not configured for the selected tool.',
+                400,
+                '/category/' . $tool['category'],
+                $tool['category']
+            );
         }
 
         // Dependency Check
@@ -946,5 +1043,11 @@ HTML;
     exit;
 }
 
-http_response_code(404);
-echo "Page not found";
+renderMessagePage(
+    'Page not found',
+    'Page not found',
+    'The requested page does not exist. Use the navigation to continue.',
+    404,
+    '/dashboard',
+    'dashboard'
+);

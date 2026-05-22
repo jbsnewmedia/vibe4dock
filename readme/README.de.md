@@ -393,6 +393,19 @@ Aktuell ist eine Settings-Gruppe enthalten:
 
 Die Daten werden in `.env.local` geschrieben und beim Start des Web-Containers angewendet.
 
+Generierte Projekte enthalten außerdem eine auskommentierte `.env.local.example` mit optionalen HTTP-Basic-Auth-Zugangsdaten für Tools-UI, Application Shell und Root Shell.
+
+Um diese Absicherung zu aktivieren, die Datei nach `.env.local` kopieren, die benötigten Variablen auskommentieren und die Platzhalter-Passwörter vor dem Start des Stacks ersetzen:
+
+```dotenv
+TOOLS_USERNAME="tools"
+TOOLS_PASSWORD="durch-ein-starkes-passwort-ersetzen"
+APP_SHELL_USERNAME="application"
+APP_SHELL_PASSWORD="durch-ein-starkes-passwort-ersetzen"
+ROOT_SHELL_USERNAME="root"
+ROOT_SHELL_PASSWORD="durch-ein-starkes-passwort-ersetzen"
+```
+
 ## Persistenz
 
 Persistente Daten landen bewusst außerhalb des Images in gemounteten Verzeichnissen unter `docker/web/settings/`.
@@ -433,15 +446,16 @@ Die Application Shell startet über `tmux`, damit Sessions bestehen bleiben kön
 ### Start
 
 ```bash
+cp .env.local.example .env.local
 docker compose up -d --build
 ```
 
 Danach sind die wichtigsten Endpunkte:
 
 - Anwendung: `http://localhost:80`
-- Tools-UI: `http://localhost:8090`
-- Root Shell: `http://localhost:7681`
-- Application Shell: `http://localhost:7682`
+- Tools-UI: `http://localhost:8090` (geschützt, wenn `TOOLS_USERNAME` und `TOOLS_PASSWORD` beide in `.env.local` gesetzt sind)
+- Root Shell: `http://localhost:7681` (geschützt, wenn `ROOT_SHELL_USERNAME` und `ROOT_SHELL_PASSWORD` beide in `.env.local` gesetzt sind)
+- Application Shell: `http://localhost:7682` (geschützt, wenn `APP_SHELL_USERNAME` und `APP_SHELL_PASSWORD` beide in `.env.local` gesetzt sind)
 - Datenbank: `localhost:<db-port>` je nach `--db-type`
 
 ## Typischer Workflow
@@ -490,7 +504,10 @@ Vibe4Dock ist klar als Entwicklungswerkzeug gedacht, nicht als gehärtete Multi-
 - der Tools-Container besitzt Zugriff auf `/var/run/docker.sock`,
 - Installationsbefehle werden im Web-Container ausgeführt,
 - einige Tools installieren Software direkt als Root,
+- generierte Projekte können Tools-UI sowie beide Browser-Shells optional über `.env.local` absichern,
 - persistente Mounts enthalten potenziell Logins, Tokens und lokale Konfigurationen.
+
+Wenn Vibe4Dock nicht nur auf `localhost` genutzt wird, sollten mindestens die HTTP-Basic-Auth-Zugangsdaten aus `.env.local` aktiviert, alle Platzhalter-Passwörter ersetzt und zusätzlich Netzwerkschutz wie VPN, Reverse-Proxy-Zugriffsschutz oder ein privates Subnetz eingesetzt werden.
 
 Für den produktiven Internetbetrieb ohne zusätzliche Absicherung ist das Setup daher nicht gedacht.
 

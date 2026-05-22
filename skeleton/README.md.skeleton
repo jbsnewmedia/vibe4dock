@@ -5,15 +5,57 @@ Minimal Vibe4Dock project template.
 ## Start
 
 ```bash
+cp .env.local.example .env.local
 docker compose up -d --build
 ```
 
 ## Endpoints
 
 - App: `http://localhost:{{VIBE4DOCK_WEB_HOST_PORT}}`
-- Tools: `http://localhost:{{VIBE4DOCK_TOOLS_HOST_PORT}}`
-- Root shell: `http://localhost:{{VIBE4DOCK_ROOT_SHELL_HOST_PORT}}`
-- App shell: `http://localhost:{{VIBE4DOCK_APP_SHELL_HOST_PORT}}`
+- Tools: `http://localhost:{{VIBE4DOCK_TOOLS_HOST_PORT}}` (`TOOLS_USERNAME` + `TOOLS_PASSWORD`, if both set in `.env.local`)
+- Root shell: `http://localhost:{{VIBE4DOCK_ROOT_SHELL_HOST_PORT}}` (`ROOT_SHELL_USERNAME` + `ROOT_SHELL_PASSWORD`, if both set in `.env.local`)
+- App shell: `http://localhost:{{VIBE4DOCK_APP_SHELL_HOST_PORT}}` (`APP_SHELL_USERNAME` + `APP_SHELL_PASSWORD`, if both set in `.env.local`)
 - {{VIBE4DOCK_DB_LABEL}}: `localhost:{{VIBE4DOCK_DB_HOST_PORT}}`
 
 Use `docker/bash.sh` or `docker/root.sh` to enter the container.
+
+Configure usernames and passwords only in `.env.local`. Commented or empty values stay inactive; uncommented, non-empty credentials are used automatically.
+
+## Security features
+
+The example includes optional HTTP Basic Auth protection for:
+
+- Tools UI
+- Application shell
+- Root shell
+
+Protection is controlled only through `.env.local`.
+
+Example:
+
+```dotenv
+TOOLS_USERNAME="tools"
+TOOLS_PASSWORD="change-me-tools"
+
+APP_SHELL_USERNAME="application"
+APP_SHELL_PASSWORD="change-me-application"
+
+ROOT_SHELL_USERNAME="root"
+ROOT_SHELL_PASSWORD="change-me-root"
+```
+
+Rules:
+
+- a login is active only when both username and password are present and non-empty
+- commented lines are ignored
+- the Tools UI only reads and displays the protection status; it does not manage these credentials
+
+Restart requirements:
+
+- after changing `TOOLS_*`, run `docker compose restart tools`
+- after changing `APP_SHELL_*` or `ROOT_SHELL_*`, run `docker compose restart web`
+
+Notes:
+
+- the Tools UI login title is `Vibe4Dock Login`
+- the browser login dialog for the shells is provided by `ttyd` and uses its own default title

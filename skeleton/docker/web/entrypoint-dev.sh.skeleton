@@ -92,8 +92,22 @@ chown -R application:application /home/application
 
 export VIBE4DOCK_SHELL_HINT='Vibe4Dock, Copyright (c) 2026+ JBS New Media GmbH, Juergen Schwind | MIT License | https://github.com/jbsnewmedia/vibe4dock'
 
+root_shell_username="${ROOT_SHELL_USERNAME:-}"
+app_shell_username="${APP_SHELL_USERNAME:-}"
+
+root_ttyd_auth_args=()
+if [ -n "$root_shell_username" ] && [ -n "${ROOT_SHELL_PASSWORD:-}" ]; then
+  root_ttyd_auth_args=(--credential "${root_shell_username}:${ROOT_SHELL_PASSWORD}")
+fi
+
+app_ttyd_auth_args=()
+if [ -n "$app_shell_username" ] && [ -n "${APP_SHELL_PASSWORD:-}" ]; then
+  app_ttyd_auth_args=(--credential "${app_shell_username}:${APP_SHELL_PASSWORD}")
+fi
+
 # ROOT TERMINAL
 ttyd \
+  "${root_ttyd_auth_args[@]}" \
   --writable \
   --port {{VIBE4DOCK_ROOT_SHELL_CONTAINER_PORT}} \
   --interface 0.0.0.0 \
@@ -101,6 +115,7 @@ ttyd \
 
 # APPLICATION USER TERMINAL
 ttyd \
+  "${app_ttyd_auth_args[@]}" \
   --writable \
   --port {{VIBE4DOCK_APP_SHELL_CONTAINER_PORT}} \
   --interface 0.0.0.0 \

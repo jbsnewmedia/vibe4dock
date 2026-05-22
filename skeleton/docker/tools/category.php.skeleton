@@ -8,16 +8,24 @@ function renderCategory($config, $categoryId, $envValues, $installedTools)
     global $settingsConfig;
     foreach ($settingsConfig['settings'] as $tool) {
         if ($tool['category'] === $categoryId) {
-            $enabledKey = isset($tool['setting_enabled_key']) ? $tool['setting_enabled_key'] : null;
-            $installed = $enabledKey && isset($envValues[$enabledKey]) && ($envValues[$enabledKey] === '1' || $envValues[$enabledKey] === 'true');
+            $hasToggle = isset($tool['setting_enabled_key']);
+            $installed = isSettingEnabled($tool, $envValues);
+            $fieldsVisible = shouldShowSettingFields($tool, $envValues);
 
-            $metaHtml = '<div style="font-size:0.9em; margin-top:5px; line-height:1.4;"></div>';
-            $actions = sprintf('
-                <label class="switch">
-                    <input type="checkbox" name="_enabled" value="1" %s onchange="this.closest(\'form\').querySelector(\'.fields-container\').style.display = this.checked ? \'block\' : \'none\'">
-                    <span class="slider"></span>
-                </label>
-            ', $installed ? 'checked' : '');
+            $metaHtml = '<div style="font-size:0.9em; margin-top:5px; line-height:1.4;">';
+            if (isset($tool['description']) && $tool['description'] !== '') {
+                $metaHtml .= '<div style="color: var(--text-dim); margin-bottom: 5px;">' . htmlspecialchars($tool['description']) . '</div>';
+            }
+            $metaHtml .= '</div>';
+            $actions = '';
+            if ($hasToggle) {
+                $actions .= sprintf('
+                    <label class="switch">
+                        <input type="checkbox" name="_enabled" value="1" %s onchange="this.closest(\'form\').querySelector(\'.fields-container\').style.display = this.checked ? \'block\' : \'none\'">
+                        <span class="slider"></span>
+                    </label>
+                ', $installed ? 'checked' : '');
+            }
             $actions .= sprintf('<button class="btn-install" formaction="%s">Save</button>', addTimestamp('/action/' . $tool['id'] . '/save'));
 
             $settingsContent .= sprintf('
@@ -46,10 +54,10 @@ function renderCategory($config, $categoryId, $envValues, $installedTools)
                 </div>',
                 htmlspecialchars($tool['label']),
                 $installed ? 'status-installed' : 'status-missing',
-                $installed ? 'Active' : 'Disabled',
+                $installed ? 'Active' : ($hasToggle ? 'Disabled' : 'Not configured'),
                 $actions,
                 $metaHtml,
-                $installed ? 'block' : 'none',
+                $fieldsVisible ? 'block' : 'none',
                 renderSettingFields($tool, $envValues)
             );
         }

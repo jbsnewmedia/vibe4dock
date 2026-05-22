@@ -3,3 +3,4 @@
 /docker/web/provision.sh
 /docker/web/settings/
 /docker-compose.override.yml
+/project-example/
