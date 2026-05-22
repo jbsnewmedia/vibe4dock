@@ -6,7 +6,7 @@ Dieses Repository enthält nicht nur das Vibe4Dock-Skeleton, sondern auch die Se
 
 Technisch besteht Vibe4Dock aus einem PHP-basierten Web-Container für die eigentliche Arbeitsumgebung, einem separaten Tools-Service für das Management-UI und einem Datenbank-Container. Die Tools-Oberfläche generiert Provisioning- und Mount-Konfigurationen dynamisch aus JSON-Definitionen und steuert damit, welche Werkzeuge in der Webumgebung verfügbar sind.
 
-![Vibe4Dock Dashboard](dashboard.png)
+![Vibe4Dock Example](readme/example.webp)
 
 ## Ziel des Projekts
 
