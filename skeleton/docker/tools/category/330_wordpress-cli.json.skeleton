@@ -13,7 +13,7 @@
             "category": "php-frameworks",
             "label": "WordPress CLI",
             "description": "WP-CLI for managing WordPress installations, plugins, themes, and content from the command line.",
-            "usage": "untested",
+            "usage": "",
             "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
             "check": "wp cli version --allow-root 2>/dev/null | grep .",
             "install": "curl -fsSL -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x /usr/local/bin/wp",

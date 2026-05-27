@@ -16,7 +16,7 @@
                 "./docker/web/settings/junie:/home/application/.local/share/junie"
             ],
             "description": "JetBrains' agentic coding tool for the terminal.",
-            "usage": "untested",
+            "usage": "",
             "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
             "check": "junie --version 2>/dev/null | grep .",
             "install": "(command -v npm >/dev/null 2>&1 && npm uninstall -g @jetbrains/junie --prefix=/usr || true) && sudo -u application -H env HOME=/home/application bash -lc 'curl -fsSL https://junie.jetbrains.com/install.sh | bash' && ln -sf /home/application/.local/bin/junie /usr/local/bin/junie",

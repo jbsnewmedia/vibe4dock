@@ -16,7 +16,7 @@
                 "./docker/web/settings/hermes:/home/application/.hermes"
             ],
             "description": "Nous Research's self-improving coding and automation agent.",
-            "usage": "untested",
+            "usage": "",
             "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
             "check": "hermes --version 2>/dev/null | grep .",
             "install": "sudo -u application env HOME=/home/application bash -lc 'curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash -s -- --skip-setup --skip-browser' && ln -sf /home/application/.local/bin/hermes /usr/local/bin/hermes",
