@@ -61,8 +61,23 @@ function setInstalledTool($toolId, $installed)
     // Check if tool has mounts and requires restart
     global $config;
     foreach ($config['tools'] as $t) {
-        if ($t['id'] === $toolId || (isset($t['type']) && $t['type'] === 'versioned' && array_search($toolId, array_column($t['versions'], 'id')) !== false)) {
-            if (isset($t['mounts']) && !empty($t['mounts'])) {
+        $selectedVersion = null;
+        if ($t['id'] === $toolId) {
+            $selectedVersion = $t;
+        } elseif (isset($t['type']) && $t['type'] === 'versioned' && isset($t['versions']) && is_array($t['versions'])) {
+            foreach ($t['versions'] as $version) {
+                if (isset($version['id']) && $version['id'] === $toolId) {
+                    $selectedVersion = $version;
+                    break;
+                }
+            }
+        }
+
+        if ($selectedVersion !== null) {
+            if ((isset($t['mounts']) && !empty($t['mounts']))
+                || (isset($selectedVersion['compose_service']) && is_array($selectedVersion['compose_service']))
+                || (isset($t['compose_service']) && is_array($t['compose_service']))
+            ) {
                 setRestartRequired(true);
             }
             break;
@@ -226,33 +241,48 @@ function updateDockerOverride()
     $overrideFile = '/app/docker-compose.override.yml';
 
     $mounts = array();
+    $composeServices = array();
 
     foreach ($config['tools'] as $tool) {
-        if (!isset($tool['mounts']) || !is_array($tool['mounts'])) {
-            continue;
-        }
-
         $isInstalled = false;
+        $installedDefinition = null;
         if (isset($tool['type']) && $tool['type'] === 'versioned') {
-            // Check if any version of this tool is installed
-            foreach ($installedTools as $it) {
-                if (strpos($it, $tool['id'] . '-') === 0) {
+            foreach ($tool['versions'] as $version) {
+                if (in_array($version['id'], $installedTools, true)) {
                     $isInstalled = true;
+                    $installedDefinition = $version;
                     break;
                 }
             }
         } else {
-            $isInstalled = in_array($tool['id'], $installedTools);
+            $isInstalled = in_array($tool['id'], $installedTools, true);
+            if ($isInstalled) {
+                $installedDefinition = $tool;
+            }
         }
 
-        if ($isInstalled) {
+        if (!$isInstalled || $installedDefinition === null) {
+            continue;
+        }
+
+        if (isset($tool['mounts']) && is_array($tool['mounts'])) {
             foreach ($tool['mounts'] as $p) {
                 $mounts[] = $p;
             }
         }
+
+        if (isset($installedDefinition['compose_service']) && is_array($installedDefinition['compose_service'])) {
+            $serviceConfig = $installedDefinition['compose_service'];
+            if (isset($serviceConfig['service'], $serviceConfig['definition'])
+                && is_string($serviceConfig['service'])
+                && is_array($serviceConfig['definition'])
+            ) {
+                $composeServices[$serviceConfig['service']] = applyToolConfigSources($tool, $serviceConfig['definition']);
+            }
+        }
     }
 
-    if (empty($mounts)) {
+    if (empty($mounts) && empty($composeServices)) {
         if (file_exists($overrideFile)) {
             unlink($overrideFile);
         }
@@ -260,10 +290,23 @@ function updateDockerOverride()
     }
 
     $yaml = "services:\n";
-    $yaml .= "  web:\n";
-    $yaml .= "    volumes:\n";
-    foreach ($mounts as $mount) {
-        $yaml .= "      - " . $mount . "\n";
+    if (!empty($mounts)) {
+        $yaml .= "  web:\n";
+        $yaml .= "    volumes:\n";
+        foreach ($mounts as $mount) {
+            $yaml .= "      - " . $mount . "\n";
+        }
+    }
+
+    foreach ($composeServices as $serviceName => $definitionLines) {
+        $yaml .= "  " . $serviceName . ":\n";
+        if (isAssocArray($definitionLines)) {
+            $yaml .= renderYamlNode($definitionLines, 2);
+        } else {
+            foreach ($definitionLines as $line) {
+                $yaml .= "    " . $line . "\n";
+            }
+        }
     }
 
     file_put_contents($overrideFile, $yaml);
@@ -391,6 +434,639 @@ function setEnvLocalValues($newValues)
     );
 }
 
+function getAddonConfigFile()
+{
+    return '/app/docker/web/settings/addon_configs.json';
+}
+
+function getAddonConfigs()
+{
+    $file = getAddonConfigFile();
+    if (!file_exists($file)) {
+        return array();
+    }
+
+    $decoded = json_decode((string) file_get_contents($file), true);
+    return is_array($decoded) ? $decoded : array();
+}
+
+function saveAddonConfigs($configs)
+{
+    $file = getAddonConfigFile();
+    $dir = dirname($file);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0777, true);
+    }
+
+    file_put_contents($file, json_encode($configs, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+}
+
+function isAssocArray($value)
+{
+    if (!is_array($value)) {
+        return false;
+    }
+
+    return array_keys($value) !== range(0, count($value) - 1);
+}
+
+function isTruthyConfigValue($value)
+{
+    if (is_bool($value)) {
+        return $value;
+    }
+
+    return in_array(strtolower((string) $value), array('1', 'true', 'yes', 'on'), true);
+}
+
+function toolHasConfigSchema($tool)
+{
+    return isset($tool['config_schema']['fields']) && is_array($tool['config_schema']['fields']) && !empty($tool['config_schema']['fields']);
+}
+
+function toolConfigRequiresRebuild($tool)
+{
+    if (!toolHasConfigSchema($tool)) {
+        return false;
+    }
+
+    foreach (getToolConfigFields($tool) as $field) {
+        $sources = isset($field['sources']) && is_array($field['sources']) ? $field['sources'] : array();
+        foreach ($sources as $source) {
+            if (!is_array($source) || !isset($source['type'])) {
+                continue;
+            }
+
+            if ($source['type'] === 'docker_yaml') {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+function getToolConfigFields($tool)
+{
+    if (!toolHasConfigSchema($tool)) {
+        return array();
+    }
+
+    return $tool['config_schema']['fields'];
+}
+
+function getToolConfigDefaults($tool)
+{
+    $defaults = array();
+    foreach (getToolConfigFields($tool) as $field) {
+        if (!isset($field['key'])) {
+            continue;
+        }
+
+        $defaults[$field['key']] = isset($field['default']) ? (string) $field['default'] : '';
+    }
+
+    return $defaults;
+}
+
+function getToolConfigValues($tool)
+{
+    $defaults = getToolConfigDefaults($tool);
+    if (!isset($tool['id'])) {
+        return $defaults;
+    }
+
+    $configs = getAddonConfigs();
+    $stored = isset($configs[$tool['id']]) && is_array($configs[$tool['id']]) ? $configs[$tool['id']] : array();
+
+    return array_merge($defaults, $stored);
+}
+
+function collectToolConfigSubmission($tool, $postData)
+{
+    $values = array();
+    $envUpdates = array();
+    foreach (getToolConfigFields($tool) as $field) {
+        if (!isset($field['key'])) {
+            continue;
+        }
+
+        $fieldKey = $field['key'];
+        $fieldType = isset($field['type']) ? $field['type'] : 'text';
+        if ($fieldType === 'checkbox') {
+            $fieldValue = isset($postData[$fieldKey]) ? '1' : '0';
+            $isRequired = false;
+        } else {
+            $fieldValue = isset($postData[$fieldKey]) ? trim((string) $postData[$fieldKey]) : '';
+            $isRequired = !isset($field['required']) || $field['required'] !== false;
+        }
+
+        if ($isRequired && $fieldValue === '') {
+            return array(
+                'ok' => false,
+                'output' => 'Field "' . $fieldKey . '" is required.'
+            );
+        }
+
+        $values[$fieldKey] = $fieldValue;
+
+        $sources = isset($field['sources']) && is_array($field['sources']) ? $field['sources'] : array();
+        foreach ($sources as $source) {
+            if (!is_array($source) || !isset($source['type'])) {
+                continue;
+            }
+
+            if ($source['type'] === 'env_local' && isset($source['key'])) {
+                $envUpdates[$source['key']] = $fieldValue;
+            }
+        }
+    }
+
+    return array(
+        'ok' => true,
+        'values' => $values,
+        'envUpdates' => $envUpdates,
+    );
+}
+
+function setNestedConfigValue(&$target, $path, $value)
+{
+    $segments = explode('.', $path);
+    $current =& $target;
+
+    foreach ($segments as $index => $segment) {
+        $isLast = $index === count($segments) - 1;
+        $nextSegment = !$isLast ? $segments[$index + 1] : null;
+        $segmentKey = ctype_digit((string) $segment) ? (int) $segment : $segment;
+
+        if ($isLast) {
+            $current[$segmentKey] = $value;
+            return;
+        }
+
+        if (!isset($current[$segmentKey]) || !is_array($current[$segmentKey])) {
+            $current[$segmentKey] = ctype_digit((string) $nextSegment) ? array() : array();
+        }
+
+        $current =& $current[$segmentKey];
+    }
+}
+
+function applyToolConfigSources($tool, $definition)
+{
+    if (!toolHasConfigSchema($tool) || !is_array($definition)) {
+        return $definition;
+    }
+
+    $values = getToolConfigValues($tool);
+    foreach (getToolConfigFields($tool) as $field) {
+        if (!isset($field['key']) || !isset($values[$field['key']])) {
+            continue;
+        }
+
+        $fieldValue = $values[$field['key']];
+        $sources = isset($field['sources']) && is_array($field['sources']) ? $field['sources'] : array();
+        foreach ($sources as $source) {
+            if (!is_array($source) || !isset($source['type'])) {
+                continue;
+            }
+
+            if ($source['type'] === 'docker_yaml' && isset($source['path'])) {
+                if (isset($source['format']) && is_string($source['format'])) {
+                    setNestedConfigValue($definition, $source['path'], sprintf($source['format'], $fieldValue));
+                    continue;
+                }
+
+                setNestedConfigValue($definition, $source['path'], $fieldValue);
+            }
+        }
+    }
+
+    return $definition;
+}
+
+function yamlScalar($value)
+{
+    if ($value === null) {
+        return 'null';
+    }
+
+    if (is_bool($value)) {
+        return $value ? 'true' : 'false';
+    }
+
+    if (is_int($value) || is_float($value)) {
+        return (string) $value;
+    }
+
+    $stringValue = (string) $value;
+    return "'" . str_replace("'", "''", $stringValue) . "'";
+}
+
+function renderYamlNode($value, $indentLevel)
+{
+    $indent = str_repeat('  ', $indentLevel);
+    $yaml = '';
+
+    if (!is_array($value)) {
+        return $indent . yamlScalar($value) . "\n";
+    }
+
+    if (isAssocArray($value)) {
+        foreach ($value as $key => $item) {
+            if (is_array($item)) {
+                $yaml .= $indent . $key . ":\n" . renderYamlNode($item, $indentLevel + 1);
+            } else {
+                $yaml .= $indent . $key . ': ' . yamlScalar($item) . "\n";
+            }
+        }
+
+        return $yaml;
+    }
+
+    foreach ($value as $item) {
+        if (is_array($item)) {
+            if (isAssocArray($item)) {
+                $yaml .= $indent . "-\n" . renderYamlNode($item, $indentLevel + 1);
+            } else {
+                $yaml .= $indent . "-\n" . renderYamlNode($item, $indentLevel + 1);
+            }
+        } else {
+            $yaml .= $indent . '- ' . yamlScalar($item) . "\n";
+        }
+    }
+
+    return $yaml;
+}
+
+function handleToolConfigSave($tool, $postData)
+{
+    if (!toolHasConfigSchema($tool) || !isset($tool['id'])) {
+        return array('ok' => false, 'output' => 'No configurable fields defined for this addon.');
+    }
+
+    $submission = collectToolConfigSubmission($tool, $postData);
+    if (!$submission['ok']) {
+        return $submission;
+    }
+
+    $values = $submission['values'];
+    $envUpdates = $submission['envUpdates'];
+    $configs = getAddonConfigs();
+    $configs[$tool['id']] = $values;
+    saveAddonConfigs($configs);
+
+    if (!empty($envUpdates)) {
+        $envResult = setEnvLocalValues($envUpdates);
+        if (!$envResult['ok']) {
+            return $envResult;
+        }
+    }
+
+    if (toolConfigRequiresRebuild($tool)) {
+        setRestartRequired(true);
+        updateDockerOverride();
+
+        return array(
+            'ok' => true,
+            'output' => 'Saved addon configuration. Rebuild the project to apply the changes.'
+        );
+    }
+
+    return array(
+        'ok' => true,
+        'output' => 'Saved tool configuration.'
+    );
+}
+
+function writeProjectFile($relativePath, $content)
+{
+    $path = '/app/' . ltrim($relativePath, '/');
+    $dir = dirname($path);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0777, true);
+    }
+
+    file_put_contents($path, $content);
+}
+
+function removeProjectFile($relativePath)
+{
+    $path = '/app/' . ltrim($relativePath, '/');
+    if (is_file($path)) {
+        unlink($path);
+    }
+}
+
+function removeProjectDirectory($relativePath)
+{
+    $path = '/app/' . ltrim($relativePath, '/');
+    if (!is_dir($path)) {
+        return;
+    }
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+
+    foreach ($iterator as $item) {
+        if ($item->isDir()) {
+            rmdir($item->getPathname());
+        } else {
+            unlink($item->getPathname());
+        }
+    }
+
+    rmdir($path);
+}
+
+function cleanupEmptyComposerSections(&$composerData)
+{
+    if (isset($composerData['require-dev']) && empty($composerData['require-dev'])) {
+        unset($composerData['require-dev']);
+    }
+
+    if (isset($composerData['config']['allow-plugins']) && empty($composerData['config']['allow-plugins'])) {
+        unset($composerData['config']['allow-plugins']);
+    }
+    if (isset($composerData['config']) && empty($composerData['config'])) {
+        unset($composerData['config']);
+    }
+
+    if (isset($composerData['extra']) && empty($composerData['extra'])) {
+        unset($composerData['extra']);
+    }
+
+    if (isset($composerData['scripts']) && empty($composerData['scripts'])) {
+        unset($composerData['scripts']);
+    }
+}
+
+function detectProjectPhpVersion()
+{
+    $dockerfilePath = '/app/docker/web/Dockerfile';
+    if (is_file($dockerfilePath)) {
+        $dockerfile = (string) file_get_contents($dockerfilePath);
+        if (preg_match('/^FROM\s+\S+:(\d+(?:\.\d+)?)/m', $dockerfile, $matches)) {
+            return $matches[1];
+        }
+    }
+
+    return '8.4';
+}
+
+function getPackageOperations($tool)
+{
+    if (!isset($tool['package_operations']) || !is_array($tool['package_operations'])) {
+        return null;
+    }
+
+    return $tool['package_operations'];
+}
+
+function mergeRecursiveDistinct($base, $changes)
+{
+    if (!is_array($base) || !is_array($changes)) {
+        return $changes;
+    }
+
+    foreach ($changes as $key => $value) {
+        if (isset($base[$key]) && is_array($base[$key]) && is_array($value)) {
+            $base[$key] = mergeRecursiveDistinct($base[$key], $value);
+            continue;
+        }
+
+        $base[$key] = $value;
+    }
+
+    return $base;
+}
+
+function getPackageComposerChanges($tool, $mode)
+{
+    $operations = getPackageOperations($tool);
+    if ($operations === null) {
+        return array();
+    }
+
+    $changes = isset($operations['composer_changes']) && is_array($operations['composer_changes'])
+        ? $operations['composer_changes']
+        : array();
+
+    if (empty($operations['composer_profiles']) || !is_array($operations['composer_profiles'])) {
+        return $changes;
+    }
+
+    $configValues = getToolConfigValues($tool);
+    foreach ($operations['composer_profiles'] as $fieldKey => $profileChanges) {
+        if (!is_array($profileChanges)) {
+            continue;
+        }
+
+        if ($mode === 'uninstall' || isTruthyConfigValue(isset($configValues[$fieldKey]) ? $configValues[$fieldKey] : '0')) {
+            $changes = mergeRecursiveDistinct($changes, $profileChanges);
+        }
+    }
+
+    return $changes;
+}
+
+function getPackageTemplateEntries($tool, $mode)
+{
+    $operations = getPackageOperations($tool);
+    if ($operations === null || empty($operations['templates']) || !is_array($operations['templates'])) {
+        return array();
+    }
+
+    $entries = array();
+    $configValues = getToolConfigValues($tool);
+
+    foreach ($operations['templates'] as $template) {
+        if (!is_array($template)) {
+            continue;
+        }
+
+        if ($mode === 'install'
+            && isset($template['enabled_by'])
+            && !isTruthyConfigValue(isset($configValues[$template['enabled_by']]) ? $configValues[$template['enabled_by']] : '0')
+        ) {
+            continue;
+        }
+
+        $entries[] = $template;
+    }
+
+    return $entries;
+}
+
+function getPackageTemplateContent($tool, $template)
+{
+    if (isset($template['content']) && is_string($template['content'])) {
+        return $template['content'];
+    }
+
+    if (!isset($template['source']) || !is_string($template['source']) || $template['source'] === '') {
+        throw new UnexpectedValueException('Package template is missing inline content and source.');
+    }
+
+    $relativePath = ltrim($template['source'], '/');
+    $candidatePaths = array();
+
+    if (isset($tool['category']) && $tool['category'] !== '') {
+        $candidatePaths[] = '/app/docker/tools/category/' . $tool['id'] . '/templates/' . $relativePath;
+    }
+
+    $candidatePaths[] = '/app/docker/tools/addons/' . $tool['id'] . '/templates/' . $relativePath;
+    $candidatePaths[] = '/app/docker/tools/package-templates/' . $tool['id'] . '/' . $relativePath;
+
+    foreach ($candidatePaths as $path) {
+        if (!is_file($path)) {
+            continue;
+        }
+
+        $content = file_get_contents($path);
+        if ($content === false) {
+            throw new UnexpectedValueException('Unable to read package template file: ' . $relativePath);
+        }
+
+        return $content;
+    }
+
+    throw new UnexpectedValueException('Package template file not found: ' . $relativePath);
+}
+
+function applyPackageTemplates($tool, $mode)
+{
+    $templates = getPackageTemplateEntries($tool, $mode);
+    if (empty($templates)) {
+        return;
+    }
+
+    foreach ($templates as $template) {
+        if (!is_array($template) || empty($template['target'])) {
+            continue;
+        }
+
+        $target = (string) $template['target'];
+
+        if ($mode === 'install') {
+            writeProjectFile($target, getPackageTemplateContent($tool, $template));
+            continue;
+        }
+
+        removeProjectFile($target);
+    }
+}
+
+function removeComposerChangesRecursive(&$target, $changes)
+{
+    if (!is_array($changes) || !is_array($target)) {
+        return;
+    }
+
+    foreach ($changes as $key => $value) {
+        if (!array_key_exists($key, $target)) {
+            continue;
+        }
+
+        if (is_array($value) && is_array($target[$key])) {
+            removeComposerChangesRecursive($target[$key], $value);
+            if ($target[$key] === array()) {
+                unset($target[$key]);
+            }
+            continue;
+        }
+
+        unset($target[$key]);
+    }
+}
+
+function applyPackageComposerChanges($tool, $mode)
+{
+    $composerChanges = getPackageComposerChanges($tool, $mode);
+    if (empty($composerChanges)) {
+        return;
+    }
+
+    $composerPath = '/app/composer.json';
+    $composerData = array();
+    if (is_file($composerPath)) {
+        $composerJson = (string) file_get_contents($composerPath);
+        $decodedComposer = json_decode($composerJson, true);
+        if (is_array($decodedComposer)) {
+            $composerData = $decodedComposer;
+        }
+    }
+
+    if ($mode === 'install') {
+        $composerData = mergeRecursiveDistinct($composerData, $composerChanges);
+    } else {
+        removeComposerChangesRecursive($composerData, $composerChanges);
+    }
+
+    cleanupEmptyComposerSections($composerData);
+    writeProjectFile('composer.json', json_encode($composerData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
+}
+
+function handlePackageToolAction($tool, $action, $postData)
+{
+    $operations = getPackageOperations($tool);
+    if ($operations === null || !in_array($action, array('install', 'uninstall', 'save'), true)) {
+        return null;
+    }
+
+    if ($action === 'save') {
+        $result = handleToolConfigSave($tool, $postData);
+        if (!$result['ok']) {
+            return $result;
+        }
+
+        if (in_array($tool['id'], getInstalledTools(), true)) {
+            applyPackageComposerChanges($tool, 'uninstall');
+            applyPackageTemplates($tool, 'uninstall');
+            applyPackageComposerChanges($tool, 'install');
+            applyPackageTemplates($tool, 'install');
+            $result['output'] = 'Saved package configuration and synchronized the package files.';
+        }
+
+        $result['actionLabel'] = 'Save configuration';
+        return $result;
+    }
+
+    applyPackageComposerChanges($tool, $action);
+    applyPackageTemplates($tool, $action);
+
+    if (!empty($operations['cleanup_directories']) && is_array($operations['cleanup_directories']) && $action === 'uninstall') {
+        foreach ($operations['cleanup_directories'] as $directory) {
+            if (is_string($directory) && $directory !== '') {
+                removeProjectDirectory($directory);
+            }
+        }
+    }
+
+    setInstalledTool($tool['id'], $action === 'install');
+
+    return array(
+        'ok' => true,
+        'output' => $action === 'install'
+            ? 'Package files and Composer configuration were added.'
+            : 'Package files and Composer configuration were removed.',
+        'actionLabel' => ucfirst($action)
+    );
+}
+
+
+function handleCustomToolAction($tool, $action, $postData)
+{
+    $packageResult = handlePackageToolAction($tool, $action, $postData);
+    if ($packageResult !== null) {
+        return $packageResult;
+    }
+
+    return null;
+}
+
 function renderMessagePage($title, $headline, $message, $statusCode, $backUrl = '/dashboard', $currentCategoryId = null)
 {
     http_response_code($statusCode);
@@ -427,23 +1103,196 @@ function addTimestamp($url)
     return $url . $separator . 't=' . time();
 }
 
-function renderLayout($title, $content, $currentCategoryId = null)
+function getMenuCategories($config, $menuGroup = 'tools')
 {
-    global $config;
-    $navLinks = '';
-    $dashboardActive = ($currentCategoryId === 'dashboard') ? 'active' : '';
-    $navLinks .= sprintf('<a href="%s" class="%s">%s</a>', addTimestamp('/dashboard'), $dashboardActive, 'Dashboard');
+    $categories = array();
 
-    foreach ($config['categories'] as $c) {
-        if ($c['id'] === 'dashboard' || $c['id'] === 'settings') {
+    foreach ($config['categories'] as $category) {
+        if ($category['id'] === 'dashboard' || $category['id'] === 'settings') {
             continue;
         }
-        $activeClass = ($currentCategoryId === $c['id']) ? 'active' : '';
-        $url = '/category/' . $c['id'];
-        $navLinks .= sprintf('<a href="%s" class="%s">%s</a>', addTimestamp($url), $activeClass, htmlspecialchars($c['label']));
+
+        $categoryMenuGroup = isset($category['menu_group']) ? $category['menu_group'] : 'tools';
+        if ($categoryMenuGroup === $menuGroup) {
+            $categories[] = $category;
+        }
     }
 
+    return $categories;
+}
+
+function isToolsContext($currentCategoryId)
+{
+    global $config;
+
+    if ($currentCategoryId === 'tools') {
+        return true;
+    }
+
+    foreach (getMenuCategories($config, 'tools') as $category) {
+        if ($category['id'] === $currentCategoryId) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function isAddonsContext($currentCategoryId)
+{
+    global $config;
+
+    if ($currentCategoryId === 'addons') {
+        return true;
+    }
+
+    foreach (getMenuCategories($config, 'addons') as $category) {
+        if ($category['id'] === $currentCategoryId) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function findCategoryById($config, $categoryId)
+{
+    foreach ($config['categories'] as $category) {
+        if ($category['id'] === $categoryId) {
+            return $category;
+        }
+    }
+
+    return null;
+}
+
+function renderCategoryGroupSubnav($currentCategoryId, $groupId, $overviewPath)
+{
+    global $config;
+    $categories = getMenuCategories($config, $groupId);
+    $allActiveClass = $currentCategoryId === $groupId ? 'active' : '';
+    $dropdownLabel = 'Categories';
+
+    if ($currentCategoryId !== $groupId) {
+        $currentCategory = findCategoryById($config, $currentCategoryId);
+        if ($currentCategory) {
+            $dropdownLabel = $currentCategory['label'];
+        }
+    }
+
+    $dropdownItems = '';
+    foreach ($categories as $category) {
+        $itemClass = $currentCategoryId === $category['id'] ? 'active' : '';
+        $dropdownItems .= sprintf(
+            '<a href="%s" class="dropdown-item %s">%s</a>',
+            htmlspecialchars(addTimestamp('/category/' . $category['id'])),
+            $itemClass,
+            htmlspecialchars($category['label'])
+        );
+    }
+
+    if (empty($categories)) {
+        return sprintf(
+            '<div class="tools-subnav">
+                <div class="tools-subnav-links">
+                    <a href="%s" class="%s">All</a>
+                </div>
+            </div>',
+            htmlspecialchars(addTimestamp($overviewPath)),
+            $allActiveClass
+        );
+    }
+
+    return sprintf(
+        '<div class="tools-subnav">
+            <div class="tools-subnav-links">
+                <a href="%s" class="%s">All</a>
+            </div>
+            <div class="tools-subnav-controls">
+                <label class="search-input-wrapper" aria-label="Search titles">
+                    <input type="search" id="tools-title-search" class="search-input" placeholder="Search title...">
+                </label>
+                <div class="dropdown">
+                    <button type="button" class="dropdown-toggle" aria-expanded="false">
+                        %s
+                        <span class="dropdown-caret" aria-hidden="true"></span>
+                    </button>
+                    <div class="dropdown-menu">
+                        %s
+                    </div>
+                </div>
+            </div>
+        </div>',
+        htmlspecialchars(addTimestamp($overviewPath)),
+        $allActiveClass,
+        htmlspecialchars($dropdownLabel),
+        $dropdownItems
+    );
+}
+
+function renderToolsSubnav($currentCategoryId)
+{
+    return renderCategoryGroupSubnav($currentCategoryId, 'tools', '/tools');
+}
+
+function renderAddonsSubnav($currentCategoryId)
+{
+    return renderCategoryGroupSubnav($currentCategoryId, 'addons', '/addons');
+}
+
+function renderCategoryGroupOverview($config, $envValues, $installedTools, $menuGroup, $headline)
+{
+    $content = '<h1>' . htmlspecialchars($headline) . '</h1>';
+    $categories = getMenuCategories($config, $menuGroup);
+
+    if (empty($categories)) {
+        $groupLabel = $menuGroup === 'addons' ? 'addon' : 'tool';
+
+        return $content . sprintf(
+            '<div class="tool-card"><div style="color: var(--text-dim);">No %s packs are defined yet. Add JSON definitions under <code>docker/tools/category/</code> to populate this area.</div></div>',
+            htmlspecialchars($groupLabel)
+        );
+    }
+
+    foreach ($categories as $category) {
+        $categoryContent = renderCategory($config, $category['id'], $envValues, $installedTools);
+        if ($categoryContent === '') {
+            continue;
+        }
+
+        $content .= sprintf(
+            '<section class="tools-section"><h2>%s</h2>%s</section>',
+            htmlspecialchars($category['label']),
+            $categoryContent
+        );
+    }
+
+    return $content;
+}
+
+function renderToolsOverview($config, $envValues, $installedTools)
+{
+    return renderCategoryGroupOverview($config, $envValues, $installedTools, 'tools', 'Tools');
+}
+
+function renderAddonsOverview($config, $envValues, $installedTools)
+{
+    return renderCategoryGroupOverview($config, $envValues, $installedTools, 'addons', 'Addons');
+}
+
+function renderLayout($title, $content, $currentCategoryId = null)
+{
+    $navLinks = '';
+    $dashboardActive = ($currentCategoryId === 'dashboard') ? 'active' : '';
+    $toolsActive = isToolsContext($currentCategoryId) ? 'active' : '';
+    $addonsActive = isAddonsContext($currentCategoryId) ? 'active' : '';
     $settingsActive = ($currentCategoryId === 'settings') ? 'active' : '';
+    $toolsSubnav = $toolsActive !== '' ? renderToolsSubnav($currentCategoryId) : '';
+    $addonsSubnav = $addonsActive !== '' ? renderAddonsSubnav($currentCategoryId) : '';
+
+    $navLinks .= sprintf('<a href="%s" class="%s">%s</a>', addTimestamp('/dashboard'), $dashboardActive, 'Dashboard');
+    $navLinks .= sprintf('<a href="%s" class="%s">%s</a>', addTimestamp('/tools'), $toolsActive, 'Tools');
+    $navLinks .= sprintf('<a href="%s" class="%s">%s</a>', addTimestamp('/addons'), $addonsActive, 'Addons');
     $navLinks .= sprintf('<a href="%s" class="%s">%s</a>', addTimestamp('/settings'), $settingsActive, 'Settings');
 
     $restartRequired = isRestartRequired();
@@ -457,7 +1306,7 @@ function renderLayout($title, $content, $currentCategoryId = null)
         <div id="rebuild-modal" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,0.8); align-items:center; justify-content:center;">
             <div style="background:#1e1e1e; padding:20px; border-radius:8px; border:1px solid #333; max-width:500px; width:90%;">
                 <h3 style="margin-top:0;">Manual Rebuild Required</h3>
-                <p>To apply new tool mounts, you need to rebuild the containers on your host machine.</p>
+                <p>To apply new tool mounts or addon service changes, you need to rebuild and recreate the containers on your host machine.</p>
                 <p><strong>Linux / macOS:</strong></p>
                 <div style="display:flex; gap:10px; align-items:center; background:#000; padding:10px; border-radius:4px; margin-bottom:10px;">
                     <pre id="cmd-linux" style="margin:0; color:#fff; flex:1;">./docker/rebuild.sh</pre>
@@ -472,21 +1321,7 @@ function renderLayout($title, $content, $currentCategoryId = null)
                     <button class="btn-install" onclick="document.getElementById(\'rebuild-modal\').style.display=\'none\'">Close</button>
                 </div>
             </div>
-        </div>
-        <script>
-            function showRebuildInstructions() {
-                document.getElementById(\'rebuild-modal\').style.display = \'flex\';
-            }
-            function copyToClipboard(event, elementId) {
-                const text = document.getElementById(elementId).innerText;
-                navigator.clipboard.writeText(text).then(() => {
-                    const btn = event.target;
-                    const originalText = btn.innerText;
-                    btn.innerText = \'Copied!\';
-                    setTimeout(() => { btn.innerText = originalText; }, 2000);
-                });
-            }
-        </script>';
+        </div>';
     }
 
     $logoSvgHeader = '
@@ -558,6 +1393,26 @@ function renderLayout($title, $content, $currentCategoryId = null)
           #logo { width: 48px; height: 48px; flex-shrink: 0; }
           .brand-name { font-size: 1.8em; font-weight: bold; color: var(--text-white); letter-spacing: -0.5px; }
           nav { display: flex; gap: 20px; border-top: 1px solid var(--border-light); padding-top: 15px; margin-bottom: 0; }
+          .tools-subnav { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--border-light); }
+          .tools-subnav-links { display: flex; align-items: center; gap: 14px; }
+          .tools-subnav-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+          .tools-subnav a { color: var(--text-dim); text-decoration: none; font-size: 0.92em; font-weight: 600; }
+          .tools-subnav a:hover { color: var(--text); }
+          .tools-subnav a.active { color: var(--primary); border-bottom: none; }
+          .search-input-wrapper { display: flex; align-items: center; }
+          .search-input { width: 240px; padding: 8px 14px; background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-size: 0.92em; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
+          .search-input::placeholder { color: var(--text-dim); }
+          .search-input:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+          .dropdown { position: relative; }
+          .dropdown-toggle { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 14px; background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-size: 0.92em; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
+          .dropdown-toggle:hover { background: #252525; opacity: 1; }
+          .dropdown-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+          .dropdown-caret { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid currentColor; }
+          .dropdown-menu { position: absolute; top: calc(100% + 8px); right: 0; min-width: 240px; display: none; padding: 8px 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 30px rgba(0,0,0,0.35); z-index: 100; }
+          .dropdown.open .dropdown-menu { display: block; }
+          .dropdown-item { display: block; width: 100%; padding: 9px 14px; white-space: nowrap; box-sizing: border-box; }
+          .dropdown-menu .dropdown-item.active { background: var(--primary-dim); color: var(--primary); border-bottom: none; }
+          .tools-section + .tools-section { margin-top: 30px; }
           .rebuild-banner { display: flex; align-items: center; justify-content: center; gap: 15px; width: 100%;}
           .rebuild-banner { opacity: 1; transform: translateY(0); transition: opacity 0.35s ease, transform 0.35s ease, margin 0.35s ease, padding 0.35s ease; }
           .rebuild-banner.is-fading-out { opacity: 0; transform: translateY(-8px); pointer-events: none; }
@@ -583,8 +1438,12 @@ function renderLayout($title, $content, $currentCategoryId = null)
           .tool-header strong { display: block; margin-bottom: 5px; }
           .tool-header .tool-actions { flex-shrink: 0; }
           .tool-info-full { width: 100%; order: 3; margin-top: 10px; }
-          .tool-actions { display: flex; gap: 10px; align-items: center; }
-          select { background: var(--bg-black); border: 1px solid var(--border); color: #eee; padding: 8px; border-radius: 6px; }
+          .tool-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+          .form-dropdown { min-width: 180px; }
+          .form-dropdown-toggle { min-width: 180px; width: 100%; }
+          .form-dropdown .dropdown-menu { left: 0; right: auto; min-width: 100%; max-height: 280px; overflow-y: auto; }
+          .form-dropdown .dropdown-item { background: transparent; color: var(--text); border: 0; border-radius: 0; text-align: left; font-weight: 500; box-shadow: none; }
+          .form-dropdown .dropdown-item:hover { background: #252525; opacity: 1; }
           button { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: opacity 0.2s, background-color 0.2s; }
           button:hover { opacity: 0.9; }
           .btn-install { background: var(--primary); color: var(--text-dark); }
@@ -603,8 +1462,15 @@ function renderLayout($title, $content, $currentCategoryId = null)
           input:checked + .slider:before { transform: translateX(20px); }
           .form-group { margin-top: 15px; }
           .form-group label { display: block; font-size: 0.85em; margin-bottom: 6px; color: var(--text-dim); }
-          .form-group input[type="text"] { background: var(--bg-black); border: 1px solid var(--border); color: var(--text-white); padding: 10px; border-radius: 6px; width: 100%; box-sizing: border-box; }
-          .form-group input[type="password"] { background: var(--bg-black); border: 1px solid var(--border); color: var(--text-white); padding: 10px; border-radius: 6px; width: 100%; box-sizing: border-box; }
+          .form-group input[type="text"],
+          .form-group input[type="password"],
+          .form-group input[type="number"] { background: var(--bg-black); border: 1px solid var(--border); color: var(--text-white); padding: 10px; border-radius: 6px; width: 100%; box-sizing: border-box; appearance: none; -moz-appearance: textfield; }
+          .form-group input[type="number"]::-webkit-outer-spin-button,
+          .form-group input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+          .password-input-wrapper { display: flex; gap: 8px; align-items: center; }
+          .password-input-wrapper input { flex: 1; }
+          .password-toggle { padding: 10px 14px; background: var(--bg-btn-secondary); color: var(--text-white); border-radius: 6px; white-space: nowrap; }
+          .password-toggle:hover { background: var(--bg-btn-secondary-hover); opacity: 1; }
           .form-help { margin-top: 6px; color: var(--text-dim); font-size: 0.8em; }
           code { color: var(--primary); background: var(--primary-dim); padding: 2px 6px; border-radius: 4px; font-family: monospace; }
           pre { background: var(--bg-black); padding: 20px; border-radius: 12px; overflow-x: auto; color: #ccc; border: 1px solid var(--border); line-height: 1.4; }
@@ -642,6 +1508,8 @@ function renderLayout($title, $content, $currentCategoryId = null)
           <nav>
             $navLinks
           </nav>
+          $toolsSubnav
+          $addonsSubnav
         </header>
         $restartIndicator
         <main>
@@ -666,10 +1534,60 @@ function renderLayout($title, $content, $currentCategoryId = null)
             overlay.classList.add('visible');
             overlay.setAttribute('aria-hidden', 'false');
 
-            document.querySelectorAll('form button, form select, form input').forEach((element) => {
-              if (element.type !== 'hidden') {
+            window.setTimeout(() => {
+              document.querySelectorAll('form button').forEach((element) => {
                 element.disabled = true;
-              }
+              });
+            }, 0);
+          }
+
+          function filterToolsByTitle(query) {
+            const normalizedQuery = (query || '').trim().toLowerCase();
+
+            document.querySelectorAll('.searchable-tool-card').forEach((card) => {
+              const title = (card.dataset.searchTitle || '').toLowerCase();
+              const matches = normalizedQuery === '' || title.includes(normalizedQuery);
+              card.style.display = matches ? '' : 'none';
+            });
+
+            document.querySelectorAll('.tools-section').forEach((section) => {
+              const visibleCards = Array.from(section.querySelectorAll('.searchable-tool-card')).some((card) => card.style.display !== 'none');
+              section.style.display = visibleCards ? '' : 'none';
+            });
+          }
+
+          function showRebuildInstructions() {
+            const modal = document.getElementById('rebuild-modal');
+            if (modal) {
+              modal.style.display = 'flex';
+            }
+          }
+
+          function showToolConfigModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+              modal.style.display = 'flex';
+            }
+          }
+
+          function hideToolConfigModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+              modal.style.display = 'none';
+            }
+          }
+
+          function copyToClipboard(event, elementId) {
+            const element = document.getElementById(elementId);
+            if (!element) {
+              return;
+            }
+
+            navigator.clipboard.writeText(element.innerText).then(() => {
+              const btn = event.target;
+              const originalText = btn.innerText;
+              btn.innerText = 'Copied!';
+              setTimeout(() => { btn.innerText = originalText; }, 2000);
             });
           }
 
@@ -683,6 +1601,76 @@ function renderLayout($title, $content, $currentCategoryId = null)
             const submitLabel = submitter && submitter.textContent ? submitter.textContent.trim() : 'Processing';
             showLoadingOverlay(submitLabel + '...');
           });
+
+          document.addEventListener('click', (event) => {
+            const toggle = event.target.closest('.dropdown-toggle');
+            const versionItem = event.target.closest('.version-dropdown-item');
+            const passwordToggle = event.target.closest('.password-toggle');
+
+            if (passwordToggle) {
+              const wrapper = passwordToggle.closest('.password-input-wrapper');
+              const input = wrapper ? wrapper.querySelector('input') : null;
+              if (input) {
+                const isPassword = input.type === 'password';
+                input.type = isPassword ? 'text' : 'password';
+                passwordToggle.textContent = isPassword ? 'Hide' : 'Show';
+              }
+              return;
+            }
+
+            if (versionItem) {
+              const dropdown = versionItem.closest('.dropdown');
+              const hiddenInput = dropdown ? dropdown.querySelector('input[type="hidden"]') : null;
+              const label = dropdown ? dropdown.querySelector('.dropdown-label') : null;
+
+              if (hiddenInput) {
+                hiddenInput.value = versionItem.dataset.dropdownValue || '';
+              }
+
+              if (label) {
+                label.textContent = versionItem.dataset.dropdownLabel || versionItem.textContent.trim();
+              }
+
+              if (dropdown) {
+                dropdown.querySelectorAll('.version-dropdown-item').forEach((item) => {
+                  item.classList.toggle('active', item === versionItem);
+                });
+                dropdown.classList.remove('open');
+              }
+
+              const button = dropdown ? dropdown.querySelector('.dropdown-toggle') : null;
+              if (button) {
+                button.setAttribute('aria-expanded', 'false');
+              }
+
+              return;
+            }
+
+            document.querySelectorAll('.dropdown.open').forEach((dropdown) => {
+              if (!toggle || dropdown !== toggle.parentElement) {
+                dropdown.classList.remove('open');
+                const button = dropdown.querySelector('.dropdown-toggle');
+                if (button) {
+                  button.setAttribute('aria-expanded', 'false');
+                }
+              }
+            });
+
+            if (!toggle) {
+              return;
+            }
+
+            const dropdown = toggle.parentElement;
+            const isOpen = dropdown.classList.toggle('open');
+            toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+          });
+
+          const toolsSearchInput = document.getElementById('tools-title-search');
+          if (toolsSearchInput) {
+            toolsSearchInput.addEventListener('input', (event) => {
+              filterToolsByTitle(event.target.value);
+            });
+          }
 
           function updateStats() {
             const ramEl = document.getElementById('stat-ram');
@@ -842,6 +1830,10 @@ if (php_sapi_name() === 'cli') {
 
 if ($requestUri === '/' || $requestUri === '' || strpos($requestUri, '/?') === 0 || $requestUri === '/dashboard' || strpos($requestUri, '/dashboard?') === 0) {
     $categoryId = 'dashboard';
+} elseif ($requestUri === '/tools' || strpos($requestUri, '/tools?') === 0) {
+    $categoryId = 'tools';
+} elseif ($requestUri === '/addons' || strpos($requestUri, '/addons?') === 0) {
+    $categoryId = 'addons';
 } elseif (preg_match('#^/category/([^/?]+)#', $requestUri, $matches)) {
     $categoryId = $matches[1];
 } elseif (preg_match('#^/(settings)#', $requestUri, $matches)) {
@@ -852,6 +1844,10 @@ if (isset($categoryId)) {
     $category = null;
     if ($categoryId === 'dashboard') {
         $category = ['id' => 'dashboard', 'label' => 'Dashboard'];
+    } elseif ($categoryId === 'tools') {
+        $category = ['id' => 'tools', 'label' => 'Tools'];
+    } elseif ($categoryId === 'addons') {
+        $category = ['id' => 'addons', 'label' => 'Addons'];
     } elseif ($categoryId === 'settings') {
         $category = ['id' => 'settings', 'label' => 'Settings'];
     } else {
@@ -882,6 +1878,26 @@ if (isset($categoryId)) {
         $toolContent = renderDashboard($config, $envValues, $installedTools, $isOffline);
 
         echo renderLayout('Dashboard', $toolContent, $categoryId);
+        exit;
+    }
+
+    if ($categoryId === 'tools') {
+        $envValues = getEnvLocalValues();
+        $installedTools = getInstalledTools();
+
+        $toolContent = renderToolsOverview($config, $envValues, $installedTools);
+
+        echo renderLayout('Tools', $toolContent, $categoryId);
+        exit;
+    }
+
+    if ($categoryId === 'addons') {
+        $envValues = getEnvLocalValues();
+        $installedTools = getInstalledTools();
+
+        $toolContent = renderAddonsOverview($config, $envValues, $installedTools);
+
+        echo renderLayout('Addons', $toolContent, $categoryId);
         exit;
     }
 
@@ -929,9 +1945,20 @@ if ($method === 'POST' && preg_match('#^/action/([^/]+)/([^/?]+)#', $requestUri,
         );
     }
 
-    if ($isSettingAction && $action === 'save') {
+    $customResult = null;
+    if (!$isSettingAction) {
+        $customResult = handleCustomToolAction($tool, $action, $_POST);
+    }
+
+    if ($customResult !== null) {
+        $result = $customResult;
+        $actionLabel = isset($customResult['actionLabel']) ? $customResult['actionLabel'] : ucfirst($action);
+    } elseif ($isSettingAction && $action === 'save') {
         $result = handleSettingSave($tool, $_POST);
         $actionLabel = 'Save settings';
+    } elseif (!$isSettingAction && $action === 'save' && toolHasConfigSchema($tool)) {
+        $result = handleToolConfigSave($tool, $_POST);
+        $actionLabel = 'Save configuration';
     } else {
         $command = null;
         $toolIdToStore = $toolId;

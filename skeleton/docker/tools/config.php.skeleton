@@ -18,6 +18,26 @@ function loadToolConfig($baseDir = __DIR__)
         )
     );
 
+    $config = mergeToolConfigData(
+        $config,
+        loadMergedConfigDirectory(
+            $baseDir,
+            'addons',
+            array(
+                'categories' => 'unique_key',
+                'tools' => 'id',
+            ),
+            array(
+                'categories' => array(),
+                'tools' => array(),
+            )
+        ),
+        array(
+            'categories' => 'unique_key',
+            'tools' => 'id',
+        )
+    );
+
     if (isset($config['categories']) && is_array($config['categories'])) {
         usort($config['categories'], function ($a, $b) {
             $orderA = isset($a['order']) ? (int) $a['order'] : PHP_INT_MAX;
@@ -84,7 +104,7 @@ function loadMergedConfigDirectory($baseDir, $directoryName, $sectionKeys, $defa
     }
 
     if (empty($files)) {
-        die("Config directory not found or empty: " . $directoryPath);
+        return $defaultConfig;
     }
 
     $mergedConfig = $defaultConfig;
@@ -145,6 +165,52 @@ function decodeJsonFile($filePath)
     }
 
     return $decoded;
+}
+
+function mergeToolConfigData($baseConfig, $additionalConfig, $sectionKeys)
+{
+    $mergedConfig = $baseConfig;
+
+    foreach ($sectionKeys as $section => $uniqueField) {
+        if (!isset($mergedConfig[$section]) || !is_array($mergedConfig[$section])) {
+            $mergedConfig[$section] = array();
+        }
+
+        if (empty($additionalConfig[$section]) || !is_array($additionalConfig[$section])) {
+            continue;
+        }
+
+        foreach ($additionalConfig[$section] as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $itemKey = null;
+            if (isset($item[$uniqueField])) {
+                $itemKey = $item[$uniqueField];
+            } elseif ($section === 'categories' && isset($item['id'])) {
+                $itemKey = $item['id'];
+            }
+
+            if (!is_string($itemKey) || $itemKey === '') {
+                continue;
+            }
+
+            $existingIndex = findConfigItemIndex($mergedConfig[$section], $uniqueField, $itemKey);
+            if ($existingIndex === -1 && $section === 'categories' && $uniqueField !== 'id') {
+                $existingIndex = findConfigItemIndex($mergedConfig[$section], 'id', $itemKey);
+            }
+
+            if ($existingIndex === -1) {
+                $mergedConfig[$section][] = $item;
+                continue;
+            }
+
+            $mergedConfig[$section][$existingIndex] = array_replace_recursive($mergedConfig[$section][$existingIndex], $item);
+        }
+    }
+
+    return $mergedConfig;
 }
 
 function findConfigItemIndex($items, $keyField, $keyValue)

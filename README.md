@@ -6,7 +6,7 @@ Vibe4Dock is a Docker-based development environment with a web interface for CLI
 
 This repository contains both the Vibe4Dock skeleton template and the setup CLI (`./vibe4dock` or `php vibe4dock.php`). The setup CLI generates a new Vibe4Dock project exclusively from the bundled `skeleton/` directory.
 
-Technically, Vibe4Dock consists of a PHP-based web container for the actual workspace, a separate tools service for the management UI, and a database container. The tools interface generates provisioning and mount configuration dynamically from JSON definitions and controls which tools are available inside the web environment.
+Technically, Vibe4Dock consists of a PHP-based web container for the actual workspace and a separate tools service for the management UI. Optional runtime extensions such as databases are activated later through the tools interface, which generates provisioning, mount, and Compose override configuration dynamically from JSON definitions.
 
 ![Vibe4Dock Example](readme/example.webp)
 
@@ -25,7 +25,7 @@ This project is especially useful in setups where:
 
 ## Setup CLI
 
-The setup CLI creates a new Vibe4Dock project from the bundled `skeleton/` template. All generated project files come from that placeholder-based kit, so ports, image versions, container names, and database variants are rendered into copied templates instead of being hardcoded in the generator. Files in that directory are stored as `*.skeleton` templates and are written to the target project without the `.skeleton` suffix.
+The setup CLI creates a new Vibe4Dock project from the bundled `skeleton/` template. All generated project files come from that placeholder-based kit, so ports, image versions, and container names are rendered into copied templates instead of being hardcoded in the generator. Files in that directory are stored as `*.skeleton` templates and are written to the target project without the `.skeleton` suffix.
 
 ### Setting up the Vibe4Dock setup CLI
 
@@ -77,7 +77,7 @@ Alternative:
 php vibe4dock.php
 ```
 
-Without options, the setup runs interactively and asks for the project name, PHP version, database type, database version, ports, output directory, and optional code quality tooling. If you run it inside an existing Vibe4Dock project, the detected settings are prefilled automatically.
+Without options, the setup runs interactively and asks for the project name, PHP version, ports, and output directory. If you run it inside an existing Vibe4Dock project, the detected settings are prefilled automatically.
 
 ### CLI help
 
@@ -90,17 +90,12 @@ Without options, the setup runs interactively and asks for the project name, PHP
 ```bash
 ./vibe4dock \
   --project-name=my-vibe4dock \
-  --php-version=8.3 \
-  --db-type=mariadb \
-  --mariadb-version=12.2 \
+  --php-version=8.4 \
   --web-port=80 \
   --tools-port=8090 \
   --root-shell-port=7681 \
   --app-shell-port=7682 \
-  --db-port=3306 \
-  --output-dir=./build/my-vibe4dock \
-  --code-quality=true \
-  --tools=ecs,rector,phpstan,phpunit
+  --output-dir=./build/my-vibe4dock
 ```
 
 ### Supported options
@@ -109,42 +104,24 @@ Without options, the setup runs interactively and asks for the project name, PHP
 | --- | --- |
 | `--project-name` | Name of the generated project |
 | `--php-version` | PHP base version for the web image |
-| `--db-type` | Database type: `mariadb`, `mysql`, `postgres`, `firebird` |
-| `--mariadb-version` | MariaDB version |
-| `--mysql-version` | MySQL version |
-| `--postgres-version` | PostgreSQL version |
-| `--firebird-version` | Firebird version |
 | `--web-port` | Host port for the web application |
 | `--tools-port` | Host port for the tools UI |
 | `--root-shell-port` | Host port for the root shell |
 | `--app-shell-port` | Host port for the application shell |
-| `--db-port` | Host port for the database |
 | `--output-dir` | Target directory for the generated project |
-| `--code-quality=true` | enables the additional code quality setup |
-| `--tools=...` | selects code quality tools: `ecs`, `rector`, `phpstan`, `phpunit` |
-
-### Code quality setup
-
-If `--code-quality=true` is set or tools are selected via `--tools`, the CLI extends the generated project with Composer scripts and base files for:
-
-- ECS / PHP-CS-Fixer
-- Rector
-- PHPStan
-- PHPUnit
 
 ## Architecture overview
 
-Vibe4Dock starts three Docker services by default:
+Vibe4Dock starts two Docker services by default:
 
 | Service | Purpose | Port(s) |
 | --- | --- | --- |
 | `web` | Main development environment with Apache/PHP, ttyd, shells, and installed tools | `81`, `7681`, `7682` |
 | `tools` | Management UI for dashboard, categories, settings, and install/uninstall workflows | `8090` |
-| `db` | Configurable database for local development data | database-dependent |
 
 ### `web` service
 
-The web service is based on `webdevops/php-apache-dev:8.3` and extends that image with:
+The web service is based on `webdevops/php-apache-dev:8.4` and extends that image with:
 
 - `ttyd` for browser-based terminals,
 - `tmux`,
@@ -168,24 +145,24 @@ This creates an environment that is not only usable locally on one machine, but 
 
 ### `tools` service
 
-The tools service is a standalone PHP container based on `php:8.3-cli-bookworm`. It provides the management interface and has access to:
+The tools service is a standalone PHP container based on `php:8.4-cli-bookworm`. It provides the management interface and has access to:
 
 - the project directory via bind mount,
 - the Docker socket,
 - the configuration files for tools and settings,
-- the target container `ttyd-web-1`, where commands are executed.
+- the target container `<project-name>-web-1`, where commands are executed.
 
 The interface is not just informational; it actively manages:
 
 - tool installation and removal,
 - generation of `docker/web/provision.sh`,
 - generation of `docker-compose.override.yml`,
-- activation of the rebuild hint when new mounts are required,
+- activation of the rebuild hint when installed packs add new mounts or services,
 - status display for runtime, memory, disk, and installed tools.
 
-### `db` service
+### Neutral base plus packs
 
-The `db` service is configured by the setup CLI. Depending on the selected options, Vibe4Dock generates a MariaDB, MySQL, PostgreSQL, or Firebird container with the matching host port.
+The bundled `skeleton/` now stays intentionally neutral. It only provides the base services, the tools/settings engine, and the mergeable JSON loader. Actual tools and addons are meant to come from separate JSON-based packs. The repository can still contain examples such as `project-example/`, but the generated base project should not ship opinionated tool content by default.
 
 ## Project structure
 
@@ -194,7 +171,7 @@ The most important files and directories:
 | Path | Meaning |
 | --- | --- |
 | `docker-compose.yml` | Main service definition |
-| `docker-compose.override.yml` | Generated automatically when needed to attach persistent tool mounts to the web service |
+| `docker-compose.override.yml` | Generated automatically when installed packs add persistent mounts or optional services |
 | `public/` | Web root of the `web` container |
 | `docker/web/` | Dockerfile, entry logic, provisioning, and persistent tool data |
 | `docker/tools/` | Management UI, dashboard, routing, and tool/settings definitions |
@@ -213,8 +190,11 @@ The tools UI on port `8090` is split into several areas:
   - system information such as PHP, Composer, RAM, and disk status
   - configuration status
   - list of installed tools
-- **Categories**
-  - grouped tools such as AI CLI, System & Runtime, or PHP & Frameworks
+- **Tools**
+  - one combined tools view with search and a category switcher
+  - categories appear only when tool packs provide them via JSON
+- **Addons**
+  - addon categories appear only when addon packs provide them via JSON
 - **Settings**
   - project-wide settings, currently for example Git username and email
 
@@ -233,38 +213,15 @@ The core value is not just installing tools, but location independence. Vibe4Doc
 
 The real work stays inside the container and therefore inside one consistent environment. Device choice, operating system, and local machine setup become much less important.
 
-## Currently defined tool categories
+## Tool and addon packs
 
-Categories are defined in `docker/tools/category/*.json` and sorted by `order`:
+The neutral base does not define any bundled tools or addons anymore. Categories and entries are loaded only from JSON files that are added to:
 
-- **AI CLI**
-- **System & Runtime**
-- **PHP & Frameworks**
+```text
+docker/tools/category/
+```
 
-## Currently configured tools
-
-Current base configuration:
-
-### AI CLI
-
-- Claude Code
-- Cline CLI
-- Codex CLI **(untested)**
-- GitHub Copilot CLI
-- Hermes CLI **(untested)**
-- Junie CLI **(untested)**
-
-### System & Runtime
-
-- Node.js (multiple versions)
-- pnpm (multiple versions)
-- Yarn (multiple versions)
-
-### PHP & Frameworks
-
-- Laravel CLI **(untested)**
-- Symfony CLI
-- WordPress CLI **(untested)**
+That means Vibe4Dock itself remains content-neutral, while concrete stacks can be shipped as separate packs or as example projects.
 
 ## How tool installation works
 
@@ -341,11 +298,7 @@ Each file:
 - can define categories and tools,
 - is merged with all other files.
 
-Current base file:
-
-```text
-docker/tools/category/100_vibe4dock.json
-```
+There is no required built-in tool file in the neutral base. If you want bundled examples, keep them in a separate pack or in a project template such as `project-example/`.
 
 ### Settings definitions
 
@@ -370,7 +323,7 @@ The merge logic lives in `docker/tools/config.php`:
 Example file naming:
 
 ```text
-100_vibe4dock.json
+100_base.json
 200_team.json
 300_project.json
 ```
@@ -470,13 +423,12 @@ After that, the most important endpoints are:
 - tools UI: `http://localhost:8090` (protected if both `TOOLS_USERNAME` and `TOOLS_PASSWORD` are set in `.env.local`)
 - root shell: `http://localhost:7681` (protected if both `ROOT_SHELL_USERNAME` and `ROOT_SHELL_PASSWORD` are set in `.env.local`)
 - application shell: `http://localhost:7682` (protected if both `APP_SHELL_USERNAME` and `APP_SHELL_PASSWORD` are set in `.env.local`)
-- database: `localhost:<db-port>` depending on `--db-type`
 
 ## Typical workflow
 
 1. start Vibe4Dock,
 2. open the tools UI,
-3. install the CLIs or runtimes you need,
+3. add or install the tool and addon packs you need,
 4. if a rebuild is required, run `./docker/rebuild.sh`,
 5. continue working inside the application shell.
 
@@ -527,10 +479,10 @@ Because of that, this setup is not intended for direct public internet exposure 
 
 ## Known characteristics
 
-- Tools with mounts require a manual rebuild.
+- Tools or addons that add mounts or services require a manual rebuild.
 - Depending on the tool, installations may require network access and external package sources.
 - Some CLIs only store login data after their first interactive start.
-- The Compose configuration of the generated project depends on the selected `--db-type`.
+- The Compose override is generated from the currently selected tools and optional services.
 
 ## Summary
 

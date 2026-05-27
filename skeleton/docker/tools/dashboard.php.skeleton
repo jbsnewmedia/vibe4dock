@@ -29,23 +29,6 @@ function renderDashboard($config, $envValues, $installedTools, $isOffline)
         $diskInfo = $diskResult['ok'] ? $diskResult['output'] : '---';
     }
 
-    // Databases info
-    $dbInfo = [];
-    if (!$isOffline) {
-        $mysqlCheck = runInWebContainer("mysqladmin -h db -u root -proot ping 2>&1");
-        if ($mysqlCheck['ok']) {
-            $dbInfo[] = ['label' => 'MariaDB/MySQL', 'value' => 'Connected'];
-        }
-        $psqlCheck = runInWebContainer("pg_isready -h db -U root 2>&1");
-        if ($psqlCheck['ok']) {
-            $dbInfo[] = ['label' => 'PostgreSQL', 'value' => 'Connected'];
-        }
-        $fbCheck = runInWebContainer("ls /usr/bin/isql-fb 2>/dev/null");
-        if ($fbCheck['ok']) {
-            $dbInfo[] = ['label' => 'Firebird', 'value' => 'Installed'];
-        }
-    }
-
     $toolContent = '<h1>Dashboard</h1>';
 
     // Shell Buttons
@@ -204,19 +187,6 @@ ROOT_SHELL_PASSWORD="change-me-root"</pre>
                 });
             }
         </script>';
-
-    // Databases info
-    if (!empty($dbInfo)) {
-        $toolContent .= '<h2>Databases</h2>';
-        $toolContent .= '<div class="dashboard-grid">';
-        foreach ($dbInfo as $db) {
-            $toolContent .= '<div class="stat-card">';
-            $toolContent .= '<h3>' . $db['label'] . '</h3>';
-            $toolContent .= '<div class="stat-item"><span class="stat-label">Status</span><span class="stat-value">' . $db['value'] . '</span></div>';
-            $toolContent .= '</div>';
-        }
-        $toolContent .= '</div>';
-    }
 
     $toolContent .= '<h2>Installed Tools</h2>';
 

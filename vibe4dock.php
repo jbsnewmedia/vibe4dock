@@ -4,7 +4,6 @@ class Vibe4DockSetup
 {
     private const COLORS = ['GREEN' => "\033[32m", 'RED' => "\033[31m", 'NONE' => "\033[0m"];
     private const NL = "\n";
-    private const DB_TYPES = ['mysql', 'postgres', 'mariadb', 'firebird'];
     private const DEFAULT_WEB_PORT = 80;
     private const DEFAULT_TOOLS_PORT = 8090;
     private const DEFAULT_ROOT_SHELL_PORT = 7681;
@@ -27,8 +26,6 @@ class Vibe4DockSetup
     private int $rootShellPort;
     private int $appShellPort;
     private int $dbPort;
-    private bool $addCodeQuality;
-    private array $codeQualityTools = [];
     private ?string $templateSourceDir = null;
     private bool $templateSourceResolved = false;
 
@@ -48,7 +45,7 @@ class Vibe4DockSetup
     private function setDefaults(): void
     {
         $this->projectName = basename(getcwd());
-        $this->phpVersion = '8.3';
+        $this->phpVersion = '8.4';
         $this->symfonyVersion = '7.*';
         $this->postgresVersion = '18.4';
         $this->mysqlVersion = '9.7';
@@ -61,9 +58,6 @@ class Vibe4DockSetup
         $this->rootShellPort = self::DEFAULT_ROOT_SHELL_PORT;
         $this->appShellPort = self::DEFAULT_APP_SHELL_PORT;
         $this->dbPort = $this->getDefaultDbPort($this->dbType);
-        $this->addCodeQuality = false;
-        $this->codeQualityTools = [];
-
         $this->loadExistingEnvironmentDefaults();
     }
 
@@ -76,43 +70,11 @@ class Vibe4DockSetup
         $this->projectName = $this->ask('Project Name', $this->projectName);
         $this->phpVersion = $this->ask('PHP Version', $this->phpVersion);
 
-        echo self::NL . 'Database Configuration:' . self::NL;
-        $currentDbType = $this->dbType;
-        $this->dbType = $this->askChoice('Database Type', self::DB_TYPES, $this->dbType);
-        if ($this->dbType !== $currentDbType) {
-            $this->dbPort = $this->getDefaultDbPort($this->dbType);
-        }
-        $this->mariadbVersion = $this->dbType === 'mariadb' ? $this->ask('MariaDB Version', $this->mariadbVersion) : '12.2';
-        $this->postgresVersion = $this->dbType === 'postgres' ? $this->ask('PostgreSQL Version', $this->postgresVersion) : '18.4';
-        $this->mysqlVersion = $this->dbType === 'mysql' ? $this->ask('MySQL Version', $this->mysqlVersion) : '9.7';
-        $this->firebirdVersion = $this->dbType === 'firebird' ? $this->ask('Firebird Version', $this->firebirdVersion) : '3';
-
-        echo self::NL . 'Code Quality Tools:' . self::NL;
-        $existingCodeQualityTools = $this->codeQualityTools;
-        $this->addCodeQuality = $this->askConfirm('Add Code Quality Tools?', $this->addCodeQuality ? 'yes' : 'no');
-        $this->codeQualityTools = [];
-        if ($this->addCodeQuality) {
-            if ($this->askConfirm('Add ECS (Easy Coding Standard)?', in_array('ecs', $existingCodeQualityTools, true) ? 'yes' : 'no')) {
-                $this->codeQualityTools[] = 'ecs';
-            }
-            if ($this->askConfirm('Add Rector?', in_array('rector', $existingCodeQualityTools, true) ? 'yes' : 'no')) {
-                $this->codeQualityTools[] = 'rector';
-            }
-            if ($this->askConfirm('Add PHPStan?', in_array('phpstan', $existingCodeQualityTools, true) ? 'yes' : 'no')) {
-                $this->codeQualityTools[] = 'phpstan';
-            }
-            if ($this->askConfirm('Add PHPUnit?', in_array('phpunit', $existingCodeQualityTools, true) ? 'yes' : 'no')) {
-                $this->codeQualityTools[] = 'phpunit';
-            }
-        }
-
         echo self::NL . 'Port Configuration:' . self::NL;
         $this->webPort = $this->askPort('Web Port', (string) $this->webPort);
         $this->toolsPort = $this->askPort('Tools UI Port', (string) $this->toolsPort);
         $this->rootShellPort = $this->askPort('Root Shell Port', (string) $this->rootShellPort);
         $this->appShellPort = $this->askPort('Application Shell Port', (string) $this->appShellPort);
-        $this->dbPort = $this->askPort($this->getDatabaseLabel() . ' Port', (string) $this->dbPort);
-
         echo self::NL;
         $this->outputDir = $this->ask('Output Directory', $this->outputDir);
         if (substr($this->outputDir, -1) !== DIRECTORY_SEPARATOR) {
@@ -182,27 +144,13 @@ class Vibe4DockSetup
     private function setOptions(array $options): void
     {
         $this->projectName = $options['project-name'] ?? basename(getcwd());
-        $this->phpVersion = $options['php-version'] ?? '8.3';
+        $this->phpVersion = $options['php-version'] ?? '8.4';
         $this->symfonyVersion = '7.*';
-        $this->postgresVersion = $options['postgres-version'] ?? '18.4';
-        $this->mysqlVersion = $options['mysql-version'] ?? '9.7';
-        $this->mariadbVersion = $options['mariadb-version'] ?? '12.2';
-        $this->firebirdVersion = $options['firebird-version'] ?? '3';
-        $this->dbType = $options['db-type'] ?? 'mariadb';
         $this->outputDir = $options['output-dir'] ?? (getcwd() . DIRECTORY_SEPARATOR);
         $this->webPort = $this->normalizePort($options['web-port'] ?? self::DEFAULT_WEB_PORT);
         $this->toolsPort = $this->normalizePort($options['tools-port'] ?? self::DEFAULT_TOOLS_PORT);
         $this->rootShellPort = $this->normalizePort($options['root-shell-port'] ?? self::DEFAULT_ROOT_SHELL_PORT);
         $this->appShellPort = $this->normalizePort($options['app-shell-port'] ?? self::DEFAULT_APP_SHELL_PORT);
-        $this->dbPort = $this->normalizePort($options['db-port'] ?? $this->getDefaultDbPort($this->dbType));
-        $this->addCodeQuality = isset($options['code-quality']) && in_array((string) $options['code-quality'], ['true', '1'], true);
-        $this->codeQualityTools = isset($options['tools'])
-            ? array_values(array_filter(array_map('trim', explode(',', (string) $options['tools']))))
-            : [];
-
-        if (!empty($this->codeQualityTools)) {
-            $this->addCodeQuality = true;
-        }
     }
 
     private function normalizePort($value): int
@@ -237,10 +185,6 @@ class Vibe4DockSetup
             $this->applyPhpVersionDefaults($webDockerfile);
         }
 
-        $composerJson = $this->readFileIfExists($environmentDir . DIRECTORY_SEPARATOR . 'composer.json');
-        if ($composerJson !== null) {
-            $this->applyCodeQualityDefaults($composerJson);
-        }
     }
 
     private function detectExistingEnvironmentDirectory(): ?string
@@ -285,14 +229,10 @@ class Vibe4DockSetup
 
         $webService = $this->extractComposeServiceBlock($dockerCompose, 'web');
         $toolsService = $this->extractComposeServiceBlock($dockerCompose, 'tools');
-        $dbService = $this->extractComposeServiceBlock($dockerCompose, 'db');
-
         $this->webPort = $this->extractHostPortForContainerPort($webService, self::WEB_CONTAINER_PORT) ?? $this->webPort;
         $this->rootShellPort = $this->extractHostPortForContainerPort($webService, self::ROOT_SHELL_CONTAINER_PORT) ?? $this->rootShellPort;
         $this->appShellPort = $this->extractHostPortForContainerPort($webService, self::APP_SHELL_CONTAINER_PORT) ?? $this->appShellPort;
         $this->toolsPort = $this->extractHostPortForContainerPort($toolsService, self::TOOLS_CONTAINER_PORT) ?? $this->toolsPort;
-
-        $this->applyDatabaseDefaults($dbService);
     }
 
     private function extractProjectNameFromCompose(string $dockerCompose): ?string
@@ -333,35 +273,6 @@ class Vibe4DockSetup
         return null;
     }
 
-    private function applyDatabaseDefaults(?string $dbService): void
-    {
-        if ($dbService === null) {
-            return;
-        }
-
-        if (preg_match('/^\s*image:\s*([^\s:]+(?:\/[^\s:]+)?):([^\s]+)\s*$/m', $dbService, $matches)) {
-            $image = strtolower($matches[1]);
-            $version = $matches[2];
-
-            if (str_contains($image, 'postgres')) {
-                $this->dbType = 'postgres';
-                $this->postgresVersion = $version;
-            } elseif (str_contains($image, 'firebird')) {
-                $this->dbType = 'firebird';
-                $this->firebirdVersion = $version;
-            } elseif ($image === 'mysql') {
-                $this->dbType = 'mysql';
-                $this->mysqlVersion = $version;
-            } else {
-                $this->dbType = 'mariadb';
-                $this->mariadbVersion = $version;
-            }
-        }
-
-        $this->dbPort = $this->extractHostPortForContainerPort($dbService, $this->getDatabaseContainerPort())
-            ?? $this->getDefaultDbPort($this->dbType);
-    }
-
     private function applyPhpVersionDefaults(string $webDockerfile): void
     {
         if (!preg_match('/^FROM\s+\S+:(\d+(?:\.\d+)?)/m', $webDockerfile, $matches)) {
@@ -371,33 +282,10 @@ class Vibe4DockSetup
         $this->phpVersion = $matches[1];
     }
 
-    private function applyCodeQualityDefaults(string $composerJson): void
-    {
-        $composerData = json_decode($composerJson, true);
-        if (!is_array($composerData)) {
-            return;
-        }
-
-        $detectedTools = [];
-        foreach (['ecs', 'rector', 'phpstan', 'phpunit'] as $tool) {
-            if (isset($composerData['scripts']['bin-' . $tool])) {
-                $detectedTools[] = $tool;
-            }
-        }
-
-        $this->codeQualityTools = $detectedTools;
-        $this->addCodeQuality = !empty($this->codeQualityTools);
-    }
-
     private function validateInputs(): void
     {
         if (empty($this->projectName) || !preg_match('/^[a-zA-Z0-9._-]+$/', $this->projectName)) {
             $this->printError('Invalid project name. [a-zA-Z0-9-_.]');
-            exit(1);
-        }
-
-        if (!in_array($this->dbType, self::DB_TYPES, true)) {
-            $this->printError('Invalid database type. [mysql, postgres, mariadb, firebird]');
             exit(1);
         }
 
@@ -406,7 +294,6 @@ class Vibe4DockSetup
             $this->toolsPort,
             $this->rootShellPort,
             $this->appShellPort,
-            $this->dbPort,
         ];
 
         foreach ($ports as $port) {
@@ -438,9 +325,6 @@ class Vibe4DockSetup
         $this->log('Creating Vibe4Dock project: ' . $this->projectName);
         $this->copySkeletonTemplate();
         $this->renderSkeletonTemplates();
-        if ($this->addCodeQuality && !empty($this->codeQualityTools)) {
-            $this->setupCodeQuality();
-        }
         $this->log('Vibe4Dock, Copyright (c) 2026+ JBS New Media GmbH, Juergen Schwind | MIT License | https://github.com/jbsnewmedia/vibe4dock');
         $this->printSuccess('Vibe4Dock setup complete in: ' . $this->outputDir);
     }
@@ -522,16 +406,7 @@ class Vibe4DockSetup
 
     private function shouldDeferTemplatePath(string $relativePath): bool
     {
-        $normalizedPath = str_replace('\\', '/', $relativePath);
-
-        return in_array($normalizedPath, [
-            'composer.json',
-            'phpstan-global.neon',
-            'phpunit-coverage.xml.dist',
-            'phpunit-no-coverage.xml.dist',
-            'rector.php',
-            '.php-cs-fixer.dist.php',
-        ], true) || str_starts_with($normalizedPath, 'vendor-bin/');
+        return false;
     }
 
     private function getTemplateFileContent(string $relativePath): string
@@ -577,7 +452,7 @@ class Vibe4DockSetup
             }
 
             $outputRelativePath = $this->normalizeTemplateOutputPath($relativePath);
-            if ($this->shouldSkipTemplatePath($outputRelativePath)) {
+            if ($this->shouldSkipTemplatePath($outputRelativePath) || $this->shouldDeferTemplatePath($outputRelativePath)) {
                 continue;
             }
 
@@ -615,10 +490,6 @@ class Vibe4DockSetup
             '{{VIBE4DOCK_APP_SHELL_HOST_PORT}}' => (string) $this->appShellPort,
             '{{VIBE4DOCK_APP_SHELL_CONTAINER_PORT}}' => (string) $this->getAppShellContainerPort(),
             '{{VIBE4DOCK_TARGET_CONTAINER}}' => $this->getTargetContainer(),
-            '{{VIBE4DOCK_DB_LABEL}}' => $this->getDatabaseLabel(),
-            '{{VIBE4DOCK_DB_HOST_PORT}}' => (string) $this->dbPort,
-            '{{VIBE4DOCK_DB_SERVICE_DEFINITION}}' => $this->getDatabaseServiceDefinition(),
-            '{{VIBE4DOCK_FIREBIRD_INSTALL}}' => $this->getFirebirdInstallSnippet(),
         ];
     }
 
@@ -840,7 +711,6 @@ class Vibe4DockSetup
         $readme[] = '- Tools: `http://localhost:' . $this->toolsPort . '`';
         $readme[] = '- Root shell: `http://localhost:' . $this->rootShellPort . '`';
         $readme[] = '- App shell: `http://localhost:' . $this->appShellPort . '`';
-        $readme[] = '- ' . $this->getDatabaseLabel() . ': `localhost:' . $this->dbPort . '`';
         $readme[] = '';
         $readme[] = 'Use `docker/bash.sh` or `docker/root.sh` to enter the container.';
 
@@ -867,135 +737,6 @@ class Vibe4DockSetup
         );
     }
 
-    private function setupCodeQuality(): void
-    {
-        $targetDir = $this->outputDir;
-        $composerFile = $targetDir . 'composer.json';
-        $composerData = [];
-
-        if (file_exists($composerFile)) {
-            $composerData = json_decode((string) file_get_contents($composerFile), true) ?? [];
-        }
-
-        $composerData['require-dev']['bamarni/composer-bin-plugin'] = '^1.8';
-        $composerData['config']['allow-plugins']['bamarni/composer-bin-plugin'] = true;
-        $composerData['extra']['bamarni-bin']['bin-links'] = false;
-        $composerData['extra']['bamarni-bin']['target-directory'] = 'vendor-bin';
-        $composerData['extra']['bamarni-bin']['forward-command'] = true;
-        $composerData['scripts'] = $composerData['scripts'] ?? [];
-
-        $skeletonComposer = json_decode((string) $this->getSkeletonFile('composer.json'), true);
-        foreach ($skeletonComposer['scripts'] as $key => $script) {
-            $match = false;
-            foreach ($this->codeQualityTools as $tool) {
-                if (strpos($key, 'bin-' . $tool) !== false) {
-                    $match = true;
-                    break;
-                }
-            }
-
-            if (in_array($key, ['test', 'test-coverage', 'test-full', 'test-watch', 'ci', 'ci-fix', 'ci-coverage'], true)) {
-                $match = true;
-            }
-
-            if (!$match) {
-                continue;
-            }
-
-            if (is_array($script)) {
-                $filteredScript = [];
-                foreach ($script as $subScript) {
-                    if (strpos($subScript, '@bin-') === 0) {
-                        $subTool = str_replace(['@bin-', '-install', '-update', '-v', '-fix', '-process', '-no-coverage', '-coverage'], '', $subScript);
-                        if (in_array($subTool, $this->codeQualityTools, true)) {
-                            $filteredScript[] = $subScript;
-                        }
-                    } else {
-                        $filteredScript[] = $subScript;
-                    }
-                }
-
-                if (!empty($filteredScript)) {
-                    $composerData['scripts'][$key] = $filteredScript;
-                }
-                continue;
-            }
-
-            $composerData['scripts'][$key] = $script;
-        }
-
-        file_put_contents($composerFile, json_encode($composerData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
-
-        $filesToCreate = [
-            'phpstan' => ['phpstan-global.neon'],
-            'phpunit' => ['phpunit-coverage.xml.dist', 'phpunit-no-coverage.xml.dist'],
-            'rector' => ['rector.php'],
-            'ecs' => ['.php-cs-fixer.dist.php'],
-        ];
-
-        foreach ($filesToCreate as $tool => $files) {
-            if (!in_array($tool, $this->codeQualityTools, true)) {
-                continue;
-            }
-
-            foreach ($files as $file) {
-                $content = $this->getSkeletonFile($file);
-                if ($content === null) {
-                    continue;
-                }
-
-                if ($file === 'rector.php') {
-                    $phpVer = str_replace('.', '', $this->phpVersion);
-                    $content = preg_replace('/php\d+: true/', 'php' . $phpVer . ': true', $content);
-                }
-
-                if (strpos($file, 'phpunit') === 0) {
-                    $phpUnitVer = $this->getPhpUnitVersion($this->phpVersion);
-                    $phpUnitVerNumeric = ltrim($phpUnitVer, '^');
-                    $content = preg_replace('/https:\/\/schema\.phpunit\.de\/\d+\.\d+\/phpunit\.xsd/', 'https://schema.phpunit.de/' . $phpUnitVerNumeric . '/phpunit.xsd', $content);
-
-                    if (version_compare($phpUnitVerNumeric, '10.0', '<') && strpos($content, '<source') !== false) {
-                        $content = preg_replace('/displayDetailsOnTestsThatTrigger\w+="true"/', '', $content);
-                        $content = preg_replace('/<source.*?>(.*?)<\/source>/s', "<filter>\n        <whitelist processUncoveredFilesFromWhitelist=\"true\">\n$1        </whitelist>\n    </filter>", $content);
-                    }
-                }
-
-                file_put_contents($targetDir . $file, $content);
-            }
-        }
-
-        foreach ($this->codeQualityTools as $tool) {
-            $toolDir = 'vendor-bin' . DIRECTORY_SEPARATOR . $tool;
-            $destDir = $targetDir . $toolDir;
-            $content = $this->getSkeletonFile($toolDir . DIRECTORY_SEPARATOR . 'composer.json');
-
-            if ($content === null) {
-                continue;
-            }
-
-            if (!is_dir($destDir)) {
-                mkdir($destDir, 0777, true);
-            }
-
-            $sfVersionConstraint = $this->symfonyVersion;
-            if (!preg_match('/[\^\~\>\<]/', $sfVersionConstraint) && strpos($sfVersionConstraint, '*') === false) {
-                $sfVersionConstraint = '^' . $sfVersionConstraint;
-            }
-
-            $content = preg_replace('/"symfony\/([^"]+)": "[^"]+"/', '"symfony/$1": "' . $sfVersionConstraint . '"', $content);
-
-            if ($tool === 'phpunit') {
-                $content = preg_replace('/"phpunit\/phpunit": "\^11\.0"/', '"phpunit/phpunit": "' . $this->getPhpUnitVersion($this->phpVersion) . '"', $content);
-            }
-
-            if ($tool === 'rector') {
-                $content = preg_replace('/"php": "\d+\.\d+"/', '"php": "' . $this->phpVersion . '"', $content);
-            }
-
-            file_put_contents($destDir . DIRECTORY_SEPARATOR . 'composer.json', $content);
-        }
-    }
-
     private function getSkeletonFile(string $filename): string
     {
         $sourceDir = $this->resolveSkeletonDirectory();
@@ -1018,21 +759,6 @@ class Vibe4DockSetup
         }
 
         throw new UnexpectedValueException('Skeleton file not found: ' . $filename);
-    }
-
-    private function getPhpUnitVersion(string $phpVersion): string
-    {
-        if (version_compare($phpVersion, '8.3', '>=')) {
-            return '^12.0';
-        }
-        if (version_compare($phpVersion, '8.2', '>=')) {
-            return '^11.0';
-        }
-        if (version_compare($phpVersion, '8.1', '>=')) {
-            return '^10.0';
-        }
-
-        return '^9.6';
     }
 
     private function replaceInFile(string $path, array $replacements): void
@@ -1142,18 +868,10 @@ class Vibe4DockSetup
         echo 'OPTIONS' . self::NL;
         echo '    --project-name=<name>' . self::NL;
         echo '    --php-version=<version>' . self::NL;
-        echo '    --db-type=<mariadb|mysql|postgres|firebird>' . self::NL;
-        echo '    --mariadb-version=<version>' . self::NL;
-        echo '    --mysql-version=<version>' . self::NL;
-        echo '    --postgres-version=<version>' . self::NL;
-        echo '    --firebird-version=<version>' . self::NL;
-        echo '    --code-quality=<true|false>' . self::NL;
-        echo '    --tools=<ecs,rector,phpstan,phpunit>' . self::NL;
         echo '    --web-port=<port>' . self::NL;
         echo '    --tools-port=<port>' . self::NL;
         echo '    --root-shell-port=<port>' . self::NL;
         echo '    --app-shell-port=<port>' . self::NL;
-        echo '    --db-port=<port>' . self::NL;
         echo '    --output-dir=<dir>' . self::NL;
         echo self::NL;
         echo 'EXAMPLE' . self::NL;

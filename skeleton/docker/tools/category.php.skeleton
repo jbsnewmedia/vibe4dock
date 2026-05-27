@@ -1,5 +1,205 @@
 <?php
 
+function renderVersionDropdown($tool, $installed, $installedVersion)
+{
+    $defaultVersion = isset($tool['default_version']) ? $tool['default_version'] : null;
+    $selectedVersionId = $installed && $installedVersion ? $installedVersion : $defaultVersion;
+    $selectedLabel = 'Select version';
+    $dropdownItems = '';
+
+    foreach ($tool['versions'] as $version) {
+        $isSelected = $version['id'] === $selectedVersionId;
+        if ($isSelected) {
+            $selectedLabel = $version['label'];
+        }
+
+        $dropdownItems .= sprintf(
+            '<button type="button" class="dropdown-item version-dropdown-item %s" data-dropdown-value="%s" data-dropdown-label="%s">%s</button>',
+            $isSelected ? 'active' : '',
+            htmlspecialchars($version['id']),
+            htmlspecialchars($version['label']),
+            htmlspecialchars($version['label'])
+        );
+    }
+
+    return sprintf(
+        '<div class="dropdown form-dropdown version-dropdown">
+            <input type="hidden" name="version" value="%s">
+            <button type="button" class="dropdown-toggle form-dropdown-toggle" aria-expanded="false">
+                <span class="dropdown-label">%s</span>
+                <span class="dropdown-caret" aria-hidden="true"></span>
+            </button>
+            <div class="dropdown-menu">
+                %s
+            </div>
+        </div>',
+        htmlspecialchars((string) $selectedVersionId),
+        htmlspecialchars($selectedLabel),
+        $dropdownItems
+    );
+}
+
+function formatToolConfigSources($field)
+{
+    if (!isset($field['sources']) || !is_array($field['sources']) || empty($field['sources'])) {
+        return '';
+    }
+
+    $labels = array();
+    foreach ($field['sources'] as $source) {
+        if (!is_array($source) || !isset($source['type'])) {
+            continue;
+        }
+
+        if ($source['type'] === 'docker_yaml' && isset($source['path'])) {
+            $labels[] = 'Source: docker yaml -> ' . $source['path'];
+        } elseif ($source['type'] === 'env_local' && isset($source['key'])) {
+            $labels[] = 'Source: env -> ' . $source['key'];
+        }
+    }
+
+    return implode(' | ', $labels);
+}
+
+function renderToolConfigSummary($tool)
+{
+    if (!toolHasConfigSchema($tool)) {
+        return '';
+    }
+
+    $values = getToolConfigValues($tool);
+    $items = array();
+    foreach (getToolConfigFields($tool) as $field) {
+        if (!isset($field['key'], $field['label'])) {
+            continue;
+        }
+
+        $value = isset($values[$field['key']]) ? $values[$field['key']] : '';
+        if ($value === '') {
+            continue;
+        }
+
+        if (isset($field['type']) && $field['type'] === 'checkbox') {
+            if (!isTruthyConfigValue($value)) {
+                continue;
+            }
+
+            $value = 'Enabled';
+        } elseif (isset($field['type']) && $field['type'] === 'password') {
+            $value = str_repeat('*', max(8, strlen($value)));
+        }
+
+        $items[] = '<div><span style="color: var(--text-dim);">' . htmlspecialchars($field['label']) . ':</span> ' . htmlspecialchars($value) . '</div>';
+    }
+
+    if (empty($items)) {
+        return '';
+    }
+
+    return '<div style="margin-top: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: rgba(255,255,255,0.02);">' . implode('', $items) . '</div>';
+}
+
+function renderToolConfigModal($tool)
+{
+    if (!toolHasConfigSchema($tool) || !isset($tool['id'])) {
+        return '';
+    }
+
+    $modalId = 'tool-config-modal-' . preg_replace('/[^a-z0-9\-]/i', '-', $tool['id']);
+    $values = getToolConfigValues($tool);
+    $fieldsHtml = '';
+
+    foreach (getToolConfigFields($tool) as $field) {
+        if (!isset($field['key'], $field['label'])) {
+            continue;
+        }
+
+        $fieldKey = $field['key'];
+        $fieldType = isset($field['type']) ? $field['type'] : 'text';
+        $fieldValue = isset($values[$fieldKey]) ? $values[$fieldKey] : '';
+        $placeholder = isset($field['placeholder']) ? $field['placeholder'] : $fieldKey;
+        $helpText = isset($field['help_text']) ? $field['help_text'] : '';
+        $sourceText = formatToolConfigSources($field);
+        $combinedHelp = trim($helpText . ($helpText !== '' && $sourceText !== '' ? ' ' : '') . $sourceText);
+        if ($fieldType === 'checkbox') {
+            $inputHtml = sprintf(
+                '<label class="switch">
+                    <input type="checkbox" name="%s" value="1" %s>
+                    <span class="slider"></span>
+                </label>',
+                htmlspecialchars($fieldKey),
+                isTruthyConfigValue($fieldValue) ? 'checked' : ''
+            );
+        } else {
+            $inputHtml = sprintf(
+                '<input type="%s" name="%s" value="%s" placeholder="%s">',
+                htmlspecialchars($fieldType),
+                htmlspecialchars($fieldKey),
+                htmlspecialchars($fieldValue),
+                htmlspecialchars($placeholder)
+            );
+        }
+
+        if ($fieldType === 'password') {
+            $inputHtml = sprintf(
+                '<div class="password-input-wrapper">
+                    %s
+                    <button type="button" class="btn-secondary password-toggle" data-toggle-password="%s">Show</button>
+                </div>',
+                $inputHtml,
+                htmlspecialchars($fieldKey, ENT_QUOTES)
+            );
+        }
+
+        $fieldsHtml .= sprintf(
+            '<div class="form-group">
+                <label>%s</label>
+                %s
+                %s
+            </div>',
+            htmlspecialchars($field['label']),
+            $inputHtml,
+            $combinedHelp !== '' ? sprintf('<div class="form-help">%s</div>', htmlspecialchars($combinedHelp)) : ''
+        );
+    }
+
+    return sprintf(
+        '<div id="%s" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%%; height:100%%; background: rgba(0,0,0,0.8); align-items:center; justify-content:center;">
+            <div style="background:#1e1e1e; padding:20px; border-radius:8px; border:1px solid #333; max-width:560px; width:90%%;">
+                <form method="post" action="%s">
+                    <h3 style="margin-top:0;">Configure %s</h3>
+                    <p>Current tool settings. Save to update the stored configuration for this tool.</p>
+                    %s
+                    <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px;">
+                        <button type="button" class="btn-uninstall" onclick="hideToolConfigModal(\'%s\')">Close</button>
+                        <button type="submit" class="btn-install">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>',
+        htmlspecialchars($modalId, ENT_QUOTES),
+        htmlspecialchars(addTimestamp('/action/' . $tool['id'] . '/save')),
+        htmlspecialchars($tool['label']),
+        $fieldsHtml,
+        htmlspecialchars($modalId, ENT_QUOTES)
+    );
+}
+
+function findInstalledVersionId($tool, $installedTools)
+{
+    if (!isset($tool['versions']) || !is_array($tool['versions'])) {
+        return null;
+    }
+
+    foreach ($tool['versions'] as $version) {
+        if (isset($version['id']) && in_array($version['id'], $installedTools, true)) {
+            return $version['id'];
+        }
+    }
+
+    return null;
+}
+
 function renderCategory($config, $categoryId, $envValues, $installedTools)
 {
     $settingsContent = '';
@@ -29,7 +229,7 @@ function renderCategory($config, $categoryId, $envValues, $installedTools)
             $actions .= sprintf('<button class="btn-install" formaction="%s">Save</button>', addTimestamp('/action/' . $tool['id'] . '/save'));
 
             $settingsContent .= sprintf('
-                <div class="tool-card">
+                <div class="tool-card searchable-tool-card" data-search-title="%s">
                     <form method="post">
                         <div class="tool-header">
                             <div>
@@ -53,6 +253,7 @@ function renderCategory($config, $categoryId, $envValues, $installedTools)
                     </form>
                 </div>',
                 htmlspecialchars($tool['label']),
+                htmlspecialchars($tool['label']),
                 $installed ? 'status-installed' : 'status-missing',
                 $installed ? 'Active' : ($hasToggle ? 'Disabled' : 'Not configured'),
                 $actions,
@@ -74,21 +275,29 @@ function renderCategory($config, $categoryId, $envValues, $installedTools)
                 $enabledKey = isset($tool['setting_enabled_key']) ? $tool['setting_enabled_key'] : null;
                 $installed = $enabledKey && isset($envValues[$enabledKey]) && ($envValues[$enabledKey] === '1' || $envValues[$enabledKey] === 'true');
             } elseif ($isVersioned) {
-                $installed = false;
-                foreach ($tool['versions'] as $v) {
-                    $statusResult = runInWebContainer($v['check']);
-                    if ($statusResult['ok']) {
-                        $installed = true;
-                        $installedVersion = $v['id'];
-                        $versionInfo = trim($statusResult['output']);
+                $installedVersion = findInstalledVersionId($tool, $installedTools);
+                $installed = $installedVersion !== null;
+
+                if ($installed) {
+                    foreach ($tool['versions'] as $v) {
+                        if ($v['id'] !== $installedVersion || !isset($v['check'])) {
+                            continue;
+                        }
+
+                        $statusResult = runInWebContainer($v['check']);
+                        if ($statusResult['ok']) {
+                            $versionInfo = trim($statusResult['output']);
+                        }
                         break;
                     }
                 }
             } else {
-                $statusResult = runInWebContainer($tool['check']);
-                $installed = $statusResult['ok'];
-                if ($installed) {
-                    $versionInfo = trim($statusResult['output']);
+                $installed = in_array($tool['id'], $installedTools, true);
+                if ($installed && isset($tool['check'])) {
+                    $statusResult = runInWebContainer($tool['check']);
+                    if ($statusResult['ok']) {
+                        $versionInfo = trim($statusResult['output']);
+                    }
                 }
             }
 
@@ -102,9 +311,13 @@ function renderCategory($config, $categoryId, $envValues, $installedTools)
             if ($installed && $versionInfo) {
                 $metaHtml .= '<div><span style="color: var(--text-dim);">Version:</span> ' . htmlspecialchars($versionInfo) . '</div>';
             }
+            if (toolHasConfigSchema($tool)) {
+                $metaHtml .= renderToolConfigSummary($tool);
+            }
             $metaHtml .= '</div>';
 
             $actions = '';
+            $configModalHtml = '';
             if ($isSetting) {
                 $actions .= sprintf('
                     <label class="switch">
@@ -114,13 +327,7 @@ function renderCategory($config, $categoryId, $envValues, $installedTools)
                 ', $installed ? 'checked' : '');
                 $actions .= sprintf('<button class="btn-install" formaction="%s">Save</button>', addTimestamp('/action/' . $tool['id'] . '/save'));
             } elseif ($isVersioned) {
-                $actions .= '<select name="version">';
-                $defaultVersion = isset($tool['default_version']) ? $tool['default_version'] : null;
-                foreach ($tool['versions'] as $v) {
-                    $selected = ($installed && $v['id'] === $installedVersion) || (!$installed && $v['id'] === $defaultVersion) ? 'selected' : '';
-                    $actions .= sprintf('<option value="%s" %s>%s</option>', htmlspecialchars($v['id']), $selected, htmlspecialchars($v['label']));
-                }
-                $actions .= '</select>';
+                $actions .= renderVersionDropdown($tool, $installed, $installedVersion);
                 $actions .= sprintf('<button class="btn-install" formaction="%s">%s</button>', addTimestamp('/action/' . $tool['id'] . '/install'), $installed ? 'Switch/Update' : 'Install');
                 if ($installed) {
                     $actions .= sprintf('<button class="btn-uninstall" formaction="%s">Uninstall</button>', addTimestamp('/action/' . $tool['id'] . '/uninstall'));
@@ -130,6 +337,12 @@ function renderCategory($config, $categoryId, $envValues, $installedTools)
                 if ($installed) {
                     $actions .= sprintf('<button class="btn-uninstall" formaction="%s">Uninstall</button>', addTimestamp('/action/' . $tool['id'] . '/uninstall'));
                 }
+            }
+
+            if (!$isSetting && toolHasConfigSchema($tool)) {
+                $modalId = 'tool-config-modal-' . preg_replace('/[^a-z0-9\-]/i', '-', $tool['id']);
+                $actions .= sprintf('<button type="button" class="btn-install" onclick="showToolConfigModal(\'%s\')">Config</button>', htmlspecialchars($modalId, ENT_QUOTES));
+                $configModalHtml = renderToolConfigModal($tool);
             }
 
             $depHtml = '';
@@ -146,7 +359,7 @@ function renderCategory($config, $categoryId, $envValues, $installedTools)
             }
 
             $cardHtml = sprintf('
-                <div class="tool-card">
+                <div class="tool-card searchable-tool-card" data-search-title="%s">
                     <form method="post">
                         <div class="tool-header">
                             <div>
@@ -167,14 +380,17 @@ function renderCategory($config, $categoryId, $envValues, $installedTools)
                         </div>
                         %s
                     </form>
+                    %s
                 </div>',
+                htmlspecialchars($tool['label']),
                 htmlspecialchars($tool['label']),
                 $installed ? 'status-installed' : 'status-missing',
                 $installed ? 'Active/Installed' : ($isSetting ? 'Disabled' : 'Not installed'),
                 $actions,
                 $metaHtml,
                 $depHtml,
-                $isSetting ? sprintf('<div class="fields-container" style="display: %s;">%s</div>', $installed ? 'block' : 'none', renderSettingFields($tool, $envValues)) : ''
+                $isSetting ? sprintf('<div class="fields-container" style="display: %s;">%s</div>', $installed ? 'block' : 'none', renderSettingFields($tool, $envValues)) : '',
+                $configModalHtml
             );
 
             if ($isSetting) {
