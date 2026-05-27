@@ -296,7 +296,11 @@ function updateDockerOverride()
             }
 
             $serviceName = $serviceConfig['service'];
-            $resolvedDefinition = applyToolConfigSources($tool, $serviceConfig['definition']);
+            $resolvedDefinition = applyToolConfigSources(
+                $tool,
+                $serviceConfig['definition'],
+                array('compose_service' => $serviceName)
+            );
             $composeServices[$serviceName] = mergeComposeDefinitions(
                 isset($composeServices[$serviceName]) ? $composeServices[$serviceName] : array(),
                 $resolvedDefinition
@@ -988,7 +992,20 @@ function setNestedConfigValue(&$target, $path, $value)
     }
 }
 
-function applyToolConfigSources($tool, $definition)
+function sourceTargetsContext($source, $context)
+{
+    if (!is_array($source) || !isset($source['target_services']) || !is_array($source['target_services'])) {
+        return true;
+    }
+
+    if (!is_array($context) || !isset($context['compose_service'])) {
+        return false;
+    }
+
+    return in_array($context['compose_service'], $source['target_services'], true);
+}
+
+function applyToolConfigSources($tool, $definition, $context = array())
 {
     if (!toolHasConfigSchema($tool) || !is_array($definition)) {
         return $definition;
@@ -1004,6 +1021,10 @@ function applyToolConfigSources($tool, $definition)
         $sources = isset($field['sources']) && is_array($field['sources']) ? $field['sources'] : array();
         foreach ($sources as $source) {
             if (!is_array($source) || !isset($source['type'])) {
+                continue;
+            }
+
+            if (!sourceTargetsContext($source, $context)) {
                 continue;
             }
 
@@ -1158,7 +1179,7 @@ function handleToolConfigSave($tool, $postData)
     );
 }
 
-function writeProjectFile($relativePath, $content)
+function writeProjectFile($relativePath, $content, $mode = null)
 {
     $path = '/app/' . ltrim($relativePath, '/');
     $dir = dirname($path);
@@ -1167,6 +1188,9 @@ function writeProjectFile($relativePath, $content)
     }
 
     file_put_contents($path, $content);
+    if ($mode !== null) {
+        chmod($path, $mode);
+    }
 }
 
 function removeProjectFile($relativePath)
@@ -1441,6 +1465,22 @@ function getPackageTemplateContent($tool, $template)
         return $template['content'];
     }
 
+    if (isset($template['content_lines']) && is_array($template['content_lines'])) {
+        $lines = array();
+        foreach ($template['content_lines'] as $line) {
+            if (is_scalar($line) || $line === null) {
+                $lines[] = (string) $line;
+            }
+        }
+
+        $content = implode("\n", $lines);
+        if (!isset($template['append_newline']) || $template['append_newline'] !== false) {
+            $content .= "\n";
+        }
+
+        return $content;
+    }
+
     if (!isset($template['source']) || !is_string($template['source']) || $template['source'] === '') {
         throw new UnexpectedValueException('Package template is missing inline content and source.');
     }
@@ -1471,6 +1511,44 @@ function getPackageTemplateContent($tool, $template)
     throw new UnexpectedValueException('Package template file not found: ' . $relativePath);
 }
 
+function normalizeProjectFileMode($value)
+{
+    if (is_int($value)) {
+        return $value;
+    }
+
+    if (!is_string($value)) {
+        return null;
+    }
+
+    $trimmedValue = trim($value);
+    if ($trimmedValue === '' || preg_match('/^[0-7]{3,4}$/', $trimmedValue) !== 1) {
+        return null;
+    }
+
+    return octdec($trimmedValue);
+}
+
+function getPackageTemplateMode($template)
+{
+    if (!is_array($template)) {
+        return null;
+    }
+
+    if (isset($template['mode'])) {
+        $mode = normalizeProjectFileMode($template['mode']);
+        if ($mode !== null) {
+            return $mode;
+        }
+    }
+
+    if (!empty($template['executable'])) {
+        return 0755;
+    }
+
+    return null;
+}
+
 function applyPackageTemplates($tool, $mode)
 {
     $templates = getPackageTemplateEntries($tool, $mode);
@@ -1486,7 +1564,7 @@ function applyPackageTemplates($tool, $mode)
         $target = (string) $template['target'];
 
         if ($mode === 'install') {
-            writeProjectFile($target, getPackageTemplateContent($tool, $template));
+            writeProjectFile($target, getPackageTemplateContent($tool, $template), getPackageTemplateMode($template));
             continue;
         }
 

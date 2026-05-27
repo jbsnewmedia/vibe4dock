@@ -29,7 +29,10 @@
                             {
                                 "type": "docker_yaml",
                                 "path": "ports.0",
-                                "format": "%s:6610"
+                                "format": "%s:6610",
+                                "target_services": [
+                                    "onedev"
+                                ]
                             }
                         ]
                     },
@@ -42,7 +45,10 @@
                             {
                                 "type": "docker_yaml",
                                 "path": "ports.1",
-                                "format": "%s:6611"
+                                "format": "%s:6611",
+                                "target_services": [
+                                    "onedev"
+                                ]
                             }
                         ]
                     },
@@ -54,7 +60,17 @@
                         "sources": [
                             {
                                 "type": "docker_yaml",
-                                "path": "environment.initial_user"
+                                "path": "environment.initial_user",
+                                "target_services": [
+                                    "onedev"
+                                ]
+                            },
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.V4D_ONEDEV_ADMIN_USERNAME",
+                                "target_services": [
+                                    "onedev-bootstrap"
+                                ]
                             }
                         ]
                     },
@@ -67,7 +83,17 @@
                         "sources": [
                             {
                                 "type": "docker_yaml",
-                                "path": "environment.initial_password"
+                                "path": "environment.initial_password",
+                                "target_services": [
+                                    "onedev"
+                                ]
+                            },
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.V4D_ONEDEV_ADMIN_PASSWORD",
+                                "target_services": [
+                                    "onedev-bootstrap"
+                                ]
                             }
                         ]
                     },
@@ -79,7 +105,17 @@
                         "sources": [
                             {
                                 "type": "docker_yaml",
-                                "path": "environment.initial_email"
+                                "path": "environment.initial_email",
+                                "target_services": [
+                                    "onedev"
+                                ]
+                            },
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.V4D_ONEDEV_ADMIN_EMAIL",
+                                "target_services": [
+                                    "onedev-bootstrap"
+                                ]
                             }
                         ]
                     },
@@ -91,7 +127,17 @@
                         "sources": [
                             {
                                 "type": "docker_yaml",
-                                "path": "environment.initial_server_url"
+                                "path": "environment.initial_server_url",
+                                "target_services": [
+                                    "onedev"
+                                ]
+                            },
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.V4D_ONEDEV_SERVER_URL",
+                                "target_services": [
+                                    "onedev-bootstrap"
+                                ]
                             }
                         ]
                     },
@@ -103,7 +149,17 @@
                         "sources": [
                             {
                                 "type": "docker_yaml",
-                                "path": "environment.initial_ssh_root_url"
+                                "path": "environment.initial_ssh_root_url",
+                                "target_services": [
+                                    "onedev"
+                                ]
+                            },
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.V4D_ONEDEV_SSH_ROOT_URL",
+                                "target_services": [
+                                    "onedev-bootstrap"
+                                ]
                             }
                         ]
                     },
@@ -111,15 +167,143 @@
                         "key": "project_name",
                         "label": "Project name",
                         "default": "{{VIBE4DOCK_PROJECT_NAME}}",
-                        "help_text": "OneDev project name that should be created automatically from the current workspace."
+                        "help_text": "OneDev project name that should be created automatically from the current workspace.",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.V4D_ONEDEV_PROJECT_NAME",
+                                "target_services": [
+                                    "onedev-bootstrap"
+                                ]
+                            }
+                        ]
                     }
                 ]
             },
             "package_operations": {
                 "templates": [
                     {
-                        "source": "bootstrap/bootstrap.sh",
-                        "target": "docker/onedev/bootstrap/bootstrap.sh"
+                        "target": "docker/onedev/bootstrap/bootstrap.sh",
+                        "executable": true,
+                        "content_lines": [
+                            "#!/bin/sh",
+                            "set -eu",
+                            "",
+                            "slugify() {",
+                            "  printf '%s' \"$1\" \\",
+                            "    | tr '[:upper:]' '[:lower:]' \\",
+                            "    | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//; s/-{2,}/-/g'",
+                            "}",
+                            "",
+                            "extract_json_string() {",
+                            "  local key=\"$1\"",
+                            "  tr -d '\\n\\r' | sed -n \"s/.*\\\"${key}\\\"[[:space:]]*:[[:space:]]*\\\"\\([^\\\"]*\\)\\\".*/\\1/p\" | head -n 1",
+                            "}",
+                            "",
+                            "extract_json_number() {",
+                            "  local key=\"$1\"",
+                            "  tr -d '\\n\\r' | sed -n \"s/.*\\\"${key}\\\"[[:space:]]*:[[:space:]]*\\([0-9][0-9]*\\).*/\\1/p\" | head -n 1",
+                            "}",
+                            "",
+                            "escape_json() {",
+                            "  printf '%s' \"$1\" | sed 's/\\\\/\\\\\\\\/g; s/\"/\\\\\"/g'",
+                            "}",
+                            "",
+                            "ADMIN_USERNAME=\"${V4D_ONEDEV_ADMIN_USERNAME:-admin}\"",
+                            "ADMIN_PASSWORD=\"${V4D_ONEDEV_ADMIN_PASSWORD:-change-me-onedev-admin}\"",
+                            "ADMIN_EMAIL=\"${V4D_ONEDEV_ADMIN_EMAIL:-admin@example.test}\"",
+                            "PROJECT_NAME=\"${V4D_ONEDEV_PROJECT_NAME:-{{VIBE4DOCK_PROJECT_NAME}}}\"",
+                            "PROJECT_PATH=\"$(slugify \"$PROJECT_NAME\")\"",
+                            "PROJECT_DESCRIPTION=\"Managed by Vibe4Dock for the current workspace.\"",
+                            "ONEDEV_URL=\"http://onedev:6610\"",
+                            "PUBLIC_ONEDEV_URL=\"${V4D_ONEDEV_SERVER_URL:-http://localhost:6610}\"",
+                            "GIT_REMOTE_BASE_URL=\"$(printf '%s' \"$PUBLIC_ONEDEV_URL\" | sed -E 's#://(localhost|127\\.0\\.0\\.1)([:/]|$)#://host.docker.internal\\2#')\"",
+                            "",
+                            "if [ -z \"$PROJECT_PATH\" ]; then",
+                            "  echo \"Unable to derive a valid OneDev project path.\" >&2",
+                            "  exit 1",
+                            "fi",
+                            "",
+                            "wait_for_onedev() {",
+                            "  attempts=0",
+                            "  while [ \"$attempts\" -lt 120 ]; do",
+                            "    if curl -fsS -u \"$ADMIN_USERNAME:$ADMIN_PASSWORD\" \"$ONEDEV_URL/~api/users/ids/$ADMIN_USERNAME\" >/dev/null 2>&1; then",
+                            "      return 0",
+                            "    fi",
+                            "",
+                            "    attempts=$((attempts + 1))",
+                            "    sleep 5",
+                            "  done",
+                            "",
+                            "  echo \"Timed out while waiting for OneDev API to become ready.\" >&2",
+                            "  return 1",
+                            "}",
+                            "",
+                            "create_project() {",
+                            "  name_json=\"$(escape_json \"$PROJECT_NAME\")\"",
+                            "  description_json=\"$(escape_json \"$PROJECT_DESCRIPTION\")\"",
+                            "  payload=$(printf '{\"name\":\"%s\",\"description\":\"%s\",\"codeManagement\":true,\"packManagement\":true,\"issueManagement\":true,\"timeTracking\":true,\"gitPackConfig\":{},\"codeAnalysisSetting\":{}}' \"$name_json\" \"$description_json\")",
+                            "",
+                            "  curl -fsS \\",
+                            "    -u \"$ADMIN_USERNAME:$ADMIN_PASSWORD\" \\",
+                            "    -H 'Content-Type: application/json' \\",
+                            "    -X POST \\",
+                            "    -d \"$payload\" \\",
+                            "    \"$ONEDEV_URL/~api/projects\" >/dev/null",
+                            "}",
+                            "",
+                            "find_project() {",
+                            "  curl -fsS \\",
+                            "    -u \"$ADMIN_USERNAME:$ADMIN_PASSWORD\" \\",
+                            "    --get \\",
+                            "    --data-urlencode \"query=\\\"Name\\\" is \\\"$PROJECT_NAME\\\"\" \\",
+                            "    --data \"offset=0\" \\",
+                            "    --data \"count=1\" \\",
+                            "    \"$ONEDEV_URL/~api/projects\"",
+                            "}",
+                            "",
+                            "push_repository() {",
+                            "  local project_path=\"$1\"",
+                            "",
+                            "  git config --global --add safe.directory /workspace >/dev/null 2>&1",
+                            "",
+                            "  if ! git -C /workspace rev-parse --is-inside-work-tree >/dev/null 2>&1; then",
+                            "    return 0",
+                            "  fi",
+                            "",
+                            "  if ! git -C /workspace rev-parse --verify HEAD >/dev/null 2>&1; then",
+                            "    return 0",
+                            "  fi",
+                            "",
+                            "  auth_header=\"$(printf '%s:%s' \"$ADMIN_USERNAME\" \"$ADMIN_PASSWORD\" | base64 | tr -d '\\n')\"",
+                            "  remote_url=\"${GIT_REMOTE_BASE_URL%/}/$project_path.git\"",
+                            "",
+                            "  git -C /workspace -c http.extraHeader=\"Authorization: Basic $auth_header\" push \"$remote_url\" --all",
+                            "  git -C /workspace -c http.extraHeader=\"Authorization: Basic $auth_header\" push \"$remote_url\" --tags",
+                            "}",
+                            "",
+                            "wait_for_onedev",
+                            "",
+                            "existing_project=\"$(find_project)\"",
+                            "existing_project_id=\"$(printf '%s' \"$existing_project\" | extract_json_number id)\"",
+                            "existing_project_path=\"$(printf '%s' \"$existing_project\" | extract_json_string path)\"",
+                            "",
+                            "if [ -n \"$existing_project_path\" ]; then",
+                            "  push_repository \"$existing_project_path\"",
+                            "  exit 0",
+                            "fi",
+                            "",
+                            "create_project",
+                            "created_project=\"$(find_project)\"",
+                            "created_project_path=\"$(printf '%s' \"$created_project\" | extract_json_string path)\"",
+                            "",
+                            "if [ -z \"$created_project_path\" ]; then",
+                            "  echo \"OneDev project was created, but its resolved path could not be read back from the API.\" >&2",
+                            "  exit 1",
+                            "fi",
+                            "",
+                            "push_repository \"$created_project_path\""
+                        ]
                     }
                 ],
                 "cleanup_directories": [
@@ -151,12 +335,23 @@
                 {
                     "service": "onedev-bootstrap",
                     "definition": {
-                        "image": "alpine:3.20",
+                        "image": "1dev/server:latest",
                         "depends_on": [
                             "onedev"
                         ],
                         "restart": "no",
                         "working_dir": "/workspace",
+                        "extra_hosts": [
+                            "host.docker.internal:host-gateway"
+                        ],
+                        "environment": {
+                            "V4D_ONEDEV_ADMIN_USERNAME": "admin",
+                            "V4D_ONEDEV_ADMIN_PASSWORD": "change-me-onedev-admin",
+                            "V4D_ONEDEV_ADMIN_EMAIL": "admin@example.test",
+                            "V4D_ONEDEV_PROJECT_NAME": "{{VIBE4DOCK_PROJECT_NAME}}",
+                            "V4D_ONEDEV_SERVER_URL": "http://localhost:6610",
+                            "V4D_ONEDEV_SSH_ROOT_URL": "ssh://git@localhost:6611"
+                        },
                         "command": [
                             "sh",
                             "/bootstrap/bootstrap.sh"

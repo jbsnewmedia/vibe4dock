@@ -297,7 +297,7 @@ Dabei wird:
 
 1. `docker compose down` ausgeführt,
 2. der Web-Container neu gebaut,
-3. das Compose-Setup neu gestartet,
+3. das Compose-Setup neu gestartet und verwaiste Addon-Container entfernter oder umbenannter Services bereinigt,
 4. der Rebuild-Hinweis im Container entfernt.
 
 Zusätzlich fragt die UI den Rebuild-Status alle 15 Sekunden ab. Sobald das Hint-File entfernt wurde, blendet sich der Hinweis automatisch weich aus.
@@ -389,6 +389,8 @@ Ein Tool kann unter anderem folgende Felder besitzen:
 | `compose_service` | Optionale Service-Definition, vor allem für Addons |
 | `compose_services` | Optionale Liste zusätzlicher Addon-Services wie Bootstrap- oder Sidecar-Jobs |
 | `dashboard_shell` | Optionaler Dashboard-Eintrag für browserfähige Shells oder Addon-Endpunkte |
+
+`package_operations.templates` kann Dateien jetzt entweder aus `source`, aus inline `content` oder aus gut lesbaren mehrzeiligen `content_lines` erzeugen. Über `mode` oder `executable` lassen sich damit auch Shell-Skripte und ähnliche Hilfsdateien direkt aus JSON-Definitionen schreiben.
 
 ### Browser-Endpunkt-Andockung
 

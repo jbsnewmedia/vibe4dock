@@ -299,7 +299,7 @@ This will:
 
 1. run `docker compose down`,
 2. rebuild the web container,
-3. start the Compose setup again,
+3. start the Compose setup again and remove orphaned addon containers from renamed/removed services,
 4. remove the rebuild hint from inside the container.
 
 In addition, the UI polls rebuild status every 15 seconds. As soon as the hint file disappears, the banner fades out automatically.
@@ -391,6 +391,8 @@ A tool can contain fields such as:
 | `compose_service` | Optional service definition used mainly by addons |
 | `compose_services` | Optional list of additional addon services such as bootstrap or sidecar jobs |
 | `dashboard_shell` | Optional dashboard entry for browser-accessible shells or addon endpoints |
+
+`package_operations.templates` can now scaffold files either from `source`, from inline `content`, or from readable multiline `content_lines`. Templates can also declare `mode` or `executable` to write shell scripts and similar helper files directly from JSON definitions.
 
 ### Browser endpoint docking
 
