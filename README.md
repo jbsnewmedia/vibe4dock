@@ -244,6 +244,7 @@ Current bundled addon packs:
 - **Databases**: MariaDB, MySQL, PostgreSQL, Firebird
 - **Browser Shells**: Lazygit Shell
 - **Browser IDEs**: code-server
+- **DevOps Platforms**: OneDev Community Edition
 
 You can still add your own packs or overrides on top of these files.
 
@@ -388,6 +389,7 @@ A tool can contain fields such as:
 | `apply_commands` | Optional commands executed after config changes or activation |
 | `package_operations` | Optional package/file operations for project scaffolding tools |
 | `compose_service` | Optional service definition used mainly by addons |
+| `compose_services` | Optional list of additional addon services such as bootstrap or sidecar jobs |
 | `dashboard_shell` | Optional dashboard entry for browser-accessible shells or addon endpoints |
 
 ### Browser endpoint docking
@@ -432,6 +434,7 @@ Examples of bundled browser endpoints:
 
 - **Lazygit Shell**: additional ttyd session inside the `web` container
 - **code-server**: separate addon service with its own port and password-protected browser IDE
+- **OneDev**: separate addon service with a web UI on port `6610`, Git SSH on port `6611`, and an auto-bootstrap job for the current workspace
 
 ## Settings
 
@@ -479,8 +482,13 @@ Addon services also persist their runtime data outside the image, for example:
 
 - `docker/data/mariadb`
 - `docker/data/mysql`
+- `docker/data/onedev`
 - `docker/data/postgresql`
 - `docker/data/firebird`
+
+Some addons also scaffold helper files into the project when they need bootstrap logic, for example:
+
+- `docker/onedev/bootstrap/bootstrap.sh`
 
 Technical state files are also stored there:
 
@@ -497,7 +505,9 @@ Vibe4Dock provides two built-in browser shells plus addon-provided dashboard end
 | Root Shell | Administrative tasks inside the container | `7681` |
 | Application Shell | Normal development work as `application` | `7682` |
 
-The application shell starts through `tmux` so sessions can persist. Additional browser shells can be registered declaratively by addons, and separate addon services such as `code-server` can expose their own browser IDE ports while still appearing on the same dashboard.
+The application shell starts through `tmux` so sessions can persist. Additional browser shells can be registered declaratively by addons, and separate addon services such as `code-server` or `OneDev` can expose their own browser endpoints while still appearing on the same dashboard.
+
+The bundled OneDev addon now also bootstraps the configured initial administrator and creates a project for the current workspace automatically on first start. If the workspace already contains a Git repository with commits, the bootstrap job pushes branches and tags into the freshly created OneDev project.
 
 ## Starting the project
 

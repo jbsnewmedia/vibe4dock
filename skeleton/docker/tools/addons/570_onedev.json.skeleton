@@ -1,0 +1,181 @@
+{
+    "categories": [
+        {
+            "unique_key": "devops-platforms",
+            "id": "devops-platforms",
+            "label": "DevOps Platforms",
+            "order": 570,
+            "menu_group": "addons"
+        }
+    ],
+    "tools": [
+        {
+            "id": "onedev",
+            "category": "devops-platforms",
+            "label": "OneDev Community Edition",
+            "description": "Git server, CI/CD, issue tracking, and packages via the official OneDev server image.",
+            "usage": "",
+            "check": "false",
+            "install": "true",
+            "uninstall": "true",
+            "config_schema": {
+                "fields": [
+                    {
+                        "key": "http_port",
+                        "label": "HTTP port",
+                        "default": "6610",
+                        "help_text": "Host port for the OneDev web interface.",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "ports.0",
+                                "format": "%s:6610"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "ssh_port",
+                        "label": "SSH port",
+                        "default": "6611",
+                        "help_text": "Host port for Git over SSH connections.",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "ports.1",
+                                "format": "%s:6611"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "admin_username",
+                        "label": "Admin username",
+                        "default": "admin",
+                        "help_text": "Initial OneDev administrator username.",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.initial_user"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "admin_password",
+                        "label": "Admin password",
+                        "default": "change-me-onedev-admin",
+                        "help_text": "Initial OneDev administrator password.",
+                        "type": "password",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.initial_password"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "admin_email",
+                        "label": "Admin email",
+                        "default": "admin@example.test",
+                        "help_text": "Initial OneDev administrator email address.",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.initial_email"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "server_url",
+                        "label": "Server URL",
+                        "default": "http://localhost:6610",
+                        "help_text": "Public OneDev base URL used for generated HTTP clone links.",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.initial_server_url"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "ssh_root_url",
+                        "label": "SSH root URL",
+                        "default": "ssh://git@localhost:6611",
+                        "help_text": "Public SSH root URL used for generated SSH clone links.",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.initial_ssh_root_url"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "project_name",
+                        "label": "Project name",
+                        "default": "{{VIBE4DOCK_PROJECT_NAME}}",
+                        "help_text": "OneDev project name that should be created automatically from the current workspace."
+                    }
+                ]
+            },
+            "package_operations": {
+                "templates": [
+                    {
+                        "source": "bootstrap/bootstrap.sh",
+                        "target": "docker/onedev/bootstrap/bootstrap.sh"
+                    }
+                ],
+                "cleanup_directories": [
+                    "docker/onedev/bootstrap"
+                ]
+            },
+            "compose_service": {
+                "service": "onedev",
+                "definition": {
+                    "image": "1dev/server:latest",
+                    "ports": [
+                        "6610:6610",
+                        "6611:6611"
+                    ],
+                    "environment": {
+                        "initial_user": "admin",
+                        "initial_password": "change-me-onedev-admin",
+                        "initial_email": "admin@example.test",
+                        "initial_server_url": "http://localhost:6610",
+                        "initial_ssh_root_url": "ssh://git@localhost:6611"
+                    },
+                    "volumes": [
+                        "/var/run/docker.sock:/var/run/docker.sock",
+                        "./docker/data/onedev:/opt/onedev"
+                    ]
+                }
+            },
+            "compose_services": [
+                {
+                    "service": "onedev-bootstrap",
+                    "definition": {
+                        "image": "alpine:3.20",
+                        "depends_on": [
+                            "onedev"
+                        ],
+                        "restart": "no",
+                        "working_dir": "/workspace",
+                        "command": [
+                            "sh",
+                            "/bootstrap/bootstrap.sh"
+                        ],
+                        "volumes": [
+                            "./:/workspace",
+                            "./docker/onedev/bootstrap:/bootstrap:ro"
+                        ]
+                    }
+                }
+            ],
+            "dashboard_shell": {
+                "label": "OneDev",
+                "port_field": "http_port",
+                "button_label": "Open OneDev",
+                "help_title": "Open OneDev",
+                "help_text": "Install the addon, rebuild the stack, and Vibe4Dock will initialize OneDev with the configured admin account and a project for the current workspace. The SSH port is available separately for Git over SSH.",
+                "help_command": "./docker/rebuild.sh"
+            }
+        }
+    ]
+}

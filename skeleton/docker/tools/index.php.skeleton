@@ -88,7 +88,9 @@ function setInstalledTool($toolId, $installed)
         if ($selectedVersion !== null) {
             if ((isset($t['mounts']) && !empty($t['mounts']))
                 || (isset($selectedVersion['compose_service']) && is_array($selectedVersion['compose_service']))
+                || (isset($selectedVersion['compose_services']) && is_array($selectedVersion['compose_services']))
                 || (isset($t['compose_service']) && is_array($t['compose_service']))
+                || (isset($t['compose_services']) && is_array($t['compose_services']))
             ) {
                 syncManagedProjectDirectoriesForTool($t, $installed, $selectedVersion);
                 setRestartRequired(true);
@@ -285,19 +287,20 @@ function updateDockerOverride()
             }
         }
 
-        if (isset($installedDefinition['compose_service']) && is_array($installedDefinition['compose_service'])) {
-            $serviceConfig = $installedDefinition['compose_service'];
-            if (isset($serviceConfig['service'], $serviceConfig['definition'])
-                && is_string($serviceConfig['service'])
-                && is_array($serviceConfig['definition'])
+        foreach (getComposeServiceConfigs($installedDefinition) as $serviceConfig) {
+            if (!isset($serviceConfig['service'], $serviceConfig['definition'])
+                || !is_string($serviceConfig['service'])
+                || !is_array($serviceConfig['definition'])
             ) {
-                $serviceName = $serviceConfig['service'];
-                $resolvedDefinition = applyToolConfigSources($tool, $serviceConfig['definition']);
-                $composeServices[$serviceName] = mergeComposeDefinitions(
-                    isset($composeServices[$serviceName]) ? $composeServices[$serviceName] : array(),
-                    $resolvedDefinition
-                );
+                continue;
             }
+
+            $serviceName = $serviceConfig['service'];
+            $resolvedDefinition = applyToolConfigSources($tool, $serviceConfig['definition']);
+            $composeServices[$serviceName] = mergeComposeDefinitions(
+                isset($composeServices[$serviceName]) ? $composeServices[$serviceName] : array(),
+                $resolvedDefinition
+            );
         }
     }
 
@@ -330,6 +333,25 @@ function updateDockerOverride()
     }
 
     file_put_contents($overrideFile, $yaml);
+}
+
+function getComposeServiceConfigs($definition)
+{
+    $services = array();
+
+    if (isset($definition['compose_service']) && is_array($definition['compose_service'])) {
+        $services[] = $definition['compose_service'];
+    }
+
+    if (isset($definition['compose_services']) && is_array($definition['compose_services'])) {
+        foreach ($definition['compose_services'] as $serviceConfig) {
+            if (is_array($serviceConfig)) {
+                $services[] = $serviceConfig;
+            }
+        }
+    }
+
+    return $services;
 }
 
 function mergeComposeDefinitions($base, $changes)
@@ -826,6 +848,12 @@ function toolConfigRequiresRebuild($tool)
         return true;
     }
 
+    if ((isset($tool['compose_service']) && is_array($tool['compose_service']))
+        || (isset($tool['compose_services']) && is_array($tool['compose_services']))
+    ) {
+        return true;
+    }
+
     return false;
 }
 
@@ -1246,10 +1274,14 @@ function getManagedProjectDirectoriesForTool($tool, $definition = null)
     }
 
     $composeSource = is_array($definition) ? $definition : $tool;
-    if (isset($composeSource['compose_service']['definition']['volumes'])) {
+    foreach (getComposeServiceConfigs($composeSource) as $serviceConfig) {
+        if (!isset($serviceConfig['definition']['volumes']) || !is_array($serviceConfig['definition']['volumes'])) {
+            continue;
+        }
+
         $paths = array_merge(
             $paths,
-            getManagedProjectDirectoriesFromVolumes($composeSource['compose_service']['definition']['volumes'])
+            getManagedProjectDirectoriesFromVolumes($serviceConfig['definition']['volumes'])
         );
     }
 
