@@ -55,18 +55,15 @@ function renderDashboard($config, $envValues, $installedTools, $isOffline)
     $toolContent .= '</div>';
 
     // Configuration Status Card
-    global $settingsConfig;
-    $gitSetting = null;
-    foreach ($settingsConfig['settings'] as $s) {
-        if ($s['id'] === 'git-config') {
-            $gitSetting = $s;
+    $gitTool = null;
+    foreach ($config['tools'] as $tool) {
+        if (isset($tool['id']) && $tool['id'] === 'git-config') {
+            $gitTool = $tool;
             break;
         }
     }
-    $gitEnabled = false;
-    if ($gitSetting && isset($gitSetting['setting_enabled_key'])) {
-        $gitEnabled = isset($envValues[$gitSetting['setting_enabled_key']]) && $envValues[$gitSetting['setting_enabled_key']] === '1';
-    }
+    $gitInstalled = $gitTool ? isToolInstalled($gitTool, $installedTools, $envValues) : false;
+    $gitConfigValues = $gitTool ? getToolConfigValues($gitTool) : array();
 
     $toolsProtected =
         isset($envValues['TOOLS_USERNAME']) && trim((string) $envValues['TOOLS_USERNAME']) !== '' &&
@@ -80,11 +77,11 @@ function renderDashboard($config, $envValues, $installedTools, $isOffline)
 
     $gitUser = '-';
     if ($isOffline) {
-        $gitEnabledStatus = '---';
+        $gitStatus = '---';
     } else {
-        $gitEnabledStatus = $gitEnabled ? 'Enabled' : 'Disabled';
-        if ($gitEnabled) {
-            $gitUser = htmlspecialchars(isset($envValues['GIT_USER_NAME']) ? $envValues['GIT_USER_NAME'] : '-');
+        $gitStatus = $gitInstalled ? 'Installed' : 'Not installed';
+        if ($gitInstalled) {
+            $gitUser = htmlspecialchars(isset($gitConfigValues['GIT_USER_NAME']) ? $gitConfigValues['GIT_USER_NAME'] : '-');
         }
     }
 
@@ -102,8 +99,8 @@ function renderDashboard($config, $envValues, $installedTools, $isOffline)
     };
 
     $toolContent .= '<div class="stat-card"><h3>Configuration</h3>';
-    $toolContent .= '<div class="stat-item"><span class="stat-label">Git Config</span><span class="stat-value">' . $gitEnabledStatus . '</span></div>';
-    if ($isOffline || $gitEnabled) {
+    $toolContent .= '<div class="stat-item"><span class="stat-label">Git Config</span><span class="stat-value">' . $gitStatus . '</span></div>';
+    if ($isOffline || $gitInstalled) {
         $toolContent .= '<div class="stat-item"><span class="stat-label">User</span><span class="stat-value">' . $gitUser . '</span></div>';
     }
     $toolContent .= $renderProtectionRow('Tools UI', $toolsProtected, 'protection-modal-tools');

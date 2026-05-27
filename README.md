@@ -192,7 +192,8 @@ The tools UI on port `8090` is split into several areas:
   - list of installed tools / addons
 - **Tools**
   - one combined tools view with search and a category switcher
-  - project-wide configuration cards such as Git Config live here as well
+  - installable tools can expose a separate `Config` action after installation
+  - Git Config now lives as a regular tool in its own `Git` category
   - categories appear only when tool packs provide them via JSON
 - **Addons**
   - addon categories appear only when addon packs provide them via JSON
@@ -352,12 +353,13 @@ A tool can contain fields such as:
 
 ## Settings
 
-Currently one settings group is included:
+Settings definitions remain supported, but the bundled Git identity flow now ships as a regular tool instead of a legacy setting card.
 
-- **Git Config**
+- **Git Config** (tool category `Git`)
+  - install/uninstall through the normal tools workflow
+  - configuration via the tool-level `Config` dialog
   - `GIT_USER_NAME`
   - `GIT_USER_EMAIL`
-  - activation through `GIT_CONFIG_ENABLED`
 
 The values are written into `.env.local`. Optional `apply_commands` make the runtime application neutral and definition-driven instead of hardcoding setting-specific behavior in PHP.
 

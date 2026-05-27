@@ -289,7 +289,7 @@ function renderCategory($config, $categoryId, $envValues, $installedTools)
                     }
                 }
             } else {
-                $installed = in_array($tool['id'], $installedTools, true);
+                $installed = isToolInstalled($tool, $installedTools, $envValues);
                 if ($installed && isset($tool['check'])) {
                     $versionInfo = detectToolVersion($tool);
                 }

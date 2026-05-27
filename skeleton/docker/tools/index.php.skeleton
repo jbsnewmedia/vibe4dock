@@ -28,11 +28,12 @@ function setRestartRequired($required = true)
 function getInstalledTools()
 {
     $file = '/app/docker/web/settings/installed_tools.json';
+    $tools = array();
     if (file_exists($file)) {
-        return json_decode(file_get_contents($file), true) ?: array();
+        $tools = json_decode(file_get_contents($file), true) ?: array();
     }
-    // Falls wir im tools-Container sind, ist /app das Projekt-Root
-    return array();
+
+    return migrateLegacyInstalledTools($tools, $file);
 }
 
 function setInstalledTool($toolId, $installed)
@@ -58,8 +59,19 @@ function setInstalledTool($toolId, $installed)
     }
     file_put_contents($file, json_encode(array_values($tools), JSON_PRETTY_PRINT));
 
-    // Check if tool has mounts and requires restart
+    $toolDefinition = null;
     global $config;
+    foreach ($config['tools'] as $candidateTool) {
+        if ($candidateTool['id'] === $toolId) {
+            $toolDefinition = $candidateTool;
+            break;
+        }
+    }
+    if ($toolDefinition !== null) {
+        syncLegacyToolInstallState($toolDefinition, $installed);
+    }
+
+    // Check if tool has mounts and requires restart
     foreach ($config['tools'] as $t) {
         $selectedVersion = null;
         if ($t['id'] === $toolId) {
@@ -412,6 +424,50 @@ function getEnvLocalValues()
     return parseEnvContent($result['output']);
 }
 
+function toolHasLegacyEnabledEnvKey($tool)
+{
+    return isset($tool['legacy_enabled_env_key']) && is_string($tool['legacy_enabled_env_key']) && $tool['legacy_enabled_env_key'] !== '';
+}
+
+function isLegacyToolEnabled($tool, $envValues)
+{
+    if (!toolHasLegacyEnabledEnvKey($tool)) {
+        return false;
+    }
+
+    $legacyKey = $tool['legacy_enabled_env_key'];
+    $value = isset($envValues[$legacyKey]) ? strtolower(trim((string) $envValues[$legacyKey])) : '';
+
+    return in_array($value, array('1', 'true', 'yes', 'on'), true);
+}
+
+function migrateLegacyInstalledTools($tools, $file)
+{
+    global $config;
+
+    $envValues = getEnvLocalValues();
+    $didChange = false;
+    foreach ($config['tools'] as $tool) {
+        if (!isset($tool['id']) || in_array($tool['id'], $tools, true) || !isLegacyToolEnabled($tool, $envValues)) {
+            continue;
+        }
+
+        $tools[] = $tool['id'];
+        $didChange = true;
+    }
+
+    if ($didChange) {
+        $dir = dirname($file);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+
+        file_put_contents($file, json_encode(array_values($tools), JSON_PRETTY_PRINT));
+    }
+
+    return $tools;
+}
+
 function sendBasicAuthChallenge($realm)
 {
     header('WWW-Authenticate: Basic realm="' . str_replace('"', '\"', $realm) . '"');
@@ -472,6 +528,17 @@ function setEnvLocalValues($newValues)
         'ok' => $cpReturn === 0,
         'output' => $cpReturn === 0 ? "Saved to .env.local" : "Error saving to .env.local"
     );
+}
+
+function syncLegacyToolInstallState($tool, $installed)
+{
+    if (!toolHasLegacyEnabledEnvKey($tool)) {
+        return;
+    }
+
+    setEnvLocalValues(array(
+        $tool['legacy_enabled_env_key'] => $installed ? '1' : '0',
+    ));
 }
 
 function getAddonConfigFile()
@@ -578,8 +645,33 @@ function getToolConfigValues($tool)
 
     $configs = getAddonConfigs();
     $stored = isset($configs[$tool['id']]) && is_array($configs[$tool['id']]) ? $configs[$tool['id']] : array();
+    $values = array_merge($defaults, $stored);
+    $envValues = getEnvLocalValues();
 
-    return array_merge($defaults, $stored);
+    foreach (getToolConfigFields($tool) as $field) {
+        if (!isset($field['key'])) {
+            continue;
+        }
+
+        $fieldKey = $field['key'];
+        if (array_key_exists($fieldKey, $stored) && $stored[$fieldKey] !== '') {
+            continue;
+        }
+
+        $sources = isset($field['sources']) && is_array($field['sources']) ? $field['sources'] : array();
+        foreach ($sources as $source) {
+            if (!is_array($source) || !isset($source['type']) || $source['type'] !== 'env_local' || !isset($source['key'])) {
+                continue;
+            }
+
+            if (isset($envValues[$source['key']])) {
+                $values[$fieldKey] = (string) $envValues[$source['key']];
+                break;
+            }
+        }
+    }
+
+    return $values;
 }
 
 function collectToolConfigSubmission($tool, $postData)
@@ -685,6 +777,34 @@ function applyToolConfigSources($tool, $definition)
     return $definition;
 }
 
+function isToolInstalled($tool, $installedTools, $envValues = null)
+{
+    if (!isset($tool['id'])) {
+        return false;
+    }
+
+    if (in_array($tool['id'], $installedTools, true)) {
+        return true;
+    }
+
+    if ($envValues === null) {
+        $envValues = getEnvLocalValues();
+    }
+
+    return isLegacyToolEnabled($tool, $envValues);
+}
+
+function shouldDisplayApplyCommandOutput($output)
+{
+    $trimmedOutput = trim((string) $output);
+    if ($trimmedOutput === '') {
+        return false;
+    }
+
+    return strpos($trimmedOutput, 'No apply command was executed for ') !== 0
+        && $trimmedOutput !== 'No apply commands configured.';
+}
+
 function yamlScalar($value)
 {
     if ($value === null) {
@@ -763,19 +883,33 @@ function handleToolConfigSave($tool, $postData)
         }
     }
 
+    $outputParts = array('Saved tool configuration.');
+    $installedTools = getInstalledTools();
+    $currentEnvValues = getEnvLocalValues();
+    if (isToolInstalled($tool, $installedTools, $currentEnvValues) && isset($tool['apply_commands'])) {
+        $applyResult = applyDefinitionCommands($tool, $currentEnvValues, true);
+        if (!$applyResult['ok']) {
+            return $applyResult;
+        }
+
+        if (shouldDisplayApplyCommandOutput($applyResult['output'])) {
+            $outputParts[] = trim((string) $applyResult['output']);
+        }
+    }
+
     if (toolConfigRequiresRebuild($tool)) {
         setRestartRequired(true);
         updateDockerOverride();
 
         return array(
             'ok' => true,
-            'output' => 'Saved addon configuration. Rebuild the project to apply the changes.'
+            'output' => implode("\n", $outputParts) . "\nRebuild the project to apply the changes."
         );
     }
 
     return array(
         'ok' => true,
-        'output' => 'Saved tool configuration.'
+        'output' => implode("\n", $outputParts)
     );
 }
 
@@ -2120,6 +2254,18 @@ if ($method === 'POST' && preg_match('#^/action/([^/]+)/([^/?]+)#', $requestUri,
                             setInstalledTool($v['id'], false);
                         }
                     }
+                }
+            }
+
+            if ($result['ok'] && $action === 'install' && isset($tool['apply_commands'])) {
+                $applyResult = applyDefinitionCommands($tool, getEnvLocalValues(), true);
+                if (!$applyResult['ok']) {
+                    setInstalledTool($toolIdToStore, false);
+                    $result = $applyResult;
+                } elseif (shouldDisplayApplyCommandOutput($applyResult['output'])) {
+                    $result['output'] = trim((string) $result['output']) !== ''
+                        ? trim((string) $result['output']) . "\n" . trim((string) $applyResult['output'])
+                        : trim((string) $applyResult['output']);
                 }
             }
         }

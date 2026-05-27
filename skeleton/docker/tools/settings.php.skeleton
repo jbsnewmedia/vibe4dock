@@ -115,22 +115,26 @@ function interpolateSettingCommand($template, $envValues, &$missingKeys = array(
 
 function applySettingCommands($setting, $envValues)
 {
-    if (!isset($setting['apply_commands']) || !is_array($setting['apply_commands']) || empty($setting['apply_commands'])) {
+    return applyDefinitionCommands($setting, $envValues, isSettingEnabled($setting, $envValues));
+}
+
+function applyDefinitionCommands($definition, $envValues, $isEnabled)
+{
+    if (!isset($definition['apply_commands']) || !is_array($definition['apply_commands']) || empty($definition['apply_commands'])) {
         return array(
             'ok' => true,
             'output' => 'No apply commands configured.'
         );
     }
 
-    $settingLabel = isset($setting['label']) ? $setting['label'] : (isset($setting['id']) ? $setting['id'] : 'setting');
-    $isEnabled = isSettingEnabled($setting, $envValues);
+    $definitionLabel = isset($definition['label']) ? $definition['label'] : (isset($definition['id']) ? $definition['id'] : 'definition');
     $outputs = array();
 
-    foreach ($setting['apply_commands'] as $index => $commandConfig) {
+    foreach ($definition['apply_commands'] as $index => $commandConfig) {
         if (!is_array($commandConfig) || !isset($commandConfig['command']) || !is_string($commandConfig['command']) || trim($commandConfig['command']) === '') {
             return array(
                 'ok' => false,
-                'output' => sprintf('Invalid apply command definition for %s at index %d.', $settingLabel, $index)
+                'output' => sprintf('Invalid apply command definition for %s at index %d.', $definitionLabel, $index)
             );
         }
 
@@ -167,7 +171,7 @@ function applySettingCommands($setting, $envValues)
                 'ok' => false,
                 'output' => sprintf(
                     'Apply command for %s references missing values: %s',
-                    $settingLabel,
+                    $definitionLabel,
                     implode(', ', array_unique($missingKeys))
                 )
             );
@@ -177,7 +181,7 @@ function applySettingCommands($setting, $envValues)
         if ($runner !== 'web_container') {
             return array(
                 'ok' => false,
-                'output' => sprintf('Unsupported apply runner "%s" for %s.', $runner, $settingLabel)
+                'output' => sprintf('Unsupported apply runner "%s" for %s.', $runner, $definitionLabel)
             );
         }
 
@@ -187,7 +191,7 @@ function applySettingCommands($setting, $envValues)
                 'ok' => false,
                 'output' => sprintf(
                     'Failed applying %s: %s',
-                    $settingLabel,
+                    $definitionLabel,
                     trim((string) $result['output']) !== '' ? trim((string) $result['output']) : $resolvedCommand
                 )
             );
@@ -199,7 +203,7 @@ function applySettingCommands($setting, $envValues)
     if (empty($outputs)) {
         return array(
             'ok' => true,
-            'output' => sprintf('No apply command was executed for %s.', $settingLabel)
+            'output' => sprintf('No apply command was executed for %s.', $definitionLabel)
         );
     }
 

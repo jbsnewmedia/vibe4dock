@@ -1,0 +1,68 @@
+{
+    "categories": [
+        {
+            "unique_key": "git",
+            "id": "git",
+            "label": "Git",
+            "order": 205
+        }
+    ],
+    "tools": [
+        {
+            "id": "git-config",
+            "category": "git",
+            "label": "Git Config",
+            "description": "Manage the global Git identity used inside the web container.",
+            "usage": "",
+            "legacy_enabled_env_key": "GIT_CONFIG_ENABLED",
+            "version_regex": "/git version\\s+([0-9]+(?:\\.[0-9]+)*)/",
+            "check": "git --version 2>/dev/null | grep .",
+            "install": "true",
+            "uninstall": "sudo -u application -H git config --global --unset-all user.name >/dev/null 2>&1 || true && sudo -u application -H git config --global --unset-all user.email >/dev/null 2>&1 || true",
+            "config_schema": {
+                "fields": [
+                    {
+                        "key": "GIT_USER_NAME",
+                        "label": "Name",
+                        "required": false,
+                        "help_text": "Used for git commits inside the project container.",
+                        "sources": [
+                            {
+                                "type": "env_local",
+                                "key": "GIT_USER_NAME"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "GIT_USER_EMAIL",
+                        "label": "Email",
+                        "required": false,
+                        "help_text": "Used together with the Git name for commit author information.",
+                        "sources": [
+                            {
+                                "type": "env_local",
+                                "key": "GIT_USER_EMAIL"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "apply_commands": [
+                {
+                    "enabled_only": true,
+                    "skip_if_empty": [
+                        "GIT_USER_NAME"
+                    ],
+                    "command": "sudo -u application -H git config --global user.name {{GIT_USER_NAME}}"
+                },
+                {
+                    "enabled_only": true,
+                    "skip_if_empty": [
+                        "GIT_USER_EMAIL"
+                    ],
+                    "command": "sudo -u application -H git config --global user.email {{GIT_USER_EMAIL}}"
+                }
+            ]
+        }
+    ]
+}
