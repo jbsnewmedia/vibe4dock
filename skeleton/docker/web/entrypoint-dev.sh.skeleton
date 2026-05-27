@@ -18,6 +18,11 @@ if [ -f /app/.env.local ]; then
   done < /app/.env.local
 fi
 
+# Ensure application user owns its home directory and all mounts before any tool installs run.
+# This prevents EACCES failures when a bind-mounted directory was created as root by Docker.
+echo "Ensuring permissions for /home/application before tool install..."
+chown -R application:application /home/application
+
 # INSTALL TOOLS FROM SAVED LIST
 if [ -f /app/docker/web/settings/installed_tools.json ] && [ -f /app/docker/tools/config.php ]; then
   installed_ids=$(php -r '$ids = json_decode(file_get_contents("/app/docker/web/settings/installed_tools.json"), true) ?: array(); foreach ($ids as $id) { echo $id . PHP_EOL; }')
