@@ -37,13 +37,153 @@ function renderDashboard($config, $envValues, $installedTools, $isOffline)
         $host = explode(':', $host)[0];
     }
 
+    $shellCards = array();
+    $shellProtectionRows = array();
+    $protectionModals = array();
+
+    $appendShellEntry = static function ($entry) use (&$shellCards, &$shellProtectionRows, &$protectionModals) {
+        $shellCards[] = sprintf(
+            '<div class="stat-card"><h3>%s</h3><a href="%s" target="_blank" class="btn-shell">%s</a></div>',
+            htmlspecialchars($entry['label']),
+            htmlspecialchars($entry['url']),
+            htmlspecialchars($entry['button_label'])
+        );
+
+        $status = $entry['protected'] ? 'Protected' : 'Unprotected';
+        $helpButton = '';
+        if (!$entry['protected'] && $entry['modal_id'] !== null) {
+            $helpButton = sprintf(
+                ' <button type="button" class="btn-install" style="padding: 2px 8px; font-size: 0.75em;" onclick="showProtectionHelp(\'%s\')">Help</button>',
+                htmlspecialchars($entry['modal_id'], ENT_QUOTES)
+            );
+        }
+
+        $shellProtectionRows[] = '<div class="stat-item"><span class="stat-label">' . htmlspecialchars($entry['label']) . '</span><span class="stat-value">' . $status . $helpButton . '</span></div>';
+
+        if ($entry['modal_html'] !== '') {
+            $protectionModals[] = $entry['modal_html'];
+        }
+    };
+
+    $buildProtectionModal = static function ($modalId, $title, $message, $snippet, $commandId, $command) {
+        return sprintf(
+            '<div id="%s" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%%; height:100%%; background: rgba(0,0,0,0.8); align-items:center; justify-content:center;">
+                <div style="background:#1e1e1e; padding:20px; border-radius:8px; border:1px solid #333; max-width:560px; width:90%%;">
+                    <h3 style="margin-top:0;">%s</h3>
+                    <p>%s</p>
+                    <div style="background:#000; padding:10px; border-radius:4px; margin-bottom:10px;">
+                        <pre style="margin:0; color:#fff;">%s</pre>
+                    </div>
+                    <div style="display:flex; gap:10px; align-items:center; background:#000; padding:10px; border-radius:4px;">
+                        <pre id="%s" style="margin:0; color:#fff; flex:1;">%s</pre>
+                        <button class="btn-install" style="padding:2px 8px; font-size:0.75em;" onclick="copyProtectionCommand(event, \'%s\')">Copy</button>
+                    </div>
+                    <div style="text-align:right; margin-top:20px;">
+                        <button class="btn-install" onclick="hideProtectionHelp(\'%s\')">Close</button>
+                    </div>
+                </div>
+            </div>',
+            htmlspecialchars($modalId, ENT_QUOTES),
+            htmlspecialchars($title),
+            htmlspecialchars($message),
+            htmlspecialchars($snippet),
+            htmlspecialchars($commandId, ENT_QUOTES),
+            htmlspecialchars($command),
+            htmlspecialchars($commandId, ENT_QUOTES),
+            htmlspecialchars($modalId, ENT_QUOTES)
+        );
+    };
+
+    $appendShellEntry(array(
+        'label' => 'Application Shell',
+        'url' => sprintf('http://%s:%d', $host, $appShellHostPort),
+        'button_label' => 'Open Shell',
+        'protected' => isset($envValues['APP_SHELL_USERNAME']) && trim((string) $envValues['APP_SHELL_USERNAME']) !== ''
+            && isset($envValues['APP_SHELL_PASSWORD']) && trim((string) $envValues['APP_SHELL_PASSWORD']) !== '',
+        'modal_id' => 'protection-modal-app-shell',
+        'modal_html' => $buildProtectionModal(
+            'protection-modal-app-shell',
+            'Protect the Application Shell',
+            'Add both values to .env.local and restart the web container.',
+            "APP_SHELL_USERNAME=\"application\"\nAPP_SHELL_PASSWORD=\"change-me-application\"",
+            'cmd-app-shell-protection',
+            'docker compose restart web'
+        ),
+    ));
+
+    $appendShellEntry(array(
+        'label' => 'Root Shell',
+        'url' => sprintf('http://%s:%d', $host, $rootShellHostPort),
+        'button_label' => 'Open Shell',
+        'protected' => isset($envValues['ROOT_SHELL_USERNAME']) && trim((string) $envValues['ROOT_SHELL_USERNAME']) !== ''
+            && isset($envValues['ROOT_SHELL_PASSWORD']) && trim((string) $envValues['ROOT_SHELL_PASSWORD']) !== '',
+        'modal_id' => 'protection-modal-root-shell',
+        'modal_html' => $buildProtectionModal(
+            'protection-modal-root-shell',
+            'Protect the Root Shell',
+            'Add both values to .env.local and restart the web container.',
+            "ROOT_SHELL_USERNAME=\"root\"\nROOT_SHELL_PASSWORD=\"change-me-root\"",
+            'cmd-root-shell-protection',
+            'docker compose restart web'
+        ),
+    ));
+
+    foreach ($config['tools'] as $tool) {
+        if (!isset($tool['dashboard_shell']) || !is_array($tool['dashboard_shell']) || !isToolInstalled($tool, $installedTools, $envValues)) {
+            continue;
+        }
+
+        $shellConfig = $tool['dashboard_shell'];
+        $toolConfigValues = getToolConfigValues($tool);
+        $portField = isset($shellConfig['port_field']) ? $shellConfig['port_field'] : 'port';
+        $usernameField = isset($shellConfig['username_field']) ? $shellConfig['username_field'] : 'username';
+        $passwordField = isset($shellConfig['password_field']) ? $shellConfig['password_field'] : 'password';
+        $protocol = isset($shellConfig['protocol']) && is_string($shellConfig['protocol']) && $shellConfig['protocol'] !== '' ? $shellConfig['protocol'] : 'http';
+        $path = isset($shellConfig['path']) && is_string($shellConfig['path']) ? trim($shellConfig['path']) : '';
+        if ($path !== '' && $path[0] !== '/') {
+            $path = '/' . $path;
+        }
+
+        $hostPort = (int) getDashboardShellConfigValue($shellConfig, $toolConfigValues, 'port_field', 'port', '0');
+        if ($hostPort < 1) {
+            continue;
+        }
+
+        $username = getDashboardShellConfigValue($shellConfig, $toolConfigValues, 'username_field', 'username', '');
+        $password = getDashboardShellConfigValue($shellConfig, $toolConfigValues, 'password_field', 'password', '');
+        $buttonLabel = isset($shellConfig['button_label']) && is_string($shellConfig['button_label']) && $shellConfig['button_label'] !== ''
+            ? $shellConfig['button_label']
+            : 'Open Shell';
+
+        $modalId = 'protection-modal-addon-' . preg_replace('/[^a-z0-9\-]/i', '-', isset($tool['id']) ? $tool['id'] : $shellConfig['label']);
+        $categoryPath = isset($tool['category']) ? '/category/' . $tool['category'] : '/addons';
+        $helpText = isset($shellConfig['help_text']) ? $shellConfig['help_text'] : 'Open the addon configuration and rebuild the stack.';
+        $snippet = sprintf(
+            "Port: %s\nUsername: %s\nPassword: %s",
+            htmlspecialchars($portField),
+            htmlspecialchars($usernameField),
+            htmlspecialchars($passwordField)
+        );
+
+        $appendShellEntry(array(
+            'label' => isset($shellConfig['label']) ? $shellConfig['label'] : $tool['label'],
+            'url' => sprintf('%s://%s:%d%s', $protocol, $host, $hostPort, $path),
+            'button_label' => $buttonLabel,
+            'protected' => trim((string) $username) !== '' && trim((string) $password) !== '',
+            'modal_id' => $modalId,
+            'modal_html' => $buildProtectionModal(
+                $modalId,
+                isset($shellConfig['help_title']) ? $shellConfig['help_title'] : ('Configure ' . (isset($tool['label']) ? $tool['label'] : 'Browser Shell')),
+                $helpText . ' Use the Config button in the addon card and rebuild the stack afterwards.',
+                "Open " . $categoryPath . " -> Config\n" . "Fields: port, username, password",
+                'cmd-addon-protection-' . preg_replace('/[^a-z0-9\-]/i', '-', isset($tool['id']) ? $tool['id'] : 'addon'),
+                isset($shellConfig['help_command']) ? (string) $shellConfig['help_command'] : './docker/rebuild.sh'
+            ),
+        ));
+    }
+
     $toolContent .= '<div class="dashboard-grid">';
-    $toolContent .= '<div class="stat-card"><h3>Application Shell</h3>';
-    $toolContent .= sprintf('<a href="http://%s:%d" target="_blank" class="btn-shell">Open Shell</a>', $host, $appShellHostPort);
-    $toolContent .= '</div>';
-    $toolContent .= '<div class="stat-card"><h3>Root Shell</h3>';
-    $toolContent .= sprintf('<a href="http://%s:%d" target="_blank" class="btn-shell">Open Shell</a>', $host, $rootShellHostPort);
-    $toolContent .= '</div>';
+    $toolContent .= implode('', $shellCards);
     $toolContent .= '</div><div class="dashboard-grid">';
 
     // System Overview Card
@@ -55,88 +195,29 @@ function renderDashboard($config, $envValues, $installedTools, $isOffline)
     $toolContent .= '</div>';
 
     // Configuration Status Card
-    $toolsProtected =
-        isset($envValues['TOOLS_USERNAME']) && trim((string) $envValues['TOOLS_USERNAME']) !== '' &&
-        isset($envValues['TOOLS_PASSWORD']) && trim((string) $envValues['TOOLS_PASSWORD']) !== '';
-    $appShellProtected =
-        isset($envValues['APP_SHELL_USERNAME']) && trim((string) $envValues['APP_SHELL_USERNAME']) !== '' &&
-        isset($envValues['APP_SHELL_PASSWORD']) && trim((string) $envValues['APP_SHELL_PASSWORD']) !== '';
-    $rootShellProtected =
-        isset($envValues['ROOT_SHELL_USERNAME']) && trim((string) $envValues['ROOT_SHELL_USERNAME']) !== '' &&
-        isset($envValues['ROOT_SHELL_PASSWORD']) && trim((string) $envValues['ROOT_SHELL_PASSWORD']) !== '';
-
-    $renderProtectionRow = static function ($label, $isProtected, $modalId) {
-        $status = $isProtected ? 'Protected' : 'Unprotected';
-        $helpButton = '';
-        if (!$isProtected) {
-            $helpButton = sprintf(
-                ' <button type="button" class="btn-install" style="padding: 2px 8px; font-size: 0.75em;" onclick="showProtectionHelp(\'%s\')">Help</button>',
-                htmlspecialchars($modalId, ENT_QUOTES)
-            );
-        }
-
-        return '<div class="stat-item"><span class="stat-label">' . htmlspecialchars($label) . '</span><span class="stat-value">' . $status . $helpButton . '</span></div>';
-    };
-
     $toolContent .= '<div class="stat-card"><h3>Configuration</h3>';
-    $toolContent .= $renderProtectionRow('Tools UI', $toolsProtected, 'protection-modal-tools');
-    $toolContent .= $renderProtectionRow('Application Shell', $appShellProtected, 'protection-modal-app-shell');
-    $toolContent .= $renderProtectionRow('Root Shell', $rootShellProtected, 'protection-modal-root-shell');
+    $toolContent .= '<div class="stat-item"><span class="stat-label">Tools UI</span><span class="stat-value">' .
+        (
+            isset($envValues['TOOLS_USERNAME']) && trim((string) $envValues['TOOLS_USERNAME']) !== '' &&
+            isset($envValues['TOOLS_PASSWORD']) && trim((string) $envValues['TOOLS_PASSWORD']) !== ''
+                ? 'Protected'
+                : 'Unprotected <button type="button" class="btn-install" style="padding: 2px 8px; font-size: 0.75em;" onclick="showProtectionHelp(\'protection-modal-tools\')">Help</button>'
+        ) .
+        '</span></div>';
+    $toolContent .= implode('', $shellProtectionRows);
     $toolContent .= '</div>';
     $toolContent .= '</div>'; // End grid
 
+    $toolContent .= $buildProtectionModal(
+        'protection-modal-tools',
+        'Protect the Tools UI',
+        'Add both values to .env.local and restart the tools container.',
+        "TOOLS_USERNAME=\"tools\"\nTOOLS_PASSWORD=\"change-me-tools\"",
+        'cmd-tools-protection',
+        'docker compose restart tools'
+    );
+    $toolContent .= implode('', $protectionModals);
     $toolContent .= '
-        <div id="protection-modal-tools" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,0.8); align-items:center; justify-content:center;">
-            <div style="background:#1e1e1e; padding:20px; border-radius:8px; border:1px solid #333; max-width:560px; width:90%;">
-                <h3 style="margin-top:0;">Protect the Tools UI</h3>
-                <p>Add both values to <strong>.env.local</strong> and restart the tools container.</p>
-                <div style="background:#000; padding:10px; border-radius:4px; margin-bottom:10px;">
-                    <pre style="margin:0; color:#fff;">TOOLS_USERNAME="tools"
-TOOLS_PASSWORD="change-me-tools"</pre>
-                </div>
-                <div style="display:flex; gap:10px; align-items:center; background:#000; padding:10px; border-radius:4px;">
-                    <pre id="cmd-tools-protection" style="margin:0; color:#fff; flex:1;">docker compose restart tools</pre>
-                    <button class="btn-install" style="padding:2px 8px; font-size:0.75em;" onclick="copyProtectionCommand(event, \'cmd-tools-protection\')">Copy</button>
-                </div>
-                <div style="text-align:right; margin-top:20px;">
-                    <button class="btn-install" onclick="hideProtectionHelp(\'protection-modal-tools\')">Close</button>
-                </div>
-            </div>
-        </div>
-        <div id="protection-modal-app-shell" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,0.8); align-items:center; justify-content:center;">
-            <div style="background:#1e1e1e; padding:20px; border-radius:8px; border:1px solid #333; max-width:560px; width:90%;">
-                <h3 style="margin-top:0;">Protect the Application Shell</h3>
-                <p>Add both values to <strong>.env.local</strong> and restart the web container.</p>
-                <div style="background:#000; padding:10px; border-radius:4px; margin-bottom:10px;">
-                    <pre style="margin:0; color:#fff;">APP_SHELL_USERNAME="application"
-APP_SHELL_PASSWORD="change-me-application"</pre>
-                </div>
-                <div style="display:flex; gap:10px; align-items:center; background:#000; padding:10px; border-radius:4px;">
-                    <pre id="cmd-app-shell-protection" style="margin:0; color:#fff; flex:1;">docker compose restart web</pre>
-                    <button class="btn-install" style="padding:2px 8px; font-size:0.75em;" onclick="copyProtectionCommand(event, \'cmd-app-shell-protection\')">Copy</button>
-                </div>
-                <div style="text-align:right; margin-top:20px;">
-                    <button class="btn-install" onclick="hideProtectionHelp(\'protection-modal-app-shell\')">Close</button>
-                </div>
-            </div>
-        </div>
-        <div id="protection-modal-root-shell" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,0.8); align-items:center; justify-content:center;">
-            <div style="background:#1e1e1e; padding:20px; border-radius:8px; border:1px solid #333; max-width:560px; width:90%;">
-                <h3 style="margin-top:0;">Protect the Root Shell</h3>
-                <p>Add both values to <strong>.env.local</strong> and restart the web container.</p>
-                <div style="background:#000; padding:10px; border-radius:4px; margin-bottom:10px;">
-                    <pre style="margin:0; color:#fff;">ROOT_SHELL_USERNAME="root"
-ROOT_SHELL_PASSWORD="change-me-root"</pre>
-                </div>
-                <div style="display:flex; gap:10px; align-items:center; background:#000; padding:10px; border-radius:4px;">
-                    <pre id="cmd-root-shell-protection" style="margin:0; color:#fff; flex:1;">docker compose restart web</pre>
-                    <button class="btn-install" style="padding:2px 8px; font-size:0.75em;" onclick="copyProtectionCommand(event, \'cmd-root-shell-protection\')">Copy</button>
-                </div>
-                <div style="text-align:right; margin-top:20px;">
-                    <button class="btn-install" onclick="hideProtectionHelp(\'protection-modal-root-shell\')">Close</button>
-                </div>
-            </div>
-        </div>
         <script>
             function showProtectionHelp(modalId) {
                 const modal = document.getElementById(modalId);

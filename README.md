@@ -191,6 +191,7 @@ The tools UI on port `8090` is split into several areas:
 - **Dashboard**
   - application shell
   - root shell
+  - addon-provided browser shells, either by extending `web` or by exposing their own addon service ports
   - system information such as PHP, Composer, RAM, and disk status
   - configuration status
   - list of installed tools / addons
@@ -229,7 +230,7 @@ docker/tools/addons/
 Current bundled tool packs:
 
 - **AI CLI**: GitHub Copilot CLI, Codex CLI, Claude Code, Cline CLI, Hermes CLI, Junie CLI
-- **Git**: Git Config
+- **Git**: Git Config, Lazygit
 - **System & Runtime**: Node.js, pnpm, Yarn
 - **PHP Frameworks**: Laravel CLI, Symfony CLI, WordPress CLI
 - **Code Quality**: Code Quality Package
@@ -237,6 +238,7 @@ Current bundled tool packs:
 Current bundled addon packs:
 
 - **Databases**: MariaDB, MySQL, PostgreSQL, Firebird
+- **Browser Shells**: Lazygit Shell
 
 You can still add your own packs or overrides on top of these files.
 
@@ -325,7 +327,7 @@ Addon definitions live in:
 docker/tools/addons/
 ```
 
-These files are loaded with the same merge rules as normal tools, but they usually contribute optional Compose services, ports, environment variables, and persistent data directories.
+These files are loaded with the same merge rules as normal tools, but they usually contribute optional Compose services, ports, environment variables, persistent data directories, and dashboard-dockable browser shell endpoints.
 
 ### Settings definitions
 
@@ -381,6 +383,43 @@ A tool can contain fields such as:
 | `apply_commands` | Optional commands executed after config changes or activation |
 | `package_operations` | Optional package/file operations for project scaffolding tools |
 | `compose_service` | Optional service definition used mainly by addons |
+| `dashboard_shell` | Optional dashboard entry for browser-accessible shells or addon endpoints |
+
+### Browser shell docking
+
+Addons can dock into the dashboard in two generic ways:
+
+1. by exposing their own host port and describing it via `dashboard_shell`
+2. by extending the `web` service and adding a declarative `dashboard_shell.launcher`
+
+Typical `dashboard_shell` fields:
+
+| Field | Meaning |
+| --- | --- |
+| `label` | Dashboard card title |
+| `port_field` / `port` | Host port from config or as a fixed value |
+| `username_field` / `username` | Optional Basic Auth username |
+| `password_field` / `password` | Optional Basic Auth password |
+| `protocol` | Optional URL scheme such as `http` or `https` |
+| `path` | Optional path appended to the URL |
+| `button_label` | Optional button text |
+| `help_title` / `help_text` / `help_command` | Dashboard help modal content |
+
+For `web`-hosted browser shells, `dashboard_shell.launcher` supports a declarative runtime definition:
+
+| Launcher field | Meaning |
+| --- | --- |
+| `type` | Currently `ttyd` |
+| `service` | Currently `web` for in-container browser shells |
+| `container_port` | Container port opened by the launcher |
+| `run_as` | `application` or `root` |
+| `working_directory` | Optional working directory before launch |
+| `executable` | Command to launch |
+| `arguments` | Optional argument list |
+| `fallback_profile` | Optional fallback shell profile such as `application-shell` |
+| `environment` | Optional extra environment variables |
+
+Installed declarative launchers are materialized into `docker/web/settings/browser_shells.json`, which the web entrypoint reads on startup to spawn additional browser shells without hardcoded addon-specific logic.
 
 ## Settings
 
@@ -419,6 +458,7 @@ Examples:
 - `docker/web/settings/codex`
 - `docker/web/settings/hermes`
 - `docker/web/settings/junie`
+- `docker/web/settings/lazygit`
 - `docker/web/settings/npm`
 
 Addon services also persist their runtime data outside the image, for example:
@@ -431,18 +471,19 @@ Addon services also persist their runtime data outside the image, for example:
 Technical state files are also stored there:
 
 - `installed_tools.json`
+- `browser_shells.json`
 - `rebuild_required.hint`
 
 ## Shell access
 
-Vibe4Dock provides two direct browser shells:
+Vibe4Dock provides two built-in browser shells plus any addon-provided dashboard shells:
 
 | Shell | Purpose | Port |
 | --- | --- | --- |
 | Root Shell | Administrative tasks inside the container | `7681` |
 | Application Shell | Normal development work as `application` | `7682` |
 
-The application shell starts through `tmux` so sessions can persist.
+The application shell starts through `tmux` so sessions can persist. Additional browser shells can be registered declaratively by addons and then appear automatically on the dashboard after installation and rebuild.
 
 ## Starting the project
 

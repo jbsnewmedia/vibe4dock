@@ -189,6 +189,7 @@ Die Tools-Oberfläche auf Port `8090` ist in mehrere Bereiche gegliedert:
 - **Dashboard**
   - Application Shell
   - Root Shell
+  - addonbasierte Browser-Shells, entweder als Erweiterung von `web` oder über eigene Port-Freigaben von Addon-Services
   - Systeminformationen wie PHP-, Composer-, RAM- und Disk-Status
   - Konfigurationsstatus
   - Liste installierter Tools / Addons
@@ -227,7 +228,7 @@ docker/tools/addons/
 Aktuell mitgelieferte Tool-Packs:
 
 - **AI CLI**: GitHub Copilot CLI, Codex CLI, Claude Code, Cline CLI, Hermes CLI, Junie CLI
-- **Git**: Git Config
+- **Git**: Git Config, Lazygit
 - **System & Runtime**: Node.js, pnpm, Yarn
 - **PHP Frameworks**: Laravel CLI, Symfony CLI, WordPress CLI
 - **Code Quality**: Code Quality Package
@@ -235,6 +236,7 @@ Aktuell mitgelieferte Tool-Packs:
 Aktuell mitgelieferte Addon-Packs:
 
 - **Databases**: MariaDB, MySQL, PostgreSQL, Firebird
+- **Browser Shells**: Lazygit Shell
 
 Eigene Packs oder Überschreibungen können weiterhin zusätzlich ergänzt werden.
 
@@ -323,7 +325,7 @@ Addon-Definitionen liegen unter:
 docker/tools/addons/
 ```
 
-Diese Dateien werden mit denselben Merge-Regeln wie normale Tools geladen, definieren aber meist optionale Compose-Services, Ports, Umgebungsvariablen und persistente Datenverzeichnisse.
+Diese Dateien werden mit denselben Merge-Regeln wie normale Tools geladen, definieren aber meist optionale Compose-Services, Ports, Umgebungsvariablen, persistente Datenverzeichnisse und an das Dashboard andockbare Browser-Shell-Endpunkte.
 
 ### Settings-Definitionen
 
@@ -379,6 +381,43 @@ Ein Tool kann unter anderem folgende Felder besitzen:
 | `apply_commands` | Optionale Befehle, die nach Config-Änderungen oder Aktivierung laufen |
 | `package_operations` | Optionale Paket-/Datei-Operationen für Scaffold-Tools |
 | `compose_service` | Optionale Service-Definition, vor allem für Addons |
+| `dashboard_shell` | Optionaler Dashboard-Eintrag für browserfähige Shells oder Addon-Endpunkte |
+
+### Browser-Shell-Andockung
+
+Addons können auf zwei generische Arten ins Dashboard andocken:
+
+1. über einen eigenen Host-Port, der per `dashboard_shell` beschrieben wird
+2. über eine Erweiterung des `web`-Services mit einem deklarativen `dashboard_shell.launcher`
+
+Typische Felder von `dashboard_shell`:
+
+| Feld | Bedeutung |
+| --- | --- |
+| `label` | Titel der Dashboard-Kachel |
+| `port_field` / `port` | Host-Port aus der Config oder als fixer Wert |
+| `username_field` / `username` | Optionaler Basic-Auth-Benutzername |
+| `password_field` / `password` | Optionales Basic-Auth-Passwort |
+| `protocol` | Optionales URL-Schema wie `http` oder `https` |
+| `path` | Optionaler URL-Pfad |
+| `button_label` | Optionaler Text für den Button |
+| `help_title` / `help_text` / `help_command` | Inhalte für den Hilfe-Dialog im Dashboard |
+
+Für browserbasierte Shells im `web`-Container unterstützt `dashboard_shell.launcher` eine deklarative Laufzeitdefinition:
+
+| Launcher-Feld | Bedeutung |
+| --- | --- |
+| `type` | Aktuell `ttyd` |
+| `service` | Aktuell `web` für In-Container-Browser-Shells |
+| `container_port` | Container-Port des Launchers |
+| `run_as` | `application` oder `root` |
+| `working_directory` | Optionales Arbeitsverzeichnis vor dem Start |
+| `executable` | Zu startender Befehl |
+| `arguments` | Optionale Argumentliste |
+| `fallback_profile` | Optionales Fallback-Shell-Profil wie `application-shell` |
+| `environment` | Optionale zusätzliche Umgebungsvariablen |
+
+Installierte deklarative Launcher werden in `docker/web/settings/browser_shells.json` materialisiert. Der Web-Entrypoint liest diese Datei beim Start und erzeugt daraus zusätzliche Browser-Shells ohne addon-spezifische Sonderlogik im Runtime-Code.
 
 ## Einstellungen
 
@@ -417,6 +456,7 @@ Beispiele:
 - `docker/web/settings/codex`
 - `docker/web/settings/hermes`
 - `docker/web/settings/junie`
+- `docker/web/settings/lazygit`
 - `docker/web/settings/npm`
 
 Addon-Services speichern ihre Laufzeitdaten ebenfalls außerhalb des Images, zum Beispiel unter:
@@ -429,18 +469,19 @@ Addon-Services speichern ihre Laufzeitdaten ebenfalls außerhalb des Images, zum
 Außerdem werden dort technische Statusdateien abgelegt:
 
 - `installed_tools.json`
+- `browser_shells.json`
 - `rebuild_required.hint`
 
 ## Shell-Zugänge
 
-Vibe4Dock stellt zwei direkte Browser-Shells bereit:
+Vibe4Dock stellt zwei eingebaute Browser-Shells sowie beliebige addonbasierte Dashboard-Shells bereit:
 
 | Shell | Zweck | Port |
 | --- | --- | --- |
 | Root Shell | Administrative Aufgaben im Container | `7681` |
 | Application Shell | Normale Entwicklungsarbeit als `application` | `7682` |
 
-Die Application Shell startet über `tmux`, damit Sessions bestehen bleiben können.
+Die Application Shell startet über `tmux`, damit Sessions bestehen bleiben können. Zusätzliche Browser-Shells können von Addons deklarativ registriert werden und erscheinen nach Installation und Rebuild automatisch im Dashboard.
 
 ## Starten des Projekts
 

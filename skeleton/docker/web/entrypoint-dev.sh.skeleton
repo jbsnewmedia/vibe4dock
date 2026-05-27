@@ -116,4 +116,110 @@ ttyd \
   --interface 0.0.0.0 \
   sudo -u application env VIBE4DOCK_SHELL_HINT="$VIBE4DOCK_SHELL_HINT" bash -lc 'printf "\033]0;%s\007" "$VIBE4DOCK_SHELL_HINT"; exec tmux start-server \; set-option -g status on \; set-option -g status-position top \; set-option -g status-style "bg=cyan,fg=black" \; set-option -g status-left-style "bg=cyan,fg=black" \; set-option -g status-right-style "bg=cyan,fg=black" \; set-option -g status-left-length 240 \; set-option -g status-right "" \; set-option -g status-left " $VIBE4DOCK_SHELL_HINT " \; set-option -g window-status-format "" \; set-option -g window-status-current-format "" \; set-option -g default-command "env VIBE4DOCK_SHELL_HINT=\"$VIBE4DOCK_SHELL_HINT\" bash --noprofile --rcfile /app/docker/web/application-shell.bashrc" \; new-session -A -s main' &
 
+browser_shells_file="/app/docker/web/settings/browser_shells.json"
+if [ -f "$browser_shells_file" ]; then
+  php -r '
+    $file = $argv[1];
+    $baseHint = getenv("VIBE4DOCK_SHELL_HINT") ?: "Vibe4Dock";
+    $shells = json_decode((string) @file_get_contents($file), true);
+    if (!is_array($shells)) {
+        exit(0);
+    }
+
+    foreach ($shells as $shell) {
+        if (!is_array($shell)) {
+            continue;
+        }
+
+        $port = isset($shell["container_port"]) ? (int) $shell["container_port"] : 0;
+        $workingDirectory = isset($shell["working_directory"]) ? trim((string) $shell["working_directory"]) : "";
+        $executable = isset($shell["executable"]) ? trim((string) $shell["executable"]) : "";
+        $rawCommand = isset($shell["command"]) ? trim((string) $shell["command"]) : "";
+        if ($port < 1 || $port > 65535 || ($executable === "" && $rawCommand === "")) {
+            continue;
+        }
+
+        $runAs = (isset($shell["run_as"]) && $shell["run_as"] === "root") ? "root" : "application";
+        $username = isset($shell["username"]) ? (string) $shell["username"] : "";
+        $password = isset($shell["password"]) ? (string) $shell["password"] : "";
+        $hintSuffix = isset($shell["hint_suffix"]) ? trim((string) $shell["hint_suffix"]) : "";
+        $fallbackProfile = isset($shell["fallback_profile"]) ? (string) $shell["fallback_profile"] : "";
+        $missingMessage = isset($shell["missing_message"]) ? trim((string) $shell["missing_message"]) : "";
+        $hint = $baseHint;
+        if ($hintSuffix !== "") {
+            $hint .= " | " . $hintSuffix;
+        }
+
+        $scriptParts = array("printf \"\\033]0;%s\\007\" \"$VIBE4DOCK_SHELL_HINT\"");
+        if ($workingDirectory !== "") {
+            $scriptParts[] = "cd " . escapeshellarg($workingDirectory);
+        }
+
+        if ($rawCommand !== "") {
+            $scriptParts[] = $rawCommand;
+        } else {
+            $arguments = array();
+            if (isset($shell["arguments"]) && is_array($shell["arguments"])) {
+                foreach ($shell["arguments"] as $argument) {
+                    if (is_array($argument)) {
+                        continue;
+                    }
+
+                    $arguments[] = (string) $argument;
+                }
+            }
+
+            $commandParts = array_merge(array($executable), $arguments);
+            $escapedCommandParts = array_map("escapeshellarg", $commandParts);
+            $scriptParts[] = "if command -v " . escapeshellarg($executable) . " >/dev/null 2>&1; then exec " . implode(" ", $escapedCommandParts) . "; fi";
+            if ($missingMessage !== "") {
+                $scriptParts[] = "echo " . escapeshellarg($missingMessage);
+            }
+
+            if ($fallbackProfile === "application-shell") {
+                $scriptParts[] = "exec bash --noprofile --rcfile /app/docker/web/application-shell.bashrc";
+            } elseif ($fallbackProfile === "root-shell") {
+                $scriptParts[] = "exec bash --noprofile --rcfile /app/docker/web/root-shell.bashrc";
+            }
+        }
+
+        $shellCommand = implode("; ", $scriptParts);
+        $parts = array("ttyd");
+        if ($username !== "" && $password !== "") {
+            $parts[] = "--credential";
+            $parts[] = $username . ":" . $password;
+        }
+
+        $parts[] = "--writable";
+        $parts[] = "--port";
+        $parts[] = (string) $port;
+        $parts[] = "--interface";
+        $parts[] = "0.0.0.0";
+
+        if ($runAs === "application") {
+            $parts[] = "sudo";
+            $parts[] = "-u";
+            $parts[] = "application";
+        }
+
+        $parts[] = "env";
+        $parts[] = "VIBE4DOCK_SHELL_HINT=" . $hint;
+        if (isset($shell["environment"]) && is_array($shell["environment"])) {
+            foreach ($shell["environment"] as $envKey => $envValue) {
+                if (!is_string($envKey) || $envKey === "" || is_array($envValue)) {
+                    continue;
+                }
+
+                $parts[] = $envKey . "=" . (string) $envValue;
+            }
+        }
+        $parts[] = "bash";
+        $parts[] = "-lc";
+        $parts[] = $shellCommand;
+
+        echo implode(" ", array_map("escapeshellarg", $parts)) . " &\n";
+    }
+  ' "$browser_shells_file" | bash
+fi
+
 exec /entrypoint supervisord
