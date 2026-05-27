@@ -18,16 +18,6 @@ if [ -f /app/.env.local ]; then
   done < /app/.env.local
 fi
 
-# APPLY GIT CONFIG IF ENABLED
-if [ "$GIT_CONFIG_ENABLED" = "1" ]; then
-  if [ -n "$GIT_USER_NAME" ]; then
-    git config --global user.name "$GIT_USER_NAME"
-  fi
-  if [ -n "$GIT_USER_EMAIL" ]; then
-    git config --global user.email "$GIT_USER_EMAIL"
-  fi
-fi
-
 # INSTALL TOOLS FROM SAVED LIST
 if [ -f /app/docker/web/settings/installed_tools.json ] && [ -f /app/docker/tools/config.php ]; then
   installed_ids=$(php -r '$ids = json_decode(file_get_contents("/app/docker/web/settings/installed_tools.json"), true) ?: array(); foreach ($ids as $id) { echo $id . PHP_EOL; }')
