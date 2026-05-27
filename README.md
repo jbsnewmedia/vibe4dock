@@ -2,6 +2,8 @@
 
 For the German version, see [README.de.md](readme/README.de.md).
 
+This documentation describes **Vibe4Dock 1.0.1**.
+
 Vibe4Dock is a Docker-based development environment with a web interface for CLI tools, browser shells, and project-specific runtime extensions. The main reason this project exists is simple: it gives you direct web access to AI CLI tools so you can keep working on your project anytime - on your desktop, phone, tablet, while traveling, or basically from anywhere.
 
 This repository contains both the Vibe4Dock skeleton template and the setup CLI (`./vibe4dock` or `php vibe4dock.php`). The setup CLI generates a new Vibe4Dock project exclusively from the bundled `skeleton/` directory.
@@ -116,7 +118,7 @@ Vibe4Dock starts two Docker services by default:
 
 | Service | Purpose | Port(s) |
 | --- | --- | --- |
-| `web` | Main development environment with Apache/PHP, ttyd, shells, and installed tools | `81`, `7681`, `7682` |
+| `web` | Main development environment with Apache/PHP, ttyd, shells, and installed tools | `80`, `7681`, `7682` |
 | `tools` | Management UI for dashboard, categories, settings, and install/uninstall workflows | `8090` |
 
 ### `web` service
@@ -160,9 +162,9 @@ The interface is not just informational; it actively manages:
 - activation of the rebuild hint when installed packs add new mounts or services,
 - status display for runtime, memory, disk, and installed tools.
 
-### Neutral base plus packs
+### Bundled packs plus on-demand activation
 
-The bundled `skeleton/` now stays intentionally neutral. It only provides the base services, the tools/settings engine, and the mergeable JSON loader. Actual tools and addons are meant to come from separate JSON-based packs. The repository can still contain examples such as `project-example/`, but the generated base project should not ship opinionated tool content by default.
+The repository ships the base services together with a curated set of bundled tool and addon definitions. Generated projects stay clean in practice because tools, addon services, and their persistent directories are only activated when you install them through the Tools UI. Mount-backed directories and addon data folders are created on demand and removed again when no longer needed.
 
 ## Project structure
 
@@ -176,8 +178,10 @@ The most important files and directories:
 | `docker/web/` | Dockerfile, entry logic, provisioning, and persistent tool data |
 | `docker/tools/` | Management UI, dashboard, routing, and tool/settings definitions |
 | `docker/tools/category/` | Tool definitions, sorted and merged by filename |
+| `docker/tools/addons/` | Addon and optional service definitions, also sorted and merged |
 | `docker/tools/settings/` | Settings definitions, also mergeable |
 | `docker/web/settings/` | Persistent user data such as installed tools, caches, logins, and hint files |
+| `docker/data/` | On-demand addon data directories such as database storage |
 | `readme/` | Screenshot and documentation assets |
 
 ## Usage model
@@ -215,13 +219,26 @@ The real work stays inside the container and therefore inside one consistent env
 
 ## Tool and addon packs
 
-The neutral base does not define any bundled tools or addons anymore. Categories and entries are loaded only from JSON files that are added to:
+Bundled definitions for **Vibe4Dock 1.0.1** are loaded from:
 
 ```text
 docker/tools/category/
+docker/tools/addons/
 ```
 
-That means Vibe4Dock itself remains content-neutral, while concrete stacks can be shipped as separate packs or as example projects.
+Current bundled tool packs:
+
+- **AI CLI**: GitHub Copilot CLI, Codex CLI, Claude Code, Cline CLI, Hermes CLI, Junie CLI
+- **Git**: Git Config
+- **System & Runtime**: Node.js, pnpm, Yarn
+- **PHP Frameworks**: Laravel CLI, Symfony CLI, WordPress CLI
+- **Code Quality**: Code Quality Package
+
+Current bundled addon packs:
+
+- **Databases**: MariaDB, MySQL, PostgreSQL, Firebird
+
+You can still add your own packs or overrides on top of these files.
 
 ## How tool installation works
 
@@ -298,7 +315,17 @@ Each file:
 - can define categories and tools,
 - is merged with all other files.
 
-There is no required built-in tool file in the neutral base. If you want bundled examples, keep them in a separate pack or in a project template such as `project-example/`.
+Bundled tool files are already part of the repository in version 1.0.1, and additional team-specific or project-specific packs can be layered on top through the same merge mechanism.
+
+### Addon definitions
+
+Addon definitions live in:
+
+```text
+docker/tools/addons/
+```
+
+These files are loaded with the same merge rules as normal tools, but they usually contribute optional Compose services, ports, environment variables, and persistent data directories.
 
 ### Settings definitions
 
@@ -350,6 +377,10 @@ A tool can contain fields such as:
 | `type` | Optional, e.g. `versioned` |
 | `versions` | Version entries for versioned tools |
 | `default_version` | Preselected version for versioned tools |
+| `config_schema` | Optional config dialog definition for tool-specific settings |
+| `apply_commands` | Optional commands executed after config changes or activation |
+| `package_operations` | Optional package/file operations for project scaffolding tools |
+| `compose_service` | Optional service definition used mainly by addons |
 
 ## Settings
 
@@ -389,6 +420,13 @@ Examples:
 - `docker/web/settings/hermes`
 - `docker/web/settings/junie`
 - `docker/web/settings/npm`
+
+Addon services also persist their runtime data outside the image, for example:
+
+- `docker/data/mariadb`
+- `docker/data/mysql`
+- `docker/data/postgresql`
+- `docker/data/firebird`
 
 Technical state files are also stored there:
 
@@ -490,16 +528,3 @@ Because of that, this setup is not intended for direct public internet exposure 
 ## Summary
 
 Vibe4Dock is a modular, Docker-based development workspace with a web interface for tool management, browser terminals, persistent CLI configuration, and dynamically generated container provisioning. Its biggest advantage is browser-based access to AI CLI tools and project environments, so work on a project remains possible anytime and from practically anywhere.
-
-## Release notes
-
-### 1.0.1
-
-- Git Config settings (`GIT_USER_NAME`, `GIT_USER_EMAIL`) are now applied to the `application` user inside the web container, not to `root`. The values are now visible to the in-browser application shell.
-- The Laravel CLI tool pack now installs `laravel/installer` for the `application` user, so the binary stays readable when invoked through the application shell.
-- The web entrypoint now fixes ownership of `/home/application` before restoring installed tools, so bind-mounted tool directories like Hermes no longer fail with permission errors on startup.
-- The Junie tool pack now uses the official `install.sh` installer and links the generated shim into `/usr/local/bin`, so `junie` works from the application shell.
-- The Symfony CLI uninstall command is now idempotent (`rm -f` instead of `rm`), so removing it twice or after a rebuild no longer reports an error.
-- The Code Quality Package now writes a real empty JSON object (`{}`) back to `composer.json` after a full uninstall, instead of an empty JSON array (`[]`).
-- Tool and addon versions are now normalized through dedicated regex extraction, so CLI banners do not leak into the UI version labels.
-- README clone instructions updated to point to the `1.0.1` tag.

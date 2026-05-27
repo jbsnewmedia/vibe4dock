@@ -90,6 +90,7 @@ function setInstalledTool($toolId, $installed)
                 || (isset($selectedVersion['compose_service']) && is_array($selectedVersion['compose_service']))
                 || (isset($t['compose_service']) && is_array($t['compose_service']))
             ) {
+                syncManagedProjectDirectoriesForTool($t, $installed, $selectedVersion);
                 setRestartRequired(true);
             }
             break;
@@ -955,6 +956,116 @@ function removeProjectDirectory($relativePath)
     rmdir($path);
 }
 
+function pruneEmptyProjectDirectories($relativePath)
+{
+    $path = dirname('/app/' . ltrim($relativePath, '/'));
+    $projectRoot = '/app';
+
+    while ($path !== $projectRoot && strncmp($path, $projectRoot . '/', strlen($projectRoot) + 1) === 0) {
+        if (!is_dir($path)) {
+            $path = dirname($path);
+            continue;
+        }
+
+        $items = scandir($path);
+        if ($items === false || count($items) > 2) {
+            break;
+        }
+
+        rmdir($path);
+        $path = dirname($path);
+    }
+}
+
+function normalizeManagedProjectPath($path)
+{
+    if (!is_string($path)) {
+        return null;
+    }
+
+    $normalizedPath = trim(str_replace('\\', '/', $path));
+    if ($normalizedPath === '') {
+        return null;
+    }
+
+    if (str_starts_with($normalizedPath, './')) {
+        $normalizedPath = substr($normalizedPath, 2);
+    }
+
+    if ($normalizedPath === '' || $normalizedPath === '.' || str_starts_with($normalizedPath, '/')) {
+        return null;
+    }
+
+    return rtrim($normalizedPath, '/');
+}
+
+function getManagedProjectDirectoriesFromVolumes($volumes)
+{
+    if (!is_array($volumes)) {
+        return array();
+    }
+
+    $paths = array();
+    foreach ($volumes as $volume) {
+        if (!is_string($volume) || strpos($volume, ':') === false) {
+            continue;
+        }
+
+        $parts = explode(':', $volume, 2);
+        $projectPath = normalizeManagedProjectPath($parts[0]);
+        if ($projectPath !== null) {
+            $paths[] = $projectPath;
+        }
+    }
+
+    return $paths;
+}
+
+function getManagedProjectDirectoriesForTool($tool, $definition = null)
+{
+    $paths = array();
+
+    if (isset($tool['mounts']) && is_array($tool['mounts'])) {
+        $paths = array_merge($paths, getManagedProjectDirectoriesFromVolumes($tool['mounts']));
+    }
+
+    $composeSource = is_array($definition) ? $definition : $tool;
+    if (isset($composeSource['compose_service']['definition']['volumes'])) {
+        $paths = array_merge(
+            $paths,
+            getManagedProjectDirectoriesFromVolumes($composeSource['compose_service']['definition']['volumes'])
+        );
+    }
+
+    return array_values(array_unique($paths));
+}
+
+function syncManagedProjectDirectoriesForTool($tool, $installed, $definition = null)
+{
+    foreach (getManagedProjectDirectoriesForTool($tool, $definition) as $relativePath) {
+        $absolutePath = '/app/' . ltrim($relativePath, '/');
+
+        if ($installed) {
+            if (!is_dir($absolutePath)) {
+                mkdir($absolutePath, 0777, true);
+            }
+            continue;
+        }
+
+        if (!is_dir($absolutePath)) {
+            continue;
+        }
+
+        $items = scandir($absolutePath);
+        if ($items === false || count($items) > 2) {
+            continue;
+        }
+
+        rmdir($absolutePath);
+        pruneEmptyProjectDirectories($relativePath);
+    }
+}
+
 function cleanupEmptyComposerSections(&$composerData)
 {
     if (isset($composerData['require-dev']) && empty($composerData['require-dev'])) {
@@ -1130,6 +1241,7 @@ function applyPackageTemplates($tool, $mode)
         }
 
         removeProjectFile($target);
+        pruneEmptyProjectDirectories($target);
     }
 }
 
@@ -1219,6 +1331,7 @@ function handlePackageToolAction($tool, $action, $postData)
         foreach ($operations['cleanup_directories'] as $directory) {
             if (is_string($directory) && $directory !== '') {
                 removeProjectDirectory($directory);
+                pruneEmptyProjectDirectories($directory);
             }
         }
     }

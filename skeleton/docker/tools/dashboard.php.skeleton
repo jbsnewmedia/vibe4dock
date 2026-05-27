@@ -55,16 +55,6 @@ function renderDashboard($config, $envValues, $installedTools, $isOffline)
     $toolContent .= '</div>';
 
     // Configuration Status Card
-    $gitTool = null;
-    foreach ($config['tools'] as $tool) {
-        if (isset($tool['id']) && $tool['id'] === 'git-config') {
-            $gitTool = $tool;
-            break;
-        }
-    }
-    $gitInstalled = $gitTool ? isToolInstalled($gitTool, $installedTools, $envValues) : false;
-    $gitConfigValues = $gitTool ? getToolConfigValues($gitTool) : array();
-
     $toolsProtected =
         isset($envValues['TOOLS_USERNAME']) && trim((string) $envValues['TOOLS_USERNAME']) !== '' &&
         isset($envValues['TOOLS_PASSWORD']) && trim((string) $envValues['TOOLS_PASSWORD']) !== '';
@@ -74,16 +64,6 @@ function renderDashboard($config, $envValues, $installedTools, $isOffline)
     $rootShellProtected =
         isset($envValues['ROOT_SHELL_USERNAME']) && trim((string) $envValues['ROOT_SHELL_USERNAME']) !== '' &&
         isset($envValues['ROOT_SHELL_PASSWORD']) && trim((string) $envValues['ROOT_SHELL_PASSWORD']) !== '';
-
-    $gitUser = '-';
-    if ($isOffline) {
-        $gitStatus = '---';
-    } else {
-        $gitStatus = $gitInstalled ? 'Installed' : 'Not installed';
-        if ($gitInstalled) {
-            $gitUser = htmlspecialchars(isset($gitConfigValues['GIT_USER_NAME']) ? $gitConfigValues['GIT_USER_NAME'] : '-');
-        }
-    }
 
     $renderProtectionRow = static function ($label, $isProtected, $modalId) {
         $status = $isProtected ? 'Protected' : 'Unprotected';
@@ -99,10 +79,6 @@ function renderDashboard($config, $envValues, $installedTools, $isOffline)
     };
 
     $toolContent .= '<div class="stat-card"><h3>Configuration</h3>';
-    $toolContent .= '<div class="stat-item"><span class="stat-label">Git Config</span><span class="stat-value">' . $gitStatus . '</span></div>';
-    if ($isOffline || $gitInstalled) {
-        $toolContent .= '<div class="stat-item"><span class="stat-label">User</span><span class="stat-value">' . $gitUser . '</span></div>';
-    }
     $toolContent .= $renderProtectionRow('Tools UI', $toolsProtected, 'protection-modal-tools');
     $toolContent .= $renderProtectionRow('Application Shell', $appShellProtected, 'protection-modal-app-shell');
     $toolContent .= $renderProtectionRow('Root Shell', $rootShellProtected, 'protection-modal-root-shell');
@@ -282,7 +258,7 @@ ROOT_SHELL_PASSWORD="change-me-root"</pre>
         $toolContent .= '
             <div class="tool-card" style="border-style: dashed; opacity: 0.7;">
                 <div style="text-align: center; padding: 20px; color: var(--text-dim);">
-                    No tools installed yet. Visit the categories to install new tools.
+                    No tools or addons installed yet. Visit Tools or Addons to install them.
                 </div>
             </div>';
     }

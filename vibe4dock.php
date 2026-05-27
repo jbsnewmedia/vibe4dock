@@ -2,7 +2,7 @@
 
 class Vibe4DockSetup
 {
-    private const COLORS = ['GREEN' => "\033[32m", 'RED' => "\033[31m", 'NONE' => "\033[0m"];
+    private const COLORS = ['GREEN' => "\033[38;2;136;238;255m", 'RED' => "\033[31m", 'NONE' => "\033[0m"];
     private const NL = "\n";
     private const DEFAULT_WEB_PORT = 80;
     private const DEFAULT_TOOLS_PORT = 8090;
@@ -86,7 +86,7 @@ class Vibe4DockSetup
     {
         $prompt = $question;
         if ($default !== null && $default !== '') {
-            $prompt .= " [$default]";
+            $prompt .= ' [' . self::COLORS['GREEN'] . $default . self::COLORS['NONE'] . ']';
         }
 
         echo $prompt . ': ';
@@ -97,7 +97,7 @@ class Vibe4DockSetup
 
     private function askConfirm(string $question, string $default = 'yes'): bool
     {
-        $prompt = $question . ' (yes/no) [' . $default . ']';
+        $prompt = $question . ' (yes/no) [' . self::COLORS['GREEN'] . $default . self::COLORS['NONE'] . ']';
         echo $prompt . ': ';
         $input = strtolower(trim((string) fgets(STDIN)));
         $input = $input === '' ? $default : $input;
@@ -109,7 +109,7 @@ class Vibe4DockSetup
     {
         $prompt = $question . ' (' . implode(', ', $choices) . ')';
         if ($default !== null) {
-            $prompt .= " [$default]";
+            $prompt .= ' [' . self::COLORS['GREEN'] . $default . self::COLORS['NONE'] . ']';
         }
 
         echo $prompt . ': ';
@@ -326,7 +326,7 @@ class Vibe4DockSetup
         $this->copySkeletonTemplate();
         $this->renderSkeletonTemplates();
         $this->log('Vibe4Dock, Copyright (c) 2026+ JBS New Media GmbH, Juergen Schwind | MIT License | https://github.com/jbsnewmedia/vibe4dock');
-        $this->printSuccess('Vibe4Dock setup complete in: ' . $this->outputDir);
+        $this->printSuccess('Vibe4Dock setup complete: [' . $this->projectName . '] in [' . rtrim($this->outputDir, DIRECTORY_SEPARATOR) . ']');
     }
 
     private function copySkeletonTemplate(): void
@@ -369,6 +369,10 @@ class Vibe4DockSetup
             }
 
             if ($item->isDir()) {
+                if (!$this->shouldCreateTemplateDirectory($item->getPathname(), $outputRelativePath, $source)) {
+                    continue;
+                }
+
                 if (!is_dir($destination)) {
                     mkdir($destination, 0777, true);
                 }
@@ -399,13 +403,56 @@ class Vibe4DockSetup
     private function shouldSkipTemplatePath(string $relativePath): bool
     {
         $normalizedPath = str_replace('\\', '/', $relativePath);
+        $skipPrefixes = [
+            'readme/',
+            'vendor-bin/',
+            'vendor/',
+            'node_modules/',
+            '.git/',
+            '.idea/',
+        ];
+
+        foreach ($skipPrefixes as $prefix) {
+            if (str_starts_with($normalizedPath, $prefix)) {
+                return true;
+            }
+        }
 
         return $normalizedPath === 'README.de.md'
-            || str_starts_with($normalizedPath, 'readme/');
+            || in_array($normalizedPath, ['vendor-bin', 'vendor', 'node_modules', '.git', '.idea'], true);
     }
 
     private function shouldDeferTemplatePath(string $relativePath): bool
     {
+        return false;
+    }
+
+    private function shouldCreateTemplateDirectory(string $sourceDirectory, string $outputRelativePath, string $sourceRoot): bool
+    {
+        $normalizedOutputPath = str_replace('\\', '/', $outputRelativePath);
+        if ($this->shouldSkipTemplatePath($normalizedOutputPath) || $this->shouldDeferTemplatePath($normalizedOutputPath)) {
+            return false;
+        }
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($sourceDirectory, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($iterator as $child) {
+            $childRelativePath = substr($child->getPathname(), strlen($sourceRoot) + 1);
+            if ($childRelativePath === false || $childRelativePath === '') {
+                continue;
+            }
+
+            $childOutputPath = $this->normalizeTemplateOutputPath($childRelativePath);
+            if ($this->shouldSkipTemplatePath($childOutputPath) || $this->shouldDeferTemplatePath($childOutputPath)) {
+                continue;
+            }
+
+            return true;
+        }
+
         return false;
     }
 

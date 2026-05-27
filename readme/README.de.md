@@ -1,5 +1,7 @@
 # Vibe4Dock
 
+Diese Dokumentation beschreibt **Vibe4Dock 1.0.1**.
+
 Vibe4Dock ist eine Docker-basierte Entwicklungsumgebung mit Weboberfläche für CLI-Tools, Shell-Zugänge und projektbezogene Runtime-Erweiterungen. Der Hauptgrund für das Projekt ist, dass man über das Web direkt in AI-CLI-Tools kommt und jederzeit am Projekt arbeiten kann: am Desktop, auf dem Handy, auf dem Tablet, unterwegs oder quasi von überall.
 
 Dieses Repository enthält nicht nur das Vibe4Dock-Skeleton, sondern auch die Setup-CLI (`./vibe4dock` bzw. `php vibe4dock.php`). Damit lässt sich aus dem eingebauten Verzeichnis `skeleton/` ein neues Vibe4Dock-Projekt mit passender Docker-Konfiguration erzeugen.
@@ -114,7 +116,7 @@ Vibe4Dock startet standardmäßig zwei Docker-Services:
 
 | Service | Zweck | Port(s) |
 | --- | --- | --- |
-| `web` | Hauptentwicklungsumgebung mit Apache/PHP, ttyd, Shells und den installierten Tools | `81`, `7681`, `7682` |
+| `web` | Hauptentwicklungsumgebung mit Apache/PHP, ttyd, Shells und den installierten Tools | `80`, `7681`, `7682` |
 | `tools` | Verwaltungsoberfläche für Dashboard, Kategorien, Einstellungen, Install/Uninstall-Workflows | `8090` |
 
 ### Service `web`
@@ -158,9 +160,9 @@ Die Oberfläche ist nicht nur Anzeige, sondern steuert aktiv:
 - Aktivierung des Rebuild-Hinweises, wenn installierte Packs neue Mounts oder Services ergänzen,
 - Statusanzeige für Runtime, Speicher, Datenträger und installierte Tools.
 
-### Neutrale Basis plus Packs
+### Mitgelieferte Packs plus bedarfsgesteuerte Aktivierung
 
-Das eingebaute `skeleton/` bleibt jetzt bewusst neutral. Es liefert nur die Basis-Services, die Tools-/Settings-Engine und den mergebasierten JSON-Loader. Konkrete Tools und Addons sollen über separate JSON-basierte Packs kommen. Das Repository kann weiterhin Beispiele wie `project-example/` enthalten, aber das generierte Basisprojekt soll standardmäßig keine inhaltlich fest eingebauten Tool-Pakete mehr mitbringen.
+Das Repository liefert die Basis-Services zusammen mit einer kuratierten Auswahl an Tool- und Addon-Definitionen aus. Generierte Projekte bleiben trotzdem praktisch schlank, weil Tools, Addon-Services und ihre persistenten Verzeichnisse erst dann aktiviert werden, wenn sie über die Tools-UI installiert werden. Mount-basierte Verzeichnisse und Addon-Datenordner werden bei Bedarf angelegt und wieder entfernt, wenn sie nicht mehr gebraucht werden.
 
 ## Projektstruktur
 
@@ -174,8 +176,10 @@ Die wichtigsten Dateien und Verzeichnisse:
 | `docker/web/` | Dockerfile, Entry-Logik, Provisioning und persistente Tooldaten |
 | `docker/tools/` | Verwaltungsoberfläche, Dashboard, Routing, Tool- und Settings-Definitionen |
 | `docker/tools/category/` | Tool-Definitionen, nach Dateinamen sortiert und zusammengeführt |
+| `docker/tools/addons/` | Addon- und optionale Service-Definitionen, ebenfalls sortiert und zusammengeführt |
 | `docker/tools/settings/` | Einstellungsdefinitionen, ebenfalls mergebar |
 | `docker/web/settings/` | Persistente Nutzdaten wie installierte Tools, Caches, Logins und Hint-Dateien |
+| `docker/data/` | Bedarfsgesteuerte Addon-Datenverzeichnisse, z. B. für Datenbanken |
 | `readme/` | Screenshot und Doku-Assets |
 
 ## Bedienkonzept
@@ -213,13 +217,26 @@ Die eigentliche Arbeit bleibt im Container und damit in einer konsistenten Umgeb
 
 ## Tool- und Addon-Packs
 
-Die neutrale Basis definiert keine fest eingebauten Tools oder Addons mehr. Kategorien und Einträge werden nur noch aus JSON-Dateien geladen, die unter folgendem Pfad ergänzt werden:
+Die mitgelieferten Definitionen für **Vibe4Dock 1.0.1** werden aus folgenden Pfaden geladen:
 
 ```text
 docker/tools/category/
+docker/tools/addons/
 ```
 
-Dadurch bleibt Vibe4Dock selbst inhaltlich neutral, während konkrete Stacks als separate Packs oder als Beispielprojekte ausgeliefert werden können.
+Aktuell mitgelieferte Tool-Packs:
+
+- **AI CLI**: GitHub Copilot CLI, Codex CLI, Claude Code, Cline CLI, Hermes CLI, Junie CLI
+- **Git**: Git Config
+- **System & Runtime**: Node.js, pnpm, Yarn
+- **PHP Frameworks**: Laravel CLI, Symfony CLI, WordPress CLI
+- **Code Quality**: Code Quality Package
+
+Aktuell mitgelieferte Addon-Packs:
+
+- **Databases**: MariaDB, MySQL, PostgreSQL, Firebird
+
+Eigene Packs oder Überschreibungen können weiterhin zusätzlich ergänzt werden.
 
 ## Wie Tool-Installation technisch funktioniert
 
@@ -296,7 +313,17 @@ Jede Datei:
 - kann Kategorien und Tools definieren,
 - wird mit allen anderen Dateien zusammengeführt.
 
-In der neutralen Basis gibt es keine verpflichtende eingebaute Tool-Datei mehr. Wenn Standardinhalte mitgeliefert werden sollen, sollten sie als separates Pack oder in einem Beispielprojekt wie `project-example/` liegen.
+Die mitgelieferten Tool-Dateien sind in Version 1.0.1 bereits Teil des Repositories, und zusätzliche team- oder projektspezifische Packs können über denselben Merge-Mechanismus darübergelegt werden.
+
+### Addon-Definitionen
+
+Addon-Definitionen liegen unter:
+
+```text
+docker/tools/addons/
+```
+
+Diese Dateien werden mit denselben Merge-Regeln wie normale Tools geladen, definieren aber meist optionale Compose-Services, Ports, Umgebungsvariablen und persistente Datenverzeichnisse.
 
 ### Settings-Definitionen
 
@@ -348,6 +375,10 @@ Ein Tool kann unter anderem folgende Felder besitzen:
 | `type` | Optional, z. B. `versioned` |
 | `versions` | Versionseinträge für versionierte Tools |
 | `default_version` | Vorauswahl bei versionierten Tools |
+| `config_schema` | Optionale Definition für einen tool-spezifischen Config-Dialog |
+| `apply_commands` | Optionale Befehle, die nach Config-Änderungen oder Aktivierung laufen |
+| `package_operations` | Optionale Paket-/Datei-Operationen für Scaffold-Tools |
+| `compose_service` | Optionale Service-Definition, vor allem für Addons |
 
 ## Einstellungen
 
@@ -387,6 +418,13 @@ Beispiele:
 - `docker/web/settings/hermes`
 - `docker/web/settings/junie`
 - `docker/web/settings/npm`
+
+Addon-Services speichern ihre Laufzeitdaten ebenfalls außerhalb des Images, zum Beispiel unter:
+
+- `docker/data/mariadb`
+- `docker/data/mysql`
+- `docker/data/postgresql`
+- `docker/data/firebird`
 
 Außerdem werden dort technische Statusdateien abgelegt:
 
@@ -488,16 +526,3 @@ Für den produktiven Internetbetrieb ohne zusätzliche Absicherung ist das Setup
 ## Kurzfassung
 
 Vibe4Dock ist ein modularer, Docker-basierter Entwicklungs-Workspace mit Weboberfläche für Tool-Management, Browser-Terminals, persistente CLI-Konfigurationen und dynamisch generierte Container-Provisionierung. Der größte Mehrwert ist der browserbasierte Zugriff auf AI-CLI-Tools und Projektumgebungen, sodass Arbeit am Projekt jederzeit und von praktisch überall möglich ist.
-
-## Release Notes
-
-### 1.0.1
-
-- Die Git-Config-Settings (`GIT_USER_NAME`, `GIT_USER_EMAIL`) werden jetzt für den `application`-Benutzer im Web-Container gesetzt und nicht mehr für `root`. Die Werte sind damit auch in der Browser-Application-Shell sichtbar.
-- Das Laravel-CLI-Tool installiert `laravel/installer` jetzt im Home-Verzeichnis des `application`-Benutzers, sodass das Binary aus der Application-Shell heraus lesbar bleibt.
-- Der Web-Entrypoint korrigiert die Besitzrechte von `/home/application` jetzt vor der Wiederherstellung installierter Tools, damit bind-gemountete Tool-Verzeichnisse wie bei Hermes nicht mehr an Permission-Fehlern scheitern.
-- Das Junie-Tool verwendet jetzt den offiziellen `install.sh`-Installer und verlinkt den erzeugten Shim nach `/usr/local/bin`, damit `junie` in der Application-Shell funktioniert.
-- Der Uninstall-Befehl der Symfony-CLI ist jetzt idempotent (`rm -f` statt `rm`), sodass ein erneutes Entfernen oder ein Entfernen nach einem Rebuild keinen Fehler mehr produziert.
-- Das Code-Quality-Package schreibt nach einem vollständigen Uninstall jetzt wieder ein echtes leeres JSON-Objekt (`{}`) in `composer.json` und kein leeres JSON-Array (`[]`).
-- Tool- und Addon-Versionen werden jetzt per dediziertem Regex aus der CLI-Ausgabe extrahiert, damit die UI normalisierte Versionsangaben anzeigt.
-- Die Clone-Anweisungen in der README zeigen jetzt auf den Tag `1.0.1`.
