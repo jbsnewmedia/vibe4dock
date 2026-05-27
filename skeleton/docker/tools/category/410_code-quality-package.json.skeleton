@@ -14,6 +14,7 @@
             "label": "Code Quality Package",
             "description": "Scaffold ECS, Rector, PHPStan, and PHPUnit as a configurable project package.",
             "usage": "",
+            "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
             "check": "test -f /app/composer.json && echo ready",
             "install": "true",
             "uninstall": "true",

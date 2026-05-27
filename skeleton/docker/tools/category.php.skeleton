@@ -284,20 +284,14 @@ function renderCategory($config, $categoryId, $envValues, $installedTools)
                             continue;
                         }
 
-                        $statusResult = runInWebContainer($v['check']);
-                        if ($statusResult['ok']) {
-                            $versionInfo = trim($statusResult['output']);
-                        }
+                        $versionInfo = detectToolVersion($tool, $v);
                         break;
                     }
                 }
             } else {
                 $installed = in_array($tool['id'], $installedTools, true);
                 if ($installed && isset($tool['check'])) {
-                    $statusResult = runInWebContainer($tool['check']);
-                    if ($statusResult['ok']) {
-                        $versionInfo = trim($statusResult['output']);
-                    }
+                    $versionInfo = detectToolVersion($tool);
                 }
             }
 

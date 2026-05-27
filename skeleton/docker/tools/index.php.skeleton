@@ -329,6 +329,58 @@ function runInWebContainer($command)
     );
 }
 
+function getToolVersionRegex($tool, $definition = null)
+{
+    if (is_array($definition) && isset($definition['version_regex']) && is_string($definition['version_regex']) && $definition['version_regex'] !== '') {
+        return $definition['version_regex'];
+    }
+
+    if (isset($tool['version_regex']) && is_string($tool['version_regex']) && $tool['version_regex'] !== '') {
+        return $tool['version_regex'];
+    }
+
+    return null;
+}
+
+function normalizeToolVersionOutput($output, $versionRegex = null)
+{
+    $output = trim((string) $output);
+    if ($output === '') {
+        return '';
+    }
+
+    if ($versionRegex !== null && preg_match($versionRegex, $output, $matches) === 1) {
+        foreach ($matches as $index => $match) {
+            if ($index === 0) {
+                continue;
+            }
+
+            if ($match !== '') {
+                return trim((string) $match);
+            }
+        }
+
+        return trim((string) $matches[0]);
+    }
+
+    return $output;
+}
+
+function detectToolVersion($tool, $definition = null)
+{
+    $definitionToCheck = is_array($definition) ? $definition : $tool;
+    if (!is_array($definitionToCheck) || !isset($definitionToCheck['check'])) {
+        return '';
+    }
+
+    $result = runInWebContainer($definitionToCheck['check']);
+    if (!$result['ok']) {
+        return '';
+    }
+
+    return normalizeToolVersionOutput($result['output'], getToolVersionRegex($tool, $definition));
+}
+
 function parseEnvContent($content)
 {
     $values = array();

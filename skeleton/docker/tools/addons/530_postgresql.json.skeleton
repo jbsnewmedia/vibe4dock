@@ -17,6 +17,7 @@
             "usage": "",
             "type": "versioned",
             "default_version": "postgresql-16",
+            "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
             "config_schema": {
                 "fields": [
                     {

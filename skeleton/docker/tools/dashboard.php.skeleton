@@ -238,16 +238,20 @@ ROOT_SHELL_PASSWORD="change-me-root"</pre>
                 foreach ($tool['versions'] as $v) {
                     if (in_array($v['id'], $installedTools)) {
                         $found = true;
-                        $versionResult = runInWebContainer($v['check']);
-                        $versionInfo = $versionResult['ok'] ? $versionResult['output'] : $v['label'];
+                        $versionInfo = detectToolVersion($tool, $v);
+                        if ($versionInfo === '') {
+                            $versionInfo = $v['label'];
+                        }
                         break;
                     }
                 }
             } else {
                 if (in_array($tool['id'], $installedTools)) {
                     $found = true;
-                    $versionResult = runInWebContainer($tool['check']);
-                    $versionInfo = $versionResult['ok'] ? $versionResult['output'] : 'Installed';
+                    $versionInfo = detectToolVersion($tool);
+                    if ($versionInfo === '') {
+                        $versionInfo = 'Installed';
+                    }
                 }
             }
 

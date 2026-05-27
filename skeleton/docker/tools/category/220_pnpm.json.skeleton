@@ -16,6 +16,7 @@
             "default_version": "pnpm-10",
             "description": "Fast, disk space efficient package manager.",
             "usage": "",
+            "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
             "dependencies": [
                 "node"
             ],

@@ -16,6 +16,7 @@
             "default_version": "yarn-3",
             "description": "Install the project dependencies.",
             "usage": "",
+            "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
             "dependencies": [
                 "node"
             ],

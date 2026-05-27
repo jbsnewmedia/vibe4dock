@@ -17,6 +17,7 @@
             ],
             "description": "Your AI pair programmer in the terminal.",
             "usage": "",
+            "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
             "dependencies": [
                 "node"
             ],

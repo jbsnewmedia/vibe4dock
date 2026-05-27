@@ -14,6 +14,7 @@
             "label": "Laravel CLI",
             "description": "The Laravel installer for creating and managing Laravel applications from the terminal.",
             "usage": "untested",
+            "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
             "check": "laravel --version 2>/dev/null | grep -oP '\\d+\\.\\d+\\.\\d+' | head -n1 | grep .",
             "install": "sudo -u application -H bash -lc 'composer global require laravel/installer --no-interaction' && COMPOSER_BIN_DIR=$(sudo -u application -H composer global config bin-dir --absolute --quiet) && ln -sf \"$COMPOSER_BIN_DIR/laravel\" /usr/local/bin/laravel",
             "uninstall": "sudo -u application -H bash -lc 'composer global remove laravel/installer --no-interaction' || true && rm -f /usr/local/bin/laravel"

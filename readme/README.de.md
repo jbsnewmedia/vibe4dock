@@ -495,4 +495,5 @@ Vibe4Dock ist ein modularer, Docker-basierter Entwicklungs-Workspace mit Webober
 - Das Laravel-CLI-Tool installiert `laravel/installer` jetzt im Home-Verzeichnis des `application`-Benutzers, sodass das Binary aus der Application-Shell heraus lesbar bleibt.
 - Der Uninstall-Befehl der Symfony-CLI ist jetzt idempotent (`rm -f` statt `rm`), sodass ein erneutes Entfernen oder ein Entfernen nach einem Rebuild keinen Fehler mehr produziert.
 - Das Code-Quality-Package schreibt nach einem vollständigen Uninstall jetzt wieder ein echtes leeres JSON-Objekt (`{}`) in `composer.json` und kein leeres JSON-Array (`[]`).
+- Tool- und Addon-Versionen werden jetzt per dediziertem Regex aus der CLI-Ausgabe extrahiert, damit die UI normalisierte Versionsangaben anzeigt.
 - Die Clone-Anweisungen in der README zeigen jetzt auf den Tag `1.0.1`.
