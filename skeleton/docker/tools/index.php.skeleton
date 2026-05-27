@@ -994,7 +994,11 @@ function applyPackageComposerChanges($tool, $mode)
     }
 
     cleanupEmptyComposerSections($composerData);
-    writeProjectFile('composer.json', json_encode($composerData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
+    $encodeFlags = JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES;
+    if (empty($composerData)) {
+        $encodeFlags |= JSON_FORCE_OBJECT;
+    }
+    writeProjectFile('composer.json', json_encode($composerData, $encodeFlags) . PHP_EOL);
 }
 
 function handlePackageToolAction($tool, $action, $postData)

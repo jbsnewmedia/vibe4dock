@@ -34,7 +34,7 @@ The CLI itself only requires PHP CLI version 8 or newer. No additional dependenc
 Latest stable tag:
 
 ```bash
-git clone --branch 1.0.0 --depth 1 https://github.com/jbsnewmedia/vibe4dock.git
+git clone --branch 1.0.1 --depth 1 https://github.com/jbsnewmedia/vibe4dock.git
 cd vibe4dock
 chmod +x vibe4dock
 ```
@@ -488,3 +488,13 @@ Because of that, this setup is not intended for direct public internet exposure 
 ## Summary
 
 Vibe4Dock is a modular, Docker-based development workspace with a web interface for tool management, browser terminals, persistent CLI configuration, and dynamically generated container provisioning. Its biggest advantage is browser-based access to AI CLI tools and project environments, so work on a project remains possible anytime and from practically anywhere.
+
+## Release notes
+
+### 1.0.1
+
+- Git Config settings (`GIT_USER_NAME`, `GIT_USER_EMAIL`) are now applied to the `application` user inside the web container, not to `root`. The values are now visible to the in-browser application shell.
+- The Laravel CLI tool pack now installs `laravel/installer` for the `application` user, so the binary stays readable when invoked through the application shell.
+- The Symfony CLI uninstall command is now idempotent (`rm -f` instead of `rm`), so removing it twice or after a rebuild no longer reports an error.
+- The Code Quality Package now writes a real empty JSON object (`{}`) back to `composer.json` after a full uninstall, instead of an empty JSON array (`[]`).
+- README clone instructions updated to point to the `1.0.1` tag.

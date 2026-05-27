@@ -13,14 +13,14 @@
           "skip_if_empty": [
             "GIT_USER_NAME"
           ],
-          "command": "git config --global user.name {{GIT_USER_NAME}}"
+          "command": "sudo -u application -H git config --global user.name {{GIT_USER_NAME}}"
         },
         {
           "enabled_only": true,
           "skip_if_empty": [
             "GIT_USER_EMAIL"
           ],
-          "command": "git config --global user.email {{GIT_USER_EMAIL}}"
+          "command": "sudo -u application -H git config --global user.email {{GIT_USER_EMAIL}}"
         }
       ],
       "fields": [

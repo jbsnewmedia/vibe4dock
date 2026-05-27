@@ -15,8 +15,8 @@
             "description": "The Laravel installer for creating and managing Laravel applications from the terminal.",
             "usage": "untested",
             "check": "laravel --version 2>/dev/null | grep -oP '\\d+\\.\\d+\\.\\d+' | head -n1 | grep .",
-            "install": "composer global require laravel/installer --no-interaction && COMPOSER_BIN_DIR=$(composer global config bin-dir --absolute --quiet) && ln -sf \"$COMPOSER_BIN_DIR/laravel\" /usr/local/bin/laravel",
-            "uninstall": "composer global remove laravel/installer --no-interaction || true && rm -f /usr/local/bin/laravel"
+            "install": "sudo -u application -H bash -lc 'composer global require laravel/installer --no-interaction' && COMPOSER_BIN_DIR=$(sudo -u application -H composer global config bin-dir --absolute --quiet) && ln -sf \"$COMPOSER_BIN_DIR/laravel\" /usr/local/bin/laravel",
+            "uninstall": "sudo -u application -H bash -lc 'composer global remove laravel/installer --no-interaction' || true && rm -f /usr/local/bin/laravel"
         }
     ]
 }

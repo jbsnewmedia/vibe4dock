@@ -16,7 +16,7 @@
             "usage": "",
             "check": "symfony -V 2>/dev/null | grep -oP '\\d+\\.\\d+\\.\\d+' | head -n1 | grep .",
             "install": "curl -sS https://get.symfony.com/cli/installer | bash -s -- --install-dir=/usr/local/bin",
-            "uninstall": "rm /usr/local/bin/symfony"
+            "uninstall": "rm -f /usr/local/bin/symfony"
         }
     ]
 }
