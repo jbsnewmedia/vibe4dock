@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="readme/vibe4dock-logo.svg" alt="Vibe4Dock logo" width="160">
+</p>
+
 # Vibe4Dock
 
 For the German version, see [README.de.md](readme/README.de.md).

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="vibe4dock-logo.svg" alt="Vibe4Dock Logo" width="160">
+</p>
+
 # Vibe4Dock
 
 Diese Dokumentation beschreibt **Vibe4Dock 1.0.1**.
