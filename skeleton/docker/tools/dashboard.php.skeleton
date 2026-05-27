@@ -188,7 +188,7 @@ ROOT_SHELL_PASSWORD="change-me-root"</pre>
             }
         </script>';
 
-    $toolContent .= '<h2>Installed Tools</h2>';
+    $toolContent .= '<h2>Installed Tools / Addons</h2>';
 
     $hasInstalledTools = false;
     // Group tools by category order from category.json

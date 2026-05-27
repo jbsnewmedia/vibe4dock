@@ -414,18 +414,6 @@ function setEnvLocalValues($newValues)
          file_put_contents($hostEnvLocal, $content);
     }
 
-    // PERSISTENCE for Git Config if enabled
-    if (isset($newValues['GIT_CONFIG_ENABLED']) && $newValues['GIT_CONFIG_ENABLED'] === '1') {
-        $gitName = isset($newValues['GIT_USER_NAME']) ? $newValues['GIT_USER_NAME'] : '';
-        $gitEmail = isset($newValues['GIT_USER_EMAIL']) ? $newValues['GIT_USER_EMAIL'] : '';
-        if ($gitName) {
-            runInWebContainer("git config --global user.name " . escapeshellarg($gitName));
-        }
-        if ($gitEmail) {
-            runInWebContainer("git config --global user.email " . escapeshellarg($gitEmail));
-        }
-    }
-
     unlink($tmpFile);
 
     return array(
@@ -1166,6 +1154,28 @@ function findCategoryById($config, $categoryId)
     return null;
 }
 
+function getSettingsFallbackCategoryId()
+{
+    global $config;
+    global $settingsConfig;
+
+    foreach ($settingsConfig['settings'] as $setting) {
+        if (!isset($setting['category']) || !is_string($setting['category'])) {
+            continue;
+        }
+
+        if ($setting['category'] === 'settings') {
+            continue;
+        }
+
+        if (findCategoryById($config, $setting['category']) !== null) {
+            return $setting['category'];
+        }
+    }
+
+    return 'tools';
+}
+
 function renderCategoryGroupSubnav($currentCategoryId, $groupId, $overviewPath)
 {
     global $config;
@@ -1286,14 +1296,12 @@ function renderLayout($title, $content, $currentCategoryId = null)
     $dashboardActive = ($currentCategoryId === 'dashboard') ? 'active' : '';
     $toolsActive = isToolsContext($currentCategoryId) ? 'active' : '';
     $addonsActive = isAddonsContext($currentCategoryId) ? 'active' : '';
-    $settingsActive = ($currentCategoryId === 'settings') ? 'active' : '';
     $toolsSubnav = $toolsActive !== '' ? renderToolsSubnav($currentCategoryId) : '';
     $addonsSubnav = $addonsActive !== '' ? renderAddonsSubnav($currentCategoryId) : '';
 
     $navLinks .= sprintf('<a href="%s" class="%s">%s</a>', addTimestamp('/dashboard'), $dashboardActive, 'Dashboard');
     $navLinks .= sprintf('<a href="%s" class="%s">%s</a>', addTimestamp('/tools'), $toolsActive, 'Tools');
     $navLinks .= sprintf('<a href="%s" class="%s">%s</a>', addTimestamp('/addons'), $addonsActive, 'Addons');
-    $navLinks .= sprintf('<a href="%s" class="%s">%s</a>', addTimestamp('/settings'), $settingsActive, 'Settings');
 
     $restartRequired = isRestartRequired();
     $restartIndicator = '';
@@ -1837,7 +1845,7 @@ if ($requestUri === '/' || $requestUri === '' || strpos($requestUri, '/?') === 0
 } elseif (preg_match('#^/category/([^/?]+)#', $requestUri, $matches)) {
     $categoryId = $matches[1];
 } elseif (preg_match('#^/(settings)#', $requestUri, $matches)) {
-    $categoryId = $matches[1];
+    $categoryId = getSettingsFallbackCategoryId();
 }
 
 if (isset($categoryId)) {
@@ -1848,8 +1856,6 @@ if (isset($categoryId)) {
         $category = ['id' => 'tools', 'label' => 'Tools'];
     } elseif ($categoryId === 'addons') {
         $category = ['id' => 'addons', 'label' => 'Addons'];
-    } elseif ($categoryId === 'settings') {
-        $category = ['id' => 'settings', 'label' => 'Settings'];
     } else {
         foreach ($config['categories'] as $c) {
             if ($c['id'] === $categoryId) {
@@ -1934,7 +1940,15 @@ if ($method === 'POST' && preg_match('#^/action/([^/]+)/([^/?]+)#', $requestUri,
         }
     }
 
-    if (!$tool || !in_array($action, array('install', 'uninstall', 'save'))) {
+    if ($toolId === 'settings' && $action === 'apply') {
+        $envValues = getEnvLocalValues();
+        $result = applyAllSettingsByDefinition($envValues);
+        $actionLabel = 'Apply settings';
+        $tool = array(
+            'label' => 'Settings',
+            'category' => getSettingsFallbackCategoryId(),
+        );
+    } elseif (!$tool || !in_array($action, array('install', 'uninstall', 'save'))) {
         renderMessagePage(
             'Action not found',
             'Tool or action not found',
@@ -1946,11 +1960,13 @@ if ($method === 'POST' && preg_match('#^/action/([^/]+)/([^/?]+)#', $requestUri,
     }
 
     $customResult = null;
-    if (!$isSettingAction) {
+    if ($toolId !== 'settings' && !$isSettingAction) {
         $customResult = handleCustomToolAction($tool, $action, $_POST);
     }
 
-    if ($customResult !== null) {
+    if ($toolId === 'settings' && $action === 'apply') {
+        // Result already resolved above.
+    } elseif ($customResult !== null) {
         $result = $customResult;
         $actionLabel = isset($customResult['actionLabel']) ? $customResult['actionLabel'] : ucfirst($action);
     } elseif ($isSettingAction && $action === 'save') {
@@ -2056,7 +2072,14 @@ if ($method === 'POST' && preg_match('#^/action/([^/]+)/([^/?]+)#', $requestUri,
     $statusLabel = $result['ok'] ? 'SUCCESS' : 'ERROR';
     $output = htmlspecialchars($result['output'] ? $result['output'] : '(no output)');
 
-    $backUrl = ($tool['category'] === 'settings') ? addTimestamp('/settings') : addTimestamp('/category/' . $tool['category']);
+    if ($tool['category'] === 'settings') {
+        $fallbackCategoryId = getSettingsFallbackCategoryId();
+        $backUrl = in_array($fallbackCategoryId, array('dashboard', 'tools', 'addons'), true)
+            ? addTimestamp('/' . $fallbackCategoryId)
+            : addTimestamp('/category/' . $fallbackCategoryId);
+    } else {
+        $backUrl = addTimestamp('/category/' . $tool['category']);
+    }
     $content = <<<HTML
         <a href="$backUrl" class="back">← back</a>
         <h2>$actionLabel: {$tool['label']}</h2>

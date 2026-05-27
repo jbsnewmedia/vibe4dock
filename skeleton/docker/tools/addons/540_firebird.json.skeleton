@@ -1,0 +1,131 @@
+{
+    "categories": [
+        {
+            "unique_key": "databases",
+            "id": "databases",
+            "label": "Databases",
+            "order": 500,
+            "menu_group": "addons"
+        }
+    ],
+    "tools": [
+        {
+            "id": "firebird",
+            "category": "databases",
+            "label": "Firebird",
+            "description": "Firebird database service for local development.",
+            "usage": "",
+            "type": "versioned",
+            "default_version": "firebird-5",
+            "config_schema": {
+                "fields": [
+                    {
+                        "key": "port",
+                        "label": "Port",
+                        "default": "3050",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "ports.0",
+                                "format": "%s:3050"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "database",
+                        "label": "Database file",
+                        "default": "/firebird/data/app.fdb",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.FIREBIRD_DATABASE"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "password",
+                        "label": "SYSDBA password",
+                        "default": "masterkey",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.ISC_PASSWORD"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "versions": [
+                {
+                    "id": "firebird-5",
+                    "label": "5",
+                    "check": "echo 5",
+                    "install": "true",
+                    "uninstall": "true",
+                    "compose_service": {
+                        "service": "firebird",
+                        "definition": {
+                            "image": "jacobalberty/firebird:v5.0",
+                            "ports": [
+                                "3050:3050"
+                            ],
+                            "environment": {
+                                "FIREBIRD_DATABASE": "/firebird/data/app.fdb",
+                                "ISC_PASSWORD": "masterkey"
+                            },
+                            "volumes": [
+                                "./docker/data/firebird:/firebird/data"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "id": "firebird-4",
+                    "label": "4",
+                    "check": "echo 4",
+                    "install": "true",
+                    "uninstall": "true",
+                    "compose_service": {
+                        "service": "firebird",
+                        "definition": {
+                            "image": "jacobalberty/firebird:v4.0",
+                            "ports": [
+                                "3050:3050"
+                            ],
+                            "environment": {
+                                "FIREBIRD_DATABASE": "/firebird/data/app.fdb",
+                                "ISC_PASSWORD": "masterkey"
+                            },
+                            "volumes": [
+                                "./docker/data/firebird:/firebird/data"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "id": "firebird-3",
+                    "label": "3",
+                    "check": "echo 3",
+                    "install": "true",
+                    "uninstall": "true",
+                    "compose_service": {
+                        "service": "firebird",
+                        "definition": {
+                            "image": "jacobalberty/firebird:v3.0",
+                            "ports": [
+                                "3050:3050"
+                            ],
+                            "environment": {
+                                "FIREBIRD_DATABASE": "/firebird/data/app.fdb",
+                                "ISC_PASSWORD": "masterkey"
+                            },
+                            "volumes": [
+                                "./docker/data/firebird:/firebird/data"
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

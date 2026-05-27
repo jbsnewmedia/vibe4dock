@@ -1,0 +1,28 @@
+{
+    "categories": [
+        {
+            "unique_key": "ai-cli",
+            "id": "ai-cli",
+            "label": "AI CLI",
+            "order": 100
+        }
+    ],
+    "tools": [
+        {
+            "id": "junie",
+            "category": "ai-cli",
+            "label": "Junie CLI",
+            "mounts": [
+                "./docker/web/settings/junie:/home/application/.junie"
+            ],
+            "description": "JetBrains' agentic coding tool for the terminal.",
+            "usage": "untested",
+            "dependencies": [
+                "node"
+            ],
+            "check": "junie --version 2>/dev/null | grep .",
+            "install": "npm install -g @jetbrains/junie@latest --prefix=/usr",
+            "uninstall": "npm uninstall -g @jetbrains/junie --prefix=/usr || true"
+        }
+    ]
+}

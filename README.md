@@ -189,14 +189,13 @@ The tools UI on port `8090` is split into several areas:
   - root shell
   - system information such as PHP, Composer, RAM, and disk status
   - configuration status
-  - list of installed tools
+  - list of installed tools / addons
 - **Tools**
   - one combined tools view with search and a category switcher
+  - project-wide configuration cards such as Git Config live here as well
   - categories appear only when tool packs provide them via JSON
 - **Addons**
   - addon categories appear only when addon packs provide them via JSON
-- **Settings**
-  - project-wide settings, currently for example Git username and email
 
 Installations and updates are triggered directly through form actions. While an action is running, the UI places a global loading layer with a spinner over the page until the response page loads.
 
@@ -310,6 +309,8 @@ docker/tools/settings/
 
 These files are also loaded by filename and merged.
 
+Settings can optionally define `apply_commands`. Those commands are executed through the tools UI after saving a setting and can also be triggered centrally through `POST /action/settings/apply`.
+
 ### Merge rules
 
 The merge logic lives in `docker/tools/config.php`:
@@ -358,7 +359,7 @@ Currently one settings group is included:
   - `GIT_USER_EMAIL`
   - activation through `GIT_CONFIG_ENABLED`
 
-The values are written into `.env.local` and applied when the web container starts.
+The values are written into `.env.local`. Optional `apply_commands` make the runtime application neutral and definition-driven instead of hardcoding setting-specific behavior in PHP.
 
 Generated projects also include a commented `.env.local.example` with optional HTTP Basic Auth credentials for the Tools UI, the application shell, and the root shell.
 

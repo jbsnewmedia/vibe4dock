@@ -1,0 +1,25 @@
+{
+    "categories": [
+        {
+            "unique_key": "ai-cli",
+            "id": "ai-cli",
+            "label": "AI CLI",
+            "order": 100
+        }
+    ],
+    "tools": [
+        {
+            "id": "hermes",
+            "category": "ai-cli",
+            "label": "Hermes CLI",
+            "mounts": [
+                "./docker/web/settings/hermes:/home/application/.hermes"
+            ],
+            "description": "Nous Research's self-improving coding and automation agent.",
+            "usage": "untested",
+            "check": "hermes --version 2>/dev/null | grep .",
+            "install": "sudo -u application env HOME=/home/application bash -lc 'curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash -s -- --skip-setup --skip-browser' && ln -sf /home/application/.local/bin/hermes /usr/local/bin/hermes",
+            "uninstall": "rm -f /usr/local/bin/hermes && sudo -u application env HOME=/home/application bash -lc 'rm -f ~/.local/bin/hermes && rm -rf ~/.hermes' || true"
+        }
+    ]
+}

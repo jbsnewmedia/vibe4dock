@@ -1,0 +1,145 @@
+{
+    "categories": [
+        {
+            "unique_key": "databases",
+            "id": "databases",
+            "label": "Databases",
+            "order": 500,
+            "menu_group": "addons"
+        }
+    ],
+    "tools": [
+        {
+            "id": "postgresql",
+            "category": "databases",
+            "label": "PostgreSQL",
+            "description": "PostgreSQL database service for local development.",
+            "usage": "",
+            "type": "versioned",
+            "default_version": "postgresql-16",
+            "config_schema": {
+                "fields": [
+                    {
+                        "key": "port",
+                        "label": "Port",
+                        "default": "5432",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "ports.0",
+                                "format": "%s:5432"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "database",
+                        "label": "Database",
+                        "default": "app",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.POSTGRES_DB"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "username",
+                        "label": "Username",
+                        "default": "app",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.POSTGRES_USER"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "password",
+                        "label": "Password",
+                        "default": "app",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.POSTGRES_PASSWORD"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "versions": [
+                {
+                    "id": "postgresql-16",
+                    "label": "16",
+                    "check": "echo 16",
+                    "install": "true",
+                    "uninstall": "true",
+                    "compose_service": {
+                        "service": "postgresql",
+                        "definition": {
+                            "image": "postgres:16",
+                            "ports": [
+                                "5432:5432"
+                            ],
+                            "environment": {
+                                "POSTGRES_DB": "app",
+                                "POSTGRES_USER": "app",
+                                "POSTGRES_PASSWORD": "app"
+                            },
+                            "volumes": [
+                                "./docker/data/postgresql:/var/lib/postgresql/data"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "id": "postgresql-15",
+                    "label": "15",
+                    "check": "echo 15",
+                    "install": "true",
+                    "uninstall": "true",
+                    "compose_service": {
+                        "service": "postgresql",
+                        "definition": {
+                            "image": "postgres:15",
+                            "ports": [
+                                "5432:5432"
+                            ],
+                            "environment": {
+                                "POSTGRES_DB": "app",
+                                "POSTGRES_USER": "app",
+                                "POSTGRES_PASSWORD": "app"
+                            },
+                            "volumes": [
+                                "./docker/data/postgresql:/var/lib/postgresql/data"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "id": "postgresql-14",
+                    "label": "14",
+                    "check": "echo 14",
+                    "install": "true",
+                    "uninstall": "true",
+                    "compose_service": {
+                        "service": "postgresql",
+                        "definition": {
+                            "image": "postgres:14",
+                            "ports": [
+                                "5432:5432"
+                            ],
+                            "environment": {
+                                "POSTGRES_DB": "app",
+                                "POSTGRES_USER": "app",
+                                "POSTGRES_PASSWORD": "app"
+                            },
+                            "volumes": [
+                                "./docker/data/postgresql:/var/lib/postgresql/data"
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

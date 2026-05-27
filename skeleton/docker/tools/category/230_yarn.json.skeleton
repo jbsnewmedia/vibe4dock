@@ -1,0 +1,40 @@
+{
+    "categories": [
+        {
+            "unique_key": "system",
+            "id": "system",
+            "label": "System & Runtime",
+            "order": 200
+        }
+    ],
+    "tools": [
+        {
+            "id": "yarn",
+            "category": "system",
+            "label": "Yarn",
+            "type": "versioned",
+            "default_version": "yarn-3",
+            "description": "Install the project dependencies.",
+            "usage": "",
+            "dependencies": [
+                "node"
+            ],
+            "versions": [
+                {
+                    "id": "yarn-1",
+                    "label": "1.22 (Classic)",
+                    "check": "yarn -v 2>/dev/null | grep ^1\\. | grep .",
+                    "install": "corepack enable && corepack prepare yarn@1.22.22 --activate",
+                    "uninstall": "corepack disable yarn"
+                },
+                {
+                    "id": "yarn-3",
+                    "label": "3",
+                    "check": "yarn -v 2>/dev/null | grep ^3\\. | grep .",
+                    "install": "corepack enable && corepack prepare yarn@3.6.4 --activate",
+                    "uninstall": "corepack disable yarn"
+                }
+            ]
+        }
+    ]
+}

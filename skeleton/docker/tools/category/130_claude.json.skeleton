@@ -1,0 +1,28 @@
+{
+    "categories": [
+        {
+            "unique_key": "ai-cli",
+            "id": "ai-cli",
+            "label": "AI CLI",
+            "order": 100
+        }
+    ],
+    "tools": [
+        {
+            "id": "claude",
+            "category": "ai-cli",
+            "label": "Claude Code",
+            "mounts": [
+                "./docker/web/settings/claude:/home/application/.claude"
+            ],
+            "description": "Claude Code is a command-line interface that brings Claude's coding expertise directly to your terminal.",
+            "usage": "",
+            "dependencies": [
+                "node"
+            ],
+            "check": "claude --version 2>/dev/null | cut -d' ' -f1 | grep .",
+            "install": "npm install -g @anthropic-ai/claude-code --prefix=/usr",
+            "uninstall": "npm uninstall -g @anthropic-ai/claude-code --prefix=/usr || true"
+        }
+    ]
+}

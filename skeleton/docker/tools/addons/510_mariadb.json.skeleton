@@ -1,0 +1,159 @@
+{
+    "categories": [
+        {
+            "unique_key": "databases",
+            "id": "databases",
+            "label": "Databases",
+            "order": 500,
+            "menu_group": "addons"
+        }
+    ],
+    "tools": [
+        {
+            "id": "mariadb",
+            "category": "databases",
+            "label": "MariaDB",
+            "description": "MariaDB database service for local development.",
+            "usage": "",
+            "type": "versioned",
+            "default_version": "mariadb-12",
+            "config_schema": {
+                "fields": [
+                    {
+                        "key": "port",
+                        "label": "Port",
+                        "default": "3306",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "ports.0",
+                                "format": "%s:3306"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "database",
+                        "label": "Database",
+                        "default": "app",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.MARIADB_DATABASE"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "username",
+                        "label": "Username",
+                        "default": "app",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.MARIADB_USER"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "password",
+                        "label": "Password",
+                        "default": "app",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.MARIADB_PASSWORD"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "root_password",
+                        "label": "Root password",
+                        "default": "root",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.MARIADB_ROOT_PASSWORD"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "versions": [
+                {
+                    "id": "mariadb-12",
+                    "label": "12",
+                    "check": "echo 12",
+                    "install": "true",
+                    "uninstall": "true",
+                    "compose_service": {
+                        "service": "mariadb",
+                        "definition": {
+                            "image": "mariadb:12",
+                            "ports": [
+                                "3306:3306"
+                            ],
+                            "environment": {
+                                "MARIADB_DATABASE": "app",
+                                "MARIADB_USER": "app",
+                                "MARIADB_PASSWORD": "app",
+                                "MARIADB_ROOT_PASSWORD": "root"
+                            },
+                            "volumes": [
+                                "./docker/data/mariadb:/var/lib/mysql"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "id": "mariadb-11",
+                    "label": "11",
+                    "check": "echo 11",
+                    "install": "true",
+                    "uninstall": "true",
+                    "compose_service": {
+                        "service": "mariadb",
+                        "definition": {
+                            "image": "mariadb:11",
+                            "ports": [
+                                "3306:3306"
+                            ],
+                            "environment": {
+                                "MARIADB_DATABASE": "app",
+                                "MARIADB_USER": "app",
+                                "MARIADB_PASSWORD": "app",
+                                "MARIADB_ROOT_PASSWORD": "root"
+                            },
+                            "volumes": [
+                                "./docker/data/mariadb:/var/lib/mysql"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "id": "mariadb-10",
+                    "label": "10",
+                    "check": "echo 10",
+                    "install": "true",
+                    "uninstall": "true",
+                    "compose_service": {
+                        "service": "mariadb",
+                        "definition": {
+                            "image": "mariadb:10",
+                            "ports": [
+                                "3306:3306"
+                            ],
+                            "environment": {
+                                "MARIADB_DATABASE": "app",
+                                "MARIADB_USER": "app",
+                                "MARIADB_PASSWORD": "app",
+                                "MARIADB_ROOT_PASSWORD": "root"
+                            },
+                            "volumes": [
+                                "./docker/data/mariadb:/var/lib/mysql"
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

@@ -187,14 +187,13 @@ Die Tools-Oberfläche auf Port `8090` ist in mehrere Bereiche gegliedert:
   - Root Shell
   - Systeminformationen wie PHP-, Composer-, RAM- und Disk-Status
   - Konfigurationsstatus
-  - Liste installierter Tools
+  - Liste installierter Tools / Addons
 - **Tools**
   - eine gemeinsame Tool-Ansicht mit Suche und Kategorie-Umschalter
+  - projektweite Konfigurationskarten wie Git Config liegen jetzt ebenfalls hier
   - Kategorien erscheinen nur dann, wenn Tool-Packs sie per JSON definieren
 - **Addons**
   - Addon-Kategorien erscheinen nur dann, wenn Addon-Packs sie per JSON definieren
-- **Settings**
-  - projektweite Einstellungen, aktuell z. B. Git-Benutzername und E-Mail
 
 Installationen oder Updates werden direkt über Form-Aktionen ausgelöst. Während eine Aktion läuft, legt die UI einen globalen Loading-Layer mit Spinner über die Seite, bis die Antwortseite geladen ist.
 
@@ -308,6 +307,8 @@ docker/tools/settings/
 
 Auch diese Dateien werden nach Dateinamen geladen und gemerged.
 
+Settings koennen optional `apply_commands` definieren. Diese Befehle werden nach dem Speichern ueber die Tools-UI ausgefuehrt und koennen zentral ueber `POST /action/settings/apply` erneut angewendet werden.
+
 ### Merge-Regeln
 
 Die Merge-Logik steckt in `docker/tools/config.php`:
@@ -356,7 +357,7 @@ Aktuell ist eine Settings-Gruppe enthalten:
   - `GIT_USER_EMAIL`
   - Aktivierung über `GIT_CONFIG_ENABLED`
 
-Die Daten werden in `.env.local` geschrieben und beim Start des Web-Containers angewendet.
+Die Daten werden in `.env.local` geschrieben. Optionale `apply_commands` machen die Laufzeit-Anwendung neutral und definitionsbasiert, statt setting-spezifisches Verhalten in PHP fest zu verdrahten.
 
 Generierte Projekte enthalten außerdem eine auskommentierte `.env.local.example` mit optionalen HTTP-Basic-Auth-Zugangsdaten für Tools-UI, Application Shell und Root Shell.
 

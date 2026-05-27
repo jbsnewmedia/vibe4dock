@@ -1,0 +1,144 @@
+{
+    "categories": [
+        {
+            "unique_key": "code-quality",
+            "id": "code-quality",
+            "label": "Code Quality",
+            "order": 400
+        }
+    ],
+    "tools": [
+        {
+            "id": "code-quality-package",
+            "category": "code-quality",
+            "label": "Code Quality Package",
+            "description": "Scaffold ECS, Rector, PHPStan, and PHPUnit as a configurable project package.",
+            "usage": "",
+            "check": "test -f /app/composer.json && echo ready",
+            "install": "true",
+            "uninstall": "true",
+            "config_schema": {
+                "fields": [
+                    {
+                        "key": "ecs",
+                        "label": "ECS",
+                        "type": "checkbox",
+                        "default": "1",
+                        "required": false
+                    },
+                    {
+                        "key": "rector",
+                        "label": "Rector",
+                        "type": "checkbox",
+                        "default": "1",
+                        "required": false
+                    },
+                    {
+                        "key": "phpstan",
+                        "label": "PHPStan",
+                        "type": "checkbox",
+                        "default": "1",
+                        "required": false
+                    },
+                    {
+                        "key": "phpunit",
+                        "label": "PHPUnit",
+                        "type": "checkbox",
+                        "default": "1",
+                        "required": false
+                    }
+                ]
+            },
+            "package_operations": {
+                "composer_changes": {
+                    "require-dev": {
+                        "bamarni/composer-bin-plugin": "^1.8"
+                    },
+                    "config": {
+                        "allow-plugins": {
+                            "bamarni/composer-bin-plugin": true
+                        }
+                    }
+                },
+                "composer_profiles": {
+                    "ecs": {
+                        "scripts": {
+                            "ecs": "vendor/bin/ecs check",
+                            "ecs-fix": "vendor/bin/ecs check --fix"
+                        }
+                    },
+                    "rector": {
+                        "scripts": {
+                            "rector": "vendor/bin/rector process",
+                            "rector-dry": "vendor/bin/rector process --dry-run"
+                        }
+                    },
+                    "phpstan": {
+                        "scripts": {
+                            "phpstan": "vendor/bin/phpstan analyse -c phpstan-global.neon"
+                        }
+                    },
+                    "phpunit": {
+                        "scripts": {
+                            "phpunit": "vendor/bin/phpunit -c phpunit-no-coverage.xml.dist",
+                            "phpunit-coverage": "vendor/bin/phpunit -c phpunit-coverage.xml.dist"
+                        }
+                    }
+                },
+                "templates": [
+                    {
+                        "target": ".php-cs-fixer.dist.php",
+                        "content": "<?php\n\ndeclare(strict_types=1);\n\n$finder = PhpCsFixer\\Finder::create()\n    ->in(__DIR__ . '/src')\n    ->in(__DIR__ . '/tests')\n    ->name('*.php')\n    ->ignoreDotFiles(false)\n    ->ignoreVCS(true);\n\nreturn (new PhpCsFixer\\Config())\n    ->setRiskyAllowed(true)\n    ->setFinder($finder)\n    ->setRules([\n        '@PSR12' => true,\n        'array_syntax' => ['syntax' => 'short'],\n        'declare_strict_types' => true,\n    ]);",
+                        "enabled_by": "ecs"
+                    },
+                    {
+                        "target": "phpstan-global.neon",
+                        "content": "parameters:\n    paths:\n        - src\n        - tests\n    level: 8\n    tmpDir: var/phpstan",
+                        "enabled_by": "phpstan"
+                    },
+                    {
+                        "target": "phpunit-coverage.xml.dist",
+                        "content": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<phpunit bootstrap=\"vendor/autoload.php\" cacheDirectory=\"var/phpunit/cache\" colors=\"true\">\n    <testsuites>\n        <testsuite name=\"Application Test Suite\">\n            <directory>tests</directory>\n        </testsuite>\n    </testsuites>\n    <coverage>\n        <include>\n            <directory suffix=\".php\">src</directory>\n        </include>\n    </coverage>\n</phpunit>",
+                        "enabled_by": "phpunit"
+                    },
+                    {
+                        "target": "phpunit-no-coverage.xml.dist",
+                        "content": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<phpunit bootstrap=\"vendor/autoload.php\" cacheDirectory=\"var/phpunit/cache\" colors=\"true\">\n    <testsuites>\n        <testsuite name=\"Application Test Suite\">\n            <directory>tests</directory>\n        </testsuite>\n    </testsuites>\n</phpunit>",
+                        "enabled_by": "phpunit"
+                    },
+                    {
+                        "target": "rector.php",
+                        "content": "<?php\n\ndeclare(strict_types=1);\n\nuse Rector\\Config\\RectorConfig;\nuse Rector\\Set\\ValueObject\\SetList;\n\nreturn RectorConfig::configure()\n    ->withPaths([\n        __DIR__ . '/src',\n        __DIR__ . '/tests',\n    ])\n    ->withSets([\n        SetList::CODE_QUALITY,\n        SetList::DEAD_CODE,\n        SetList::TYPE_DECLARATION,\n    ]);",
+                        "enabled_by": "rector"
+                    },
+                    {
+                        "target": "vendor-bin/ecs/composer.json",
+                        "content": "{\n    \"require-dev\": {\n        \"friendsofphp/php-cs-fixer\": \"^3.66\",\n        \"symplify/easy-coding-standard\": \"^12.5\"\n    }\n}\n",
+                        "enabled_by": "ecs"
+                    },
+                    {
+                        "target": "vendor-bin/rector/composer.json",
+                        "content": "{\n    \"require-dev\": {\n        \"rector/rector\": \"^2.0\"\n    }\n}\n",
+                        "enabled_by": "rector"
+                    },
+                    {
+                        "target": "vendor-bin/phpstan/composer.json",
+                        "content": "{\n    \"require-dev\": {\n        \"phpstan/phpstan\": \"^1.12\"\n    }\n}\n",
+                        "enabled_by": "phpstan"
+                    },
+                    {
+                        "target": "vendor-bin/phpunit/composer.json",
+                        "content": "{\n    \"require-dev\": {\n        \"phpunit/phpunit\": \"^11.5\"\n    }\n}\n",
+                        "enabled_by": "phpunit"
+                    }
+                ],
+                "cleanup_directories": [
+                    "vendor-bin/ecs",
+                    "vendor-bin/rector",
+                    "vendor-bin/phpstan",
+                    "vendor-bin/phpunit"
+                ]
+            }
+        }
+    ]
+}
