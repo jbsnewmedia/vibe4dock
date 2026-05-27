@@ -1,0 +1,41 @@
+{
+    "categories": [
+        {
+            "unique_key": "system",
+            "id": "system",
+            "label": "System & Runtime",
+            "order": 200
+        }
+    ],
+    "tools": [
+        {
+            "id": "pnpm",
+            "category": "system",
+            "label": "pnpm",
+            "type": "versioned",
+            "default_version": "pnpm-10",
+            "description": "Fast, disk space efficient package manager.",
+            "usage": "",
+            "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
+            "dependencies": [
+                "node"
+            ],
+            "versions": [
+                {
+                    "id": "pnpm-9",
+                    "label": "9",
+                    "check": "pnpm -v 2>/dev/null | grep ^9\\. | grep .",
+                    "install": "corepack enable && corepack prepare pnpm@9.15.4 --activate",
+                    "uninstall": "corepack disable pnpm"
+                },
+                {
+                    "id": "pnpm-10",
+                    "label": "10",
+                    "check": "pnpm -v 2>/dev/null | grep ^10\\. | grep .",
+                    "install": "corepack enable && corepack prepare pnpm@10.4.1 --activate",
+                    "uninstall": "corepack disable pnpm"
+                }
+            ]
+        }
+    ]
+}

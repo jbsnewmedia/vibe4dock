@@ -15,9 +15,12 @@ docker compose up -d --build
 - Tools: `http://localhost:{{VIBE4DOCK_TOOLS_HOST_PORT}}` (`TOOLS_USERNAME` + `TOOLS_PASSWORD`, if both set in `.env.local`)
 - Root shell: `http://localhost:{{VIBE4DOCK_ROOT_SHELL_HOST_PORT}}` (`ROOT_SHELL_USERNAME` + `ROOT_SHELL_PASSWORD`, if both set in `.env.local`)
 - App shell: `http://localhost:{{VIBE4DOCK_APP_SHELL_HOST_PORT}}` (`APP_SHELL_USERNAME` + `APP_SHELL_PASSWORD`, if both set in `.env.local`)
-- {{VIBE4DOCK_DB_LABEL}}: `localhost:{{VIBE4DOCK_DB_HOST_PORT}}`
 
 Use `docker/bash.sh` or `docker/root.sh` to enter the container.
+
+The generated base project is intentionally neutral. It contains the Vibe4Dock engine and settings system, but no bundled tool or addon packs by default.
+
+Add tool and addon packs by placing JSON definitions under `docker/tools/category/`. Optional template payloads can live under `docker/tools/package-templates/`.
 
 Configure usernames and passwords only in `.env.local`. Commented or empty values stay inactive; uncommented, non-empty credentials are used automatically.
 

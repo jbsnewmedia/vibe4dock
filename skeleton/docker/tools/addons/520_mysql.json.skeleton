@@ -1,0 +1,160 @@
+{
+    "categories": [
+        {
+            "unique_key": "databases",
+            "id": "databases",
+            "label": "Databases",
+            "order": 500,
+            "menu_group": "addons"
+        }
+    ],
+    "tools": [
+        {
+            "id": "mysql",
+            "category": "databases",
+            "label": "MySQL",
+            "description": "MySQL database service for local development.",
+            "usage": "",
+            "type": "versioned",
+            "default_version": "mysql-9",
+            "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
+            "config_schema": {
+                "fields": [
+                    {
+                        "key": "port",
+                        "label": "Port",
+                        "default": "3306",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "ports.0",
+                                "format": "%s:3306"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "database",
+                        "label": "Database",
+                        "default": "app",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.MYSQL_DATABASE"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "username",
+                        "label": "Username",
+                        "default": "app",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.MYSQL_USER"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "password",
+                        "label": "Password",
+                        "default": "app",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.MYSQL_PASSWORD"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "root_password",
+                        "label": "Root password",
+                        "default": "root",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.MYSQL_ROOT_PASSWORD"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "versions": [
+                {
+                    "id": "mysql-9",
+                    "label": "9",
+                    "check": "echo 9",
+                    "install": "true",
+                    "uninstall": "true",
+                    "compose_service": {
+                        "service": "mysql",
+                        "definition": {
+                            "image": "mysql:9",
+                            "ports": [
+                                "3306:3306"
+                            ],
+                            "environment": {
+                                "MYSQL_DATABASE": "app",
+                                "MYSQL_USER": "app",
+                                "MYSQL_PASSWORD": "app",
+                                "MYSQL_ROOT_PASSWORD": "root"
+                            },
+                            "volumes": [
+                                "./docker/data/mysql:/var/lib/mysql"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "id": "mysql-8",
+                    "label": "8",
+                    "check": "echo 8",
+                    "install": "true",
+                    "uninstall": "true",
+                    "compose_service": {
+                        "service": "mysql",
+                        "definition": {
+                            "image": "mysql:8",
+                            "ports": [
+                                "3306:3306"
+                            ],
+                            "environment": {
+                                "MYSQL_DATABASE": "app",
+                                "MYSQL_USER": "app",
+                                "MYSQL_PASSWORD": "app",
+                                "MYSQL_ROOT_PASSWORD": "root"
+                            },
+                            "volumes": [
+                                "./docker/data/mysql:/var/lib/mysql"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "id": "mysql-5",
+                    "label": "5",
+                    "check": "echo 5",
+                    "install": "true",
+                    "uninstall": "true",
+                    "compose_service": {
+                        "service": "mysql",
+                        "definition": {
+                            "image": "mysql:5",
+                            "ports": [
+                                "3306:3306"
+                            ],
+                            "environment": {
+                                "MYSQL_DATABASE": "app",
+                                "MYSQL_USER": "app",
+                                "MYSQL_PASSWORD": "app",
+                                "MYSQL_ROOT_PASSWORD": "root"
+                            },
+                            "volumes": [
+                                "./docker/data/mysql:/var/lib/mysql"
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

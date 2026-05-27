@@ -18,15 +18,10 @@ if [ -f /app/.env.local ]; then
   done < /app/.env.local
 fi
 
-# APPLY GIT CONFIG IF ENABLED
-if [ "$GIT_CONFIG_ENABLED" = "1" ]; then
-  if [ -n "$GIT_USER_NAME" ]; then
-    git config --global user.name "$GIT_USER_NAME"
-  fi
-  if [ -n "$GIT_USER_EMAIL" ]; then
-    git config --global user.email "$GIT_USER_EMAIL"
-  fi
-fi
+# Ensure application user owns its home directory and all mounts before any tool installs run.
+# This prevents EACCES failures when a bind-mounted directory was created as root by Docker.
+echo "Ensuring permissions for /home/application before tool install..."
+chown -R application:application /home/application
 
 # INSTALL TOOLS FROM SAVED LIST
 if [ -f /app/docker/web/settings/installed_tools.json ] && [ -f /app/docker/tools/config.php ]; then

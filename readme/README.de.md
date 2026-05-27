@@ -1,10 +1,12 @@
 # Vibe4Dock
 
+Diese Dokumentation beschreibt **Vibe4Dock 1.0.1**.
+
 Vibe4Dock ist eine Docker-basierte Entwicklungsumgebung mit Weboberfläche für CLI-Tools, Shell-Zugänge und projektbezogene Runtime-Erweiterungen. Der Hauptgrund für das Projekt ist, dass man über das Web direkt in AI-CLI-Tools kommt und jederzeit am Projekt arbeiten kann: am Desktop, auf dem Handy, auf dem Tablet, unterwegs oder quasi von überall.
 
 Dieses Repository enthält nicht nur das Vibe4Dock-Skeleton, sondern auch die Setup-CLI (`./vibe4dock` bzw. `php vibe4dock.php`). Damit lässt sich aus dem eingebauten Verzeichnis `skeleton/` ein neues Vibe4Dock-Projekt mit passender Docker-Konfiguration erzeugen.
 
-Technisch besteht Vibe4Dock aus einem PHP-basierten Web-Container für die eigentliche Arbeitsumgebung, einem separaten Tools-Service für das Management-UI und einem Datenbank-Container. Die Tools-Oberfläche generiert Provisioning- und Mount-Konfigurationen dynamisch aus JSON-Definitionen und steuert damit, welche Werkzeuge in der Webumgebung verfügbar sind.
+Technisch besteht Vibe4Dock aus einem PHP-basierten Web-Container für die eigentliche Arbeitsumgebung und einem separaten Tools-Service für das Management-UI. Optionale Laufzeit-Erweiterungen wie Datenbanken werden später über die Tools-Oberfläche aktiviert, die Provisioning-, Mount- und Compose-Override-Konfigurationen dynamisch aus JSON-Definitionen erzeugt.
 
 ![Vibe4Dock Example](readme/example.webp)
 
@@ -23,7 +25,7 @@ Das Projekt richtet sich vor allem an Setups, in denen:
 
 ## Setup-CLI
 
-Die Setup-CLI erzeugt ein neues Vibe4Dock-Projekt ausschließlich aus dem mitgelieferten `skeleton/`. Das Verzeichnis arbeitet jetzt als Baukasten mit Platzhaltern, sodass Ports, Image-Versionen, Container-Namen und Datenbankvarianten erst beim Generieren eingesetzt werden und nicht mehr im Generator hart codiert sind. Alle erzeugten Projektdateien stammen aus diesen Vorlagen. Die Vorlagen liegen dort als `*.skeleton`-Dateien und werden im Zielprojekt ohne die Endung `.skeleton` geschrieben.
+Die Setup-CLI erzeugt ein neues Vibe4Dock-Projekt ausschließlich aus dem mitgelieferten `skeleton/`. Das Verzeichnis arbeitet jetzt als Baukasten mit Platzhaltern, sodass Ports, Image-Versionen und Container-Namen erst beim Generieren eingesetzt werden und nicht mehr im Generator hart codiert sind. Alle erzeugten Projektdateien stammen aus diesen Vorlagen. Die Vorlagen liegen dort als `*.skeleton`-Dateien und werden im Zielprojekt ohne die Endung `.skeleton` geschrieben.
 
 ### Vibe4Dock Setup CLI einrichten
 
@@ -32,7 +34,7 @@ Für die CLI selbst wird nur PHP CLI ab Version 8 benötigt. Weitere Abhängigke
 Letzter stabiler Tag:
 
 ```bash
-git clone --branch 1.0.0 --depth 1 https://github.com/jbsnewmedia/vibe4dock.git
+git clone --branch 1.0.1 --depth 1 https://github.com/jbsnewmedia/vibe4dock.git
 cd vibe4dock
 chmod +x vibe4dock
 ```
@@ -75,7 +77,7 @@ Alternativ:
 php vibe4dock.php
 ```
 
-Ohne Optionen läuft das Setup interaktiv und fragt nacheinander Projektname, PHP-Version, Datenbanktyp, Datenbankversion, Ports, Ausgabeverzeichnis und optionales Code-Quality-Setup ab.
+Ohne Optionen läuft das Setup interaktiv und fragt nacheinander Projektname, PHP-Version, Ports und Ausgabeverzeichnis ab.
 
 ### CLI-Hilfe
 
@@ -88,17 +90,12 @@ Ohne Optionen läuft das Setup interaktiv und fragt nacheinander Projektname, PH
 ```bash
 ./vibe4dock \
   --project-name=my-vibe4dock \
-  --php-version=8.3 \
-  --db-type=mariadb \
-  --mariadb-version=12.2 \
+  --php-version=8.4 \
   --web-port=80 \
   --tools-port=8090 \
   --root-shell-port=7681 \
   --app-shell-port=7682 \
-  --db-port=3306 \
-  --output-dir=./build/my-vibe4dock \
-  --code-quality=true \
-  --tools=ecs,rector,phpstan,phpunit
+  --output-dir=./build/my-vibe4dock
 ```
 
 ### Unterstützte Optionen
@@ -107,42 +104,24 @@ Ohne Optionen läuft das Setup interaktiv und fragt nacheinander Projektname, PH
 | --- | --- |
 | `--project-name` | Name des zu erzeugenden Projekts |
 | `--php-version` | PHP-Basisversion für das Web-Image |
-| `--db-type` | Datenbanktyp: `mariadb`, `mysql`, `postgres`, `firebird` |
-| `--mariadb-version` | MariaDB-Version |
-| `--mysql-version` | MySQL-Version |
-| `--postgres-version` | PostgreSQL-Version |
-| `--firebird-version` | Firebird-Version |
 | `--web-port` | Host-Port für die Web-Anwendung |
 | `--tools-port` | Host-Port für die Tools-UI |
 | `--root-shell-port` | Host-Port für die Root-Shell |
 | `--app-shell-port` | Host-Port für die Application-Shell |
-| `--db-port` | Host-Port für die Datenbank |
 | `--output-dir` | Zielverzeichnis für das generierte Projekt |
-| `--code-quality=true` | aktiviert das zusätzliche Code-Quality-Setup |
-| `--tools=...` | wählt Code-Quality-Tools aus: `ecs`, `rector`, `phpstan`, `phpunit` |
-
-### Code-Quality-Setup
-
-Wenn `--code-quality=true` gesetzt ist oder über `--tools` Werkzeuge ausgewählt werden, ergänzt die CLI das generierte Projekt um Composer-Skripte und Basisdateien für:
-
-- ECS / PHP-CS-Fixer
-- Rector
-- PHPStan
-- PHPUnit
 
 ## Architektur im Überblick
 
-Vibe4Dock startet standardmäßig drei Docker-Services:
+Vibe4Dock startet standardmäßig zwei Docker-Services:
 
 | Service | Zweck | Port(s) |
 | --- | --- | --- |
-| `web` | Hauptentwicklungsumgebung mit Apache/PHP, ttyd, Shells und den installierten Tools | `81`, `7681`, `7682` |
+| `web` | Hauptentwicklungsumgebung mit Apache/PHP, ttyd, Shells und den installierten Tools | `80`, `7681`, `7682` |
 | `tools` | Verwaltungsoberfläche für Dashboard, Kategorien, Einstellungen, Install/Uninstall-Workflows | `8090` |
-| `db` | Konfigurierbare Datenbank für lokale Entwicklungsdaten | datenbankabhängig |
 
 ### Service `web`
 
-Der Web-Service basiert auf `webdevops/php-apache-dev:8.3` und erweitert dieses Image um:
+Der Web-Service basiert auf `webdevops/php-apache-dev:8.4` und erweitert dieses Image um:
 
 - `ttyd` für browserbasierte Terminals,
 - `tmux`,
@@ -166,24 +145,24 @@ Damit entsteht eine Umgebung, die nicht nur lokal am Rechner funktioniert, sonde
 
 ### Service `tools`
 
-Der Tools-Service ist ein eigenständiger PHP-Container auf Basis von `php:8.3-cli-bookworm`. Er stellt die Verwaltungsoberfläche bereit und hat Zugriff auf:
+Der Tools-Service ist ein eigenständiger PHP-Container auf Basis von `php:8.4-cli-bookworm`. Er stellt die Verwaltungsoberfläche bereit und hat Zugriff auf:
 
 - das Projektverzeichnis via Bind-Mount,
 - den Docker-Socket,
 - die Konfigurationsdateien für Tools und Settings,
-- den Zielcontainer `ttyd-web-1`, in dem Befehle ausgeführt werden.
+- den Zielcontainer `<projektname>-web-1`, in dem Befehle ausgeführt werden.
 
 Die Oberfläche ist nicht nur Anzeige, sondern steuert aktiv:
 
 - Installation und Deinstallation von Tools,
 - Generierung von `docker/web/provision.sh`,
 - Generierung von `docker-compose.override.yml`,
-- Aktivierung des Rebuild-Hinweises bei neuen Mounts,
+- Aktivierung des Rebuild-Hinweises, wenn installierte Packs neue Mounts oder Services ergänzen,
 - Statusanzeige für Runtime, Speicher, Datenträger und installierte Tools.
 
-### Service `db`
+### Mitgelieferte Packs plus bedarfsgesteuerte Aktivierung
 
-Der `db`-Service wird durch die Setup-CLI konfiguriert. Je nach Auswahl erzeugt Vibe4Dock hier eine MariaDB-, MySQL-, PostgreSQL- oder Firebird-Instanz inklusive passendem Host-Port.
+Das Repository liefert die Basis-Services zusammen mit einer kuratierten Auswahl an Tool- und Addon-Definitionen aus. Generierte Projekte bleiben trotzdem praktisch schlank, weil Tools, Addon-Services und ihre persistenten Verzeichnisse erst dann aktiviert werden, wenn sie über die Tools-UI installiert werden. Mount-basierte Verzeichnisse und Addon-Datenordner werden bei Bedarf angelegt und wieder entfernt, wenn sie nicht mehr gebraucht werden.
 
 ## Projektstruktur
 
@@ -192,13 +171,15 @@ Die wichtigsten Dateien und Verzeichnisse:
 | Pfad | Bedeutung |
 | --- | --- |
 | `docker-compose.yml` | Hauptdefinition der Services |
-| `docker-compose.override.yml` | Wird bei Bedarf automatisch erzeugt, um persistente Tool-Mounts an den Web-Service zu hängen |
+| `docker-compose.override.yml` | Wird bei Bedarf automatisch erzeugt, wenn installierte Packs persistente Mounts oder optionale Services ergänzen |
 | `public/` | Webroot des `web`-Containers |
 | `docker/web/` | Dockerfile, Entry-Logik, Provisioning und persistente Tooldaten |
 | `docker/tools/` | Verwaltungsoberfläche, Dashboard, Routing, Tool- und Settings-Definitionen |
 | `docker/tools/category/` | Tool-Definitionen, nach Dateinamen sortiert und zusammengeführt |
+| `docker/tools/addons/` | Addon- und optionale Service-Definitionen, ebenfalls sortiert und zusammengeführt |
 | `docker/tools/settings/` | Einstellungsdefinitionen, ebenfalls mergebar |
 | `docker/web/settings/` | Persistente Nutzdaten wie installierte Tools, Caches, Logins und Hint-Dateien |
+| `docker/data/` | Bedarfsgesteuerte Addon-Datenverzeichnisse, z. B. für Datenbanken |
 | `readme/` | Screenshot und Doku-Assets |
 
 ## Bedienkonzept
@@ -210,11 +191,14 @@ Die Tools-Oberfläche auf Port `8090` ist in mehrere Bereiche gegliedert:
   - Root Shell
   - Systeminformationen wie PHP-, Composer-, RAM- und Disk-Status
   - Konfigurationsstatus
-  - Liste installierter Tools
-- **Kategorien**
-  - gruppierte Werkzeuge wie AI CLI, System & Runtime oder PHP & Frameworks
-- **Settings**
-  - projektweite Einstellungen, aktuell z. B. Git-Benutzername und E-Mail
+  - Liste installierter Tools / Addons
+- **Tools**
+  - eine gemeinsame Tool-Ansicht mit Suche und Kategorie-Umschalter
+  - installierbare Tools können nachgelagert eine eigene `Config`-Aktion anbieten
+  - Git Config liegt jetzt als normales Tool in einer eigenen Kategorie `Git`
+  - Kategorien erscheinen nur dann, wenn Tool-Packs sie per JSON definieren
+- **Addons**
+  - Addon-Kategorien erscheinen nur dann, wenn Addon-Packs sie per JSON definieren
 
 Installationen oder Updates werden direkt über Form-Aktionen ausgelöst. Während eine Aktion läuft, legt die UI einen globalen Loading-Layer mit Spinner über die Seite, bis die Antwortseite geladen ist.
 
@@ -231,40 +215,28 @@ Der zentrale Nutzen ist nicht nur die Installation von Tools, sondern die Ortsun
 
 Die eigentliche Arbeit bleibt im Container und damit in einer konsistenten Umgebung. Gerät, Betriebssystem und lokales Setup werden deutlich unwichtiger.
 
-## Aktuell definierte Tool-Kategorien
+## Tool- und Addon-Packs
 
-Die Kategorien werden in `docker/tools/category/*.json` definiert und nach `order` sortiert:
+Die mitgelieferten Definitionen für **Vibe4Dock 1.0.1** werden aus folgenden Pfaden geladen:
 
-- **AI CLI**
-- **System & Runtime**
-- **PHP & Frameworks**
+```text
+docker/tools/category/
+docker/tools/addons/
+```
 
-## Aktuell hinterlegte Tools
+Aktuell mitgelieferte Tool-Packs:
 
-Stand der aktuellen Basiskonfiguration:
+- **AI CLI**: GitHub Copilot CLI, Codex CLI, Claude Code, Cline CLI, Hermes CLI, Junie CLI
+- **Git**: Git Config
+- **System & Runtime**: Node.js, pnpm, Yarn
+- **PHP Frameworks**: Laravel CLI, Symfony CLI, WordPress CLI
+- **Code Quality**: Code Quality Package
 
-### AI CLI
+Aktuell mitgelieferte Addon-Packs:
 
-### AI CLI
+- **Databases**: MariaDB, MySQL, PostgreSQL, Firebird
 
-- Claude Code
-- Cline CLI
-- Codex CLI **(ungetestet)**
-- GitHub Copilot CLI
-- Hermes CLI **(ungetestet)**
-- Junie CLI **(ungetestet)**
-
-### System & Runtime
-
-- Node.js (multiple versions)
-- pnpm (multiple versions)
-- Yarn (multiple versions)
-
-### PHP & Frameworks
-
-- Laravel CLI **(ungetestet)**
-- Symfony CLI
-- WordPress CLI **(ungetestet)**
+Eigene Packs oder Überschreibungen können weiterhin zusätzlich ergänzt werden.
 
 ## Wie Tool-Installation technisch funktioniert
 
@@ -341,11 +313,17 @@ Jede Datei:
 - kann Kategorien und Tools definieren,
 - wird mit allen anderen Dateien zusammengeführt.
 
-Aktuelle Basisdatei:
+Die mitgelieferten Tool-Dateien sind in Version 1.0.1 bereits Teil des Repositories, und zusätzliche team- oder projektspezifische Packs können über denselben Merge-Mechanismus darübergelegt werden.
+
+### Addon-Definitionen
+
+Addon-Definitionen liegen unter:
 
 ```text
-docker/tools/category/100_vibe4dock.json
+docker/tools/addons/
 ```
+
+Diese Dateien werden mit denselben Merge-Regeln wie normale Tools geladen, definieren aber meist optionale Compose-Services, Ports, Umgebungsvariablen und persistente Datenverzeichnisse.
 
 ### Settings-Definitionen
 
@@ -356,6 +334,8 @@ docker/tools/settings/
 ```
 
 Auch diese Dateien werden nach Dateinamen geladen und gemerged.
+
+Settings koennen optional `apply_commands` definieren. Diese Befehle werden nach dem Speichern ueber die Tools-UI ausgefuehrt und koennen zentral ueber `POST /action/settings/apply` erneut angewendet werden.
 
 ### Merge-Regeln
 
@@ -370,7 +350,7 @@ Die Merge-Logik steckt in `docker/tools/config.php`:
 Beispiel für die Dateibenennung:
 
 ```text
-100_vibe4dock.json
+100_base.json
 200_team.json
 300_project.json
 ```
@@ -395,17 +375,22 @@ Ein Tool kann unter anderem folgende Felder besitzen:
 | `type` | Optional, z. B. `versioned` |
 | `versions` | Versionseinträge für versionierte Tools |
 | `default_version` | Vorauswahl bei versionierten Tools |
+| `config_schema` | Optionale Definition für einen tool-spezifischen Config-Dialog |
+| `apply_commands` | Optionale Befehle, die nach Config-Änderungen oder Aktivierung laufen |
+| `package_operations` | Optionale Paket-/Datei-Operationen für Scaffold-Tools |
+| `compose_service` | Optionale Service-Definition, vor allem für Addons |
 
 ## Einstellungen
 
-Aktuell ist eine Settings-Gruppe enthalten:
+Settings-Definitionen werden weiterhin unterstützt, aber der mitgelieferte Git-Identitäts-Flow läuft jetzt als normales Tool statt als alte Settings-Karte.
 
-- **Git Config**
+- **Git Config** (Tool-Kategorie `Git`)
+  - Installation und Deinstallation über den normalen Tool-Workflow
+  - Konfiguration über den tool-spezifischen `Config`-Dialog
   - `GIT_USER_NAME`
   - `GIT_USER_EMAIL`
-  - Aktivierung über `GIT_CONFIG_ENABLED`
 
-Die Daten werden in `.env.local` geschrieben und beim Start des Web-Containers angewendet.
+Die Daten werden in `.env.local` geschrieben. Optionale `apply_commands` machen die Laufzeit-Anwendung neutral und definitionsbasiert, statt setting-spezifisches Verhalten in PHP fest zu verdrahten.
 
 Generierte Projekte enthalten außerdem eine auskommentierte `.env.local.example` mit optionalen HTTP-Basic-Auth-Zugangsdaten für Tools-UI, Application Shell und Root Shell.
 
@@ -433,6 +418,13 @@ Beispiele:
 - `docker/web/settings/hermes`
 - `docker/web/settings/junie`
 - `docker/web/settings/npm`
+
+Addon-Services speichern ihre Laufzeitdaten ebenfalls außerhalb des Images, zum Beispiel unter:
+
+- `docker/data/mariadb`
+- `docker/data/mysql`
+- `docker/data/postgresql`
+- `docker/data/firebird`
 
 Außerdem werden dort technische Statusdateien abgelegt:
 
@@ -470,13 +462,12 @@ Danach sind die wichtigsten Endpunkte:
 - Tools-UI: `http://localhost:8090` (geschützt, wenn `TOOLS_USERNAME` und `TOOLS_PASSWORD` beide in `.env.local` gesetzt sind)
 - Root Shell: `http://localhost:7681` (geschützt, wenn `ROOT_SHELL_USERNAME` und `ROOT_SHELL_PASSWORD` beide in `.env.local` gesetzt sind)
 - Application Shell: `http://localhost:7682` (geschützt, wenn `APP_SHELL_USERNAME` und `APP_SHELL_PASSWORD` beide in `.env.local` gesetzt sind)
-- Datenbank: `localhost:<db-port>` je nach `--db-type`
 
 ## Typischer Workflow
 
 1. Vibe4Dock starten
 2. Tools-UI aufrufen
-3. benötigte CLIs oder Runtimes installieren
+3. die benötigten Tool- und Addon-Packs ergänzen oder installieren
 4. falls ein Rebuild verlangt wird: `./docker/rebuild.sh` ausführen
 5. über die Application Shell im Projekt arbeiten
 
@@ -527,10 +518,10 @@ Für den produktiven Internetbetrieb ohne zusätzliche Absicherung ist das Setup
 
 ## Bekannte Besonderheiten
 
-- Tools mit Mounts erfordern einen manuellen Rebuild.
+- Tools oder Addons mit zusätzlichen Mounts oder Services erfordern einen manuellen Rebuild.
 - Installationen können je nach Tool Netzwerkzugriff und externe Paketquellen benötigen.
 - Manche CLIs speichern Logins erst nach dem ersten interaktiven Start.
-- Die Compose-Konfiguration des generierten Projekts hängt vom gewählten `--db-type` ab.
+- Das Compose-Override des generierten Projekts wird aus den aktuell gewählten Tools und optionalen Services erzeugt.
 
 ## Kurzfassung
 

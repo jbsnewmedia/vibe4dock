@@ -1,0 +1,29 @@
+{
+    "categories": [
+        {
+            "unique_key": "ai-cli",
+            "id": "ai-cli",
+            "label": "AI CLI",
+            "order": 100
+        }
+    ],
+    "tools": [
+        {
+            "id": "codex",
+            "category": "ai-cli",
+            "label": "Codex CLI",
+            "mounts": [
+                "./docker/web/settings/codex:/home/application/.codex"
+            ],
+            "description": "OpenAI's local coding agent for the terminal.",
+            "usage": "",
+            "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
+            "dependencies": [
+                "node"
+            ],
+            "check": "codex --version 2>/dev/null | grep .",
+            "install": "npm install -g @openai/codex@latest --prefix=/usr",
+            "uninstall": "npm uninstall -g @openai/codex --prefix=/usr || true"
+        }
+    ]
+}

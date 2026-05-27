@@ -1,0 +1,29 @@
+{
+    "categories": [
+        {
+            "unique_key": "ai-cli",
+            "id": "ai-cli",
+            "label": "AI CLI",
+            "order": 100
+        }
+    ],
+    "tools": [
+        {
+            "id": "copilot",
+            "category": "ai-cli",
+            "label": "GitHub Copilot CLI",
+            "mounts": [
+                "./docker/web/settings/copilot:/home/application/.copilot"
+            ],
+            "description": "Your AI pair programmer in the terminal.",
+            "usage": "",
+            "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
+            "dependencies": [
+                "node"
+            ],
+            "check": "npm list -g @github/copilot --depth=0 --loglevel=silent 2>/dev/null | grep @github/copilot | cut -d@ -f3 | grep .",
+            "install": "npm install -g @github/copilot@latest --prefix=/usr",
+            "uninstall": "npm uninstall -g @github/copilot --prefix=/usr || true"
+        }
+    ]
+}

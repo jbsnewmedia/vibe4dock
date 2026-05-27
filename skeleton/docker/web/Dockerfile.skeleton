@@ -19,6 +19,6 @@ RUN if [ -f /usr/local/bin/provision.sh ]; then chmod +x /usr/local/bin/provisio
 COPY entrypoint-dev.sh /usr/local/bin/entrypoint-dev.sh
 RUN chmod +x /usr/local/bin/entrypoint-dev.sh
 
-{{VIBE4DOCK_FIREBIRD_INSTALL}}USER application
+USER application
 
 CMD ["/usr/local/bin/entrypoint-dev.sh"]

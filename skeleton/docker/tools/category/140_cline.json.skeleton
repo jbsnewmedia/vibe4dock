@@ -1,0 +1,29 @@
+{
+    "categories": [
+        {
+            "unique_key": "ai-cli",
+            "id": "ai-cli",
+            "label": "AI CLI",
+            "order": 100
+        }
+    ],
+    "tools": [
+        {
+            "id": "cline",
+            "category": "ai-cli",
+            "label": "Cline CLI",
+            "mounts": [
+                "./docker/web/settings/cline:/home/application/.cline"
+            ],
+            "description": "Autonomous AI coding agent in your terminal.",
+            "usage": "",
+            "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
+            "dependencies": [
+                "node"
+            ],
+            "check": "cline --version 2>/dev/null | grep .",
+            "install": "npm install -g cline@latest --prefix=/usr",
+            "uninstall": "npm uninstall -g cline --prefix=/usr || true"
+        }
+    ]
+}

@@ -1,0 +1,23 @@
+{
+    "categories": [
+        {
+            "unique_key": "php-frameworks",
+            "id": "php-frameworks",
+            "label": "PHP / Frameworks",
+            "order": 300
+        }
+    ],
+    "tools": [
+        {
+            "id": "symfony-cli",
+            "category": "php-frameworks",
+            "label": "Symfony CLI",
+            "description": "The official Symfony CLI to help you build, run, and manage your Symfony applications.",
+            "usage": "",
+            "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
+            "check": "symfony -V 2>/dev/null | grep -oP '\\d+\\.\\d+\\.\\d+' | head -n1 | grep .",
+            "install": "curl -sS https://get.symfony.com/cli/installer | bash -s -- --install-dir=/usr/local/bin",
+            "uninstall": "rm -f /usr/local/bin/symfony"
+        }
+    ]
+}
