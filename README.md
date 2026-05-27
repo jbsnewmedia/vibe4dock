@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="readme/vibe4dock-logo-icon.svg" alt="Vibe4Dock logo" width="160">
+</p>
+
 # Vibe4Dock
 
 For the German version, see [README.de.md](readme/README.de.md).
@@ -239,6 +243,7 @@ Current bundled addon packs:
 
 - **Databases**: MariaDB, MySQL, PostgreSQL, Firebird
 - **Browser Shells**: Lazygit Shell
+- **Browser IDEs**: code-server
 
 You can still add your own packs or overrides on top of these files.
 
@@ -327,7 +332,7 @@ Addon definitions live in:
 docker/tools/addons/
 ```
 
-These files are loaded with the same merge rules as normal tools, but they usually contribute optional Compose services, ports, environment variables, persistent data directories, and dashboard-dockable browser shell endpoints.
+These files are loaded with the same merge rules as normal tools, but they usually contribute optional Compose services, ports, environment variables, persistent data directories, and dashboard-dockable browser endpoints such as shells or browser IDEs.
 
 ### Settings definitions
 
@@ -385,7 +390,7 @@ A tool can contain fields such as:
 | `compose_service` | Optional service definition used mainly by addons |
 | `dashboard_shell` | Optional dashboard entry for browser-accessible shells or addon endpoints |
 
-### Browser shell docking
+### Browser endpoint docking
 
 Addons can dock into the dashboard in two generic ways:
 
@@ -405,6 +410,8 @@ Typical `dashboard_shell` fields:
 | `button_label` | Optional button text |
 | `help_title` / `help_text` / `help_command` | Dashboard help modal content |
 
+This also supports password-only endpoints such as `code-server`, where no username is required but a configured password still counts as protected access.
+
 For `web`-hosted browser shells, `dashboard_shell.launcher` supports a declarative runtime definition:
 
 | Launcher field | Meaning |
@@ -420,6 +427,11 @@ For `web`-hosted browser shells, `dashboard_shell.launcher` supports a declarati
 | `environment` | Optional extra environment variables |
 
 Installed declarative launchers are materialized into `docker/web/settings/browser_shells.json`, which the web entrypoint reads on startup to spawn additional browser shells without hardcoded addon-specific logic.
+
+Examples of bundled browser endpoints:
+
+- **Lazygit Shell**: additional ttyd session inside the `web` container
+- **code-server**: separate addon service with its own port and password-protected browser IDE
 
 ## Settings
 
@@ -456,6 +468,8 @@ Examples:
 - `docker/web/settings/claude`
 - `docker/web/settings/cline`
 - `docker/web/settings/codex`
+- `docker/web/settings/code-server/config`
+- `docker/web/settings/code-server/data`
 - `docker/web/settings/hermes`
 - `docker/web/settings/junie`
 - `docker/web/settings/lazygit`
@@ -474,16 +488,16 @@ Technical state files are also stored there:
 - `browser_shells.json`
 - `rebuild_required.hint`
 
-## Shell access
+## Browser access
 
-Vibe4Dock provides two built-in browser shells plus any addon-provided dashboard shells:
+Vibe4Dock provides two built-in browser shells plus addon-provided dashboard endpoints such as extra shells or browser IDEs:
 
 | Shell | Purpose | Port |
 | --- | --- | --- |
 | Root Shell | Administrative tasks inside the container | `7681` |
 | Application Shell | Normal development work as `application` | `7682` |
 
-The application shell starts through `tmux` so sessions can persist. Additional browser shells can be registered declaratively by addons and then appear automatically on the dashboard after installation and rebuild.
+The application shell starts through `tmux` so sessions can persist. Additional browser shells can be registered declaratively by addons, and separate addon services such as `code-server` can expose their own browser IDE ports while still appearing on the same dashboard.
 
 ## Starting the project
 

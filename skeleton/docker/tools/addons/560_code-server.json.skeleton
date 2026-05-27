@@ -1,0 +1,81 @@
+{
+    "categories": [
+        {
+            "unique_key": "browser-ides",
+            "id": "browser-ides",
+            "label": "Browser IDEs",
+            "order": 560,
+            "menu_group": "addons"
+        }
+    ],
+    "tools": [
+        {
+            "id": "code-server",
+            "category": "browser-ides",
+            "label": "code-server",
+            "description": "Run VS Code in the browser via the official code-server Docker image.",
+            "usage": "",
+            "check": "false",
+            "install": "true",
+            "uninstall": "true",
+            "config_schema": {
+                "fields": [
+                    {
+                        "key": "port",
+                        "label": "Host port",
+                        "default": "8443",
+                        "help_text": "Host port for the code-server web UI.",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "ports.0",
+                                "format": "%s:8080"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "password",
+                        "label": "Password",
+                        "type": "password",
+                        "default": "change-me-code-server",
+                        "help_text": "Login password shown by code-server on first access.",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.PASSWORD"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "compose_service": {
+                "service": "code-server",
+                "definition": {
+                    "image": "codercom/code-server:latest",
+                    "ports": [
+                        "8443:8080"
+                    ],
+                    "working_dir": "/home/coder/project",
+                    "environment": {
+                        "PASSWORD": "change-me-code-server",
+                        "DEFAULT_WORKSPACE": "/home/coder/project"
+                    },
+                    "volumes": [
+                        "./:/home/coder/project",
+                        "./docker/web/settings/code-server/config:/home/coder/.config/code-server",
+                        "./docker/web/settings/code-server/data:/home/coder/.local/share/code-server"
+                    ]
+                }
+            },
+            "dashboard_shell": {
+                "label": "code-server",
+                "port_field": "port",
+                "password_field": "password",
+                "button_label": "Open IDE",
+                "help_title": "Configure code-server",
+                "help_text": "Open the Addons section, configure the code-server addon, rebuild the stack, and then log in with the configured password.",
+                "help_command": "./docker/rebuild.sh"
+            }
+        }
+    ]
+}

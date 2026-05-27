@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="vibe4dock-logo-icon.svg" alt="Vibe4Dock Logo" width="160">
+</p>
+
 # Vibe4Dock
 
 Diese Dokumentation beschreibt **Vibe4Dock 1.0.1**.
@@ -237,6 +241,7 @@ Aktuell mitgelieferte Addon-Packs:
 
 - **Databases**: MariaDB, MySQL, PostgreSQL, Firebird
 - **Browser Shells**: Lazygit Shell
+- **Browser IDEs**: code-server
 
 Eigene Packs oder Überschreibungen können weiterhin zusätzlich ergänzt werden.
 
@@ -325,7 +330,7 @@ Addon-Definitionen liegen unter:
 docker/tools/addons/
 ```
 
-Diese Dateien werden mit denselben Merge-Regeln wie normale Tools geladen, definieren aber meist optionale Compose-Services, Ports, Umgebungsvariablen, persistente Datenverzeichnisse und an das Dashboard andockbare Browser-Shell-Endpunkte.
+Diese Dateien werden mit denselben Merge-Regeln wie normale Tools geladen, definieren aber meist optionale Compose-Services, Ports, Umgebungsvariablen, persistente Datenverzeichnisse und an das Dashboard andockbare Browser-Endpunkte wie Shells oder Browser-IDEs.
 
 ### Settings-Definitionen
 
@@ -383,7 +388,7 @@ Ein Tool kann unter anderem folgende Felder besitzen:
 | `compose_service` | Optionale Service-Definition, vor allem für Addons |
 | `dashboard_shell` | Optionaler Dashboard-Eintrag für browserfähige Shells oder Addon-Endpunkte |
 
-### Browser-Shell-Andockung
+### Browser-Endpunkt-Andockung
 
 Addons können auf zwei generische Arten ins Dashboard andocken:
 
@@ -403,6 +408,8 @@ Typische Felder von `dashboard_shell`:
 | `button_label` | Optionaler Text für den Button |
 | `help_title` / `help_text` / `help_command` | Inhalte für den Hilfe-Dialog im Dashboard |
 
+Damit lassen sich auch rein passwortgeschützte Endpunkte wie `code-server` abbilden, bei denen kein Benutzername nötig ist, ein gesetztes Passwort aber trotzdem als geschützter Zugriff gilt.
+
 Für browserbasierte Shells im `web`-Container unterstützt `dashboard_shell.launcher` eine deklarative Laufzeitdefinition:
 
 | Launcher-Feld | Bedeutung |
@@ -418,6 +425,11 @@ Für browserbasierte Shells im `web`-Container unterstützt `dashboard_shell.lau
 | `environment` | Optionale zusätzliche Umgebungsvariablen |
 
 Installierte deklarative Launcher werden in `docker/web/settings/browser_shells.json` materialisiert. Der Web-Entrypoint liest diese Datei beim Start und erzeugt daraus zusätzliche Browser-Shells ohne addon-spezifische Sonderlogik im Runtime-Code.
+
+Beispiele für mitgelieferte Browser-Endpunkte:
+
+- **Lazygit Shell**: zusätzliche ttyd-Session im `web`-Container
+- **code-server**: separater Addon-Service mit eigenem Port und passwortgeschützter Browser-IDE
 
 ## Einstellungen
 
@@ -454,6 +466,8 @@ Beispiele:
 - `docker/web/settings/claude`
 - `docker/web/settings/cline`
 - `docker/web/settings/codex`
+- `docker/web/settings/code-server/config`
+- `docker/web/settings/code-server/data`
 - `docker/web/settings/hermes`
 - `docker/web/settings/junie`
 - `docker/web/settings/lazygit`
@@ -472,16 +486,16 @@ Außerdem werden dort technische Statusdateien abgelegt:
 - `browser_shells.json`
 - `rebuild_required.hint`
 
-## Shell-Zugänge
+## Browser-Zugänge
 
-Vibe4Dock stellt zwei eingebaute Browser-Shells sowie beliebige addonbasierte Dashboard-Shells bereit:
+Vibe4Dock stellt zwei eingebaute Browser-Shells sowie addonbasierte Dashboard-Endpunkte wie zusätzliche Shells oder Browser-IDEs bereit:
 
 | Shell | Zweck | Port |
 | --- | --- | --- |
 | Root Shell | Administrative Aufgaben im Container | `7681` |
 | Application Shell | Normale Entwicklungsarbeit als `application` | `7682` |
 
-Die Application Shell startet über `tmux`, damit Sessions bestehen bleiben können. Zusätzliche Browser-Shells können von Addons deklarativ registriert werden und erscheinen nach Installation und Rebuild automatisch im Dashboard.
+Die Application Shell startet über `tmux`, damit Sessions bestehen bleiben können. Zusätzliche Browser-Shells können von Addons deklarativ registriert werden, und separate Addon-Services wie `code-server` können eigene Browser-IDE-Ports bereitstellen und trotzdem im selben Dashboard erscheinen.
 
 ## Starten des Projekts
 
