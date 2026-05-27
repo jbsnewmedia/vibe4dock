@@ -16,7 +16,7 @@
                 "./docker/web/settings/codex:/home/application/.codex"
             ],
             "description": "OpenAI's local coding agent for the terminal.",
-            "usage": "untested",
+            "usage": "",
             "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
             "dependencies": [
                 "node"
