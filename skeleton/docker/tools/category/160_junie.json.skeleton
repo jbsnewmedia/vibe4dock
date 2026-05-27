@@ -13,17 +13,14 @@
             "category": "ai-cli",
             "label": "Junie CLI",
             "mounts": [
-                "./docker/web/settings/junie:/home/application/.junie"
+                "./docker/web/settings/junie:/home/application/.local/share/junie"
             ],
             "description": "JetBrains' agentic coding tool for the terminal.",
             "usage": "untested",
             "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
-            "dependencies": [
-                "node"
-            ],
             "check": "junie --version 2>/dev/null | grep .",
-            "install": "npm install -g @jetbrains/junie@latest --prefix=/usr",
-            "uninstall": "npm uninstall -g @jetbrains/junie --prefix=/usr || true"
+            "install": "(command -v npm >/dev/null 2>&1 && npm uninstall -g @jetbrains/junie --prefix=/usr || true) && sudo -u application -H env HOME=/home/application bash -lc 'curl -fsSL https://junie.jetbrains.com/install.sh | bash' && ln -sf /home/application/.local/bin/junie /usr/local/bin/junie",
+            "uninstall": "rm -f /usr/local/bin/junie && (command -v npm >/dev/null 2>&1 && npm uninstall -g @jetbrains/junie --prefix=/usr || true) && sudo -u application -H env HOME=/home/application bash -lc 'rm -f ~/.local/bin/junie && rm -rf ~/.local/share/junie' || true"
         }
     ]
 }

@@ -493,6 +493,7 @@ Vibe4Dock ist ein modularer, Docker-basierter Entwicklungs-Workspace mit Webober
 
 - Die Git-Config-Settings (`GIT_USER_NAME`, `GIT_USER_EMAIL`) werden jetzt für den `application`-Benutzer im Web-Container gesetzt und nicht mehr für `root`. Die Werte sind damit auch in der Browser-Application-Shell sichtbar.
 - Das Laravel-CLI-Tool installiert `laravel/installer` jetzt im Home-Verzeichnis des `application`-Benutzers, sodass das Binary aus der Application-Shell heraus lesbar bleibt.
+- Das Junie-Tool verwendet jetzt den offiziellen `install.sh`-Installer und verlinkt den erzeugten Shim nach `/usr/local/bin`, damit `junie` in der Application-Shell funktioniert.
 - Der Uninstall-Befehl der Symfony-CLI ist jetzt idempotent (`rm -f` statt `rm`), sodass ein erneutes Entfernen oder ein Entfernen nach einem Rebuild keinen Fehler mehr produziert.
 - Das Code-Quality-Package schreibt nach einem vollständigen Uninstall jetzt wieder ein echtes leeres JSON-Objekt (`{}`) in `composer.json` und kein leeres JSON-Array (`[]`).
 - Tool- und Addon-Versionen werden jetzt per dediziertem Regex aus der CLI-Ausgabe extrahiert, damit die UI normalisierte Versionsangaben anzeigt.

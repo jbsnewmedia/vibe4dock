@@ -495,6 +495,7 @@ Vibe4Dock is a modular, Docker-based development workspace with a web interface 
 
 - Git Config settings (`GIT_USER_NAME`, `GIT_USER_EMAIL`) are now applied to the `application` user inside the web container, not to `root`. The values are now visible to the in-browser application shell.
 - The Laravel CLI tool pack now installs `laravel/installer` for the `application` user, so the binary stays readable when invoked through the application shell.
+- The Junie tool pack now uses the official `install.sh` installer and links the generated shim into `/usr/local/bin`, so `junie` works from the application shell.
 - The Symfony CLI uninstall command is now idempotent (`rm -f` instead of `rm`), so removing it twice or after a rebuild no longer reports an error.
 - The Code Quality Package now writes a real empty JSON object (`{}`) back to `composer.json` after a full uninstall, instead of an empty JSON array (`[]`).
 - Tool and addon versions are now normalized through dedicated regex extraction, so CLI banners do not leak into the UI version labels.
