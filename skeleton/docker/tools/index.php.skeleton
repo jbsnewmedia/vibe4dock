@@ -1265,6 +1265,8 @@ function syncManagedProjectDirectoriesForTool($tool, $installed, $definition = n
             if (!is_dir($absolutePath)) {
                 mkdir($absolutePath, 0777, true);
             }
+
+            chmod($absolutePath, 0777);
             continue;
         }
 

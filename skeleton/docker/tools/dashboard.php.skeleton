@@ -151,6 +151,10 @@ function renderDashboard($config, $envValues, $installedTools, $isOffline)
 
         $username = getDashboardShellConfigValue($shellConfig, $toolConfigValues, 'username_field', 'username', '');
         $password = getDashboardShellConfigValue($shellConfig, $toolConfigValues, 'password_field', 'password', '');
+        $expectsUsername = (isset($shellConfig['username_field']) && is_string($shellConfig['username_field']) && $shellConfig['username_field'] !== '')
+            || (isset($shellConfig['username']) && !is_array($shellConfig['username']) && (string) $shellConfig['username'] !== '');
+        $expectsPassword = (isset($shellConfig['password_field']) && is_string($shellConfig['password_field']) && $shellConfig['password_field'] !== '')
+            || (isset($shellConfig['password']) && !is_array($shellConfig['password']) && (string) $shellConfig['password'] !== '');
         $buttonLabel = isset($shellConfig['button_label']) && is_string($shellConfig['button_label']) && $shellConfig['button_label'] !== ''
             ? $shellConfig['button_label']
             : 'Open Shell';
@@ -158,24 +162,28 @@ function renderDashboard($config, $envValues, $installedTools, $isOffline)
         $modalId = 'protection-modal-addon-' . preg_replace('/[^a-z0-9\-]/i', '-', isset($tool['id']) ? $tool['id'] : $shellConfig['label']);
         $categoryPath = isset($tool['category']) ? '/category/' . $tool['category'] : '/addons';
         $helpText = isset($shellConfig['help_text']) ? $shellConfig['help_text'] : 'Open the addon configuration and rebuild the stack.';
-        $snippet = sprintf(
-            "Port: %s\nUsername: %s\nPassword: %s",
-            htmlspecialchars($portField),
-            htmlspecialchars($usernameField),
-            htmlspecialchars($passwordField)
-        );
+        $snippetLines = array('Open ' . $categoryPath . ' -> Config');
+        if ($portField !== '') {
+            $snippetLines[] = 'Port: ' . $portField;
+        }
+        if ($expectsUsername) {
+            $snippetLines[] = 'Username: ' . $usernameField;
+        }
+        if ($expectsPassword) {
+            $snippetLines[] = 'Password: ' . $passwordField;
+        }
 
         $appendShellEntry(array(
             'label' => isset($shellConfig['label']) ? $shellConfig['label'] : $tool['label'],
             'url' => sprintf('%s://%s:%d%s', $protocol, $host, $hostPort, $path),
             'button_label' => $buttonLabel,
-            'protected' => trim((string) $username) !== '' && trim((string) $password) !== '',
+            'protected' => (!$expectsUsername || trim((string) $username) !== '') && (!$expectsPassword || trim((string) $password) !== ''),
             'modal_id' => $modalId,
             'modal_html' => $buildProtectionModal(
                 $modalId,
                 isset($shellConfig['help_title']) ? $shellConfig['help_title'] : ('Configure ' . (isset($tool['label']) ? $tool['label'] : 'Browser Shell')),
                 $helpText . ' Use the Config button in the addon card and rebuild the stack afterwards.',
-                "Open " . $categoryPath . " -> Config\n" . "Fields: port, username, password",
+                implode("\n", $snippetLines),
                 'cmd-addon-protection-' . preg_replace('/[^a-z0-9\-]/i', '-', isset($tool['id']) ? $tool['id'] : 'addon'),
                 isset($shellConfig['help_command']) ? (string) $shellConfig['help_command'] : './docker/rebuild.sh'
             ),
