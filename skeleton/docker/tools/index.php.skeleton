@@ -99,6 +99,7 @@ function setInstalledTool($toolId, $installed)
 
     updateProvisionScript();
     updateDockerOverride();
+    updateBrowserShellRegistry();
 }
 
 function findToolVersionById($tool, $versionId)
@@ -290,7 +291,12 @@ function updateDockerOverride()
                 && is_string($serviceConfig['service'])
                 && is_array($serviceConfig['definition'])
             ) {
-                $composeServices[$serviceConfig['service']] = applyToolConfigSources($tool, $serviceConfig['definition']);
+                $serviceName = $serviceConfig['service'];
+                $resolvedDefinition = applyToolConfigSources($tool, $serviceConfig['definition']);
+                $composeServices[$serviceName] = mergeComposeDefinitions(
+                    isset($composeServices[$serviceName]) ? $composeServices[$serviceName] : array(),
+                    $resolvedDefinition
+                );
             }
         }
     }
@@ -302,15 +308,16 @@ function updateDockerOverride()
         return;
     }
 
-    $yaml = "services:\n";
     if (!empty($mounts)) {
-        $yaml .= "  web:\n";
-        $yaml .= "    volumes:\n";
-        foreach ($mounts as $mount) {
-            $yaml .= "      - " . $mount . "\n";
-        }
+        $composeServices['web'] = mergeComposeDefinitions(
+            isset($composeServices['web']) ? $composeServices['web'] : array(),
+            array(
+                'volumes' => array_values(array_unique($mounts)),
+            )
+        );
     }
 
+    $yaml = "services:\n";
     foreach ($composeServices as $serviceName => $definitionLines) {
         $yaml .= "  " . $serviceName . ":\n";
         if (isAssocArray($definitionLines)) {
@@ -323,6 +330,34 @@ function updateDockerOverride()
     }
 
     file_put_contents($overrideFile, $yaml);
+}
+
+function mergeComposeDefinitions($base, $changes)
+{
+    if (!is_array($base) || !is_array($changes)) {
+        return $changes;
+    }
+
+    if (!isAssocArray($base) && !isAssocArray($changes)) {
+        foreach ($changes as $item) {
+            if (!in_array($item, $base, true)) {
+                $base[] = $item;
+            }
+        }
+
+        return $base;
+    }
+
+    foreach ($changes as $key => $value) {
+        if (array_key_exists($key, $base) && is_array($base[$key]) && is_array($value)) {
+            $base[$key] = mergeComposeDefinitions($base[$key], $value);
+            continue;
+        }
+
+        $base[$key] = $value;
+    }
+
+    return $base;
 }
 
 function runInWebContainer($command)
@@ -547,6 +582,182 @@ function getAddonConfigFile()
     return '/app/docker/web/settings/addon_configs.json';
 }
 
+function getBrowserShellRegistryFile()
+{
+    return '/app/docker/web/settings/browser_shells.json';
+}
+
+function getDashboardShellConfigValue($shellConfig, $toolConfigValues, $fieldKey, $literalKey, $default = '')
+{
+    if (isset($shellConfig[$fieldKey]) && is_string($shellConfig[$fieldKey])) {
+        $configKey = $shellConfig[$fieldKey];
+        if (array_key_exists($configKey, $toolConfigValues) && $toolConfigValues[$configKey] !== '') {
+            return $toolConfigValues[$configKey];
+        }
+    }
+
+    if (isset($shellConfig[$literalKey]) && !is_array($shellConfig[$literalKey])) {
+        return (string) $shellConfig[$literalKey];
+    }
+
+    return $default;
+}
+
+function normalizeBrowserShellLauncherEnvironment($launcher)
+{
+    if (!isset($launcher['environment']) || !is_array($launcher['environment'])) {
+        return array();
+    }
+
+    $environment = array();
+    foreach ($launcher['environment'] as $key => $value) {
+        if (!is_string($key) || $key === '' || is_array($value)) {
+            continue;
+        }
+
+        $environment[$key] = (string) $value;
+    }
+
+    return $environment;
+}
+
+function buildBrowserShellLauncherDefinition($tool, $shellConfig, $toolConfigValues)
+{
+    if (!isset($shellConfig['launcher']) || !is_array($shellConfig['launcher'])) {
+        return null;
+    }
+
+    $launcher = $shellConfig['launcher'];
+    $launcherType = isset($launcher['type']) ? (string) $launcher['type'] : 'ttyd';
+    $launcherService = isset($launcher['service']) ? (string) $launcher['service'] : 'web';
+    if ($launcherType !== 'ttyd' || $launcherService !== 'web') {
+        return null;
+    }
+
+    $containerPort = isset($launcher['container_port']) ? (int) $launcher['container_port'] : 0;
+    if ($containerPort < 1 || $containerPort > 65535) {
+        return null;
+    }
+
+    $executable = isset($launcher['executable']) ? trim((string) $launcher['executable']) : '';
+    $command = isset($launcher['command']) ? trim((string) $launcher['command']) : '';
+    if ($executable === '' && $command === '') {
+        return null;
+    }
+
+    $arguments = array();
+    if (isset($launcher['arguments']) && is_array($launcher['arguments'])) {
+        foreach ($launcher['arguments'] as $argument) {
+            if (is_array($argument)) {
+                continue;
+            }
+
+            $arguments[] = (string) $argument;
+        }
+    }
+
+    $fallbackProfile = isset($launcher['fallback_profile']) ? (string) $launcher['fallback_profile'] : '';
+    if (!in_array($fallbackProfile, array('', 'application-shell', 'root-shell'), true)) {
+        $fallbackProfile = '';
+    }
+
+    $defaultHintSuffix = isset($shellConfig['label']) ? (string) $shellConfig['label'] : (isset($tool['label']) ? (string) $tool['label'] : '');
+    $missingMessage = isset($launcher['missing_message']) && trim((string) $launcher['missing_message']) !== ''
+        ? trim((string) $launcher['missing_message'])
+        : '';
+    if ($missingMessage === '' && $executable !== '') {
+        $missingMessage = ucfirst($executable) . ' is not installed in this container.';
+    }
+
+    return array(
+        'id' => isset($tool['id']) ? (string) $tool['id'] : ('shell-' . mt_rand()),
+        'label' => isset($shellConfig['label']) ? (string) $shellConfig['label'] : (isset($tool['label']) ? (string) $tool['label'] : 'Browser Shell'),
+        'container_port' => $containerPort,
+        'run_as' => (isset($launcher['run_as']) && $launcher['run_as'] === 'root') ? 'root' : 'application',
+        'username' => getDashboardShellConfigValue($shellConfig, $toolConfigValues, 'username_field', 'username', ''),
+        'password' => getDashboardShellConfigValue($shellConfig, $toolConfigValues, 'password_field', 'password', ''),
+        'hint_suffix' => isset($launcher['hint_suffix']) && trim((string) $launcher['hint_suffix']) !== ''
+            ? (string) $launcher['hint_suffix']
+            : $defaultHintSuffix,
+        'working_directory' => isset($launcher['working_directory']) ? trim((string) $launcher['working_directory']) : '',
+        'executable' => $executable,
+        'arguments' => $arguments,
+        'command' => $command,
+        'fallback_profile' => $fallbackProfile,
+        'missing_message' => $missingMessage,
+        'environment' => normalizeBrowserShellLauncherEnvironment($launcher),
+    );
+}
+
+function toolHasWebLauncher($tool)
+{
+    if (!isset($tool['dashboard_shell']['launcher']) || !is_array($tool['dashboard_shell']['launcher'])) {
+        return false;
+    }
+
+    $launcher = $tool['dashboard_shell']['launcher'];
+    $launcherType = isset($launcher['type']) ? (string) $launcher['type'] : 'ttyd';
+    $launcherService = isset($launcher['service']) ? (string) $launcher['service'] : 'web';
+
+    return $launcherType === 'ttyd' && $launcherService === 'web';
+}
+
+function getInstalledBrowserShellLaunchers($installedTools = null, $envValues = null)
+{
+    global $config;
+
+    if ($installedTools === null) {
+        $installedTools = getInstalledTools();
+    }
+
+    if ($envValues === null) {
+        $envValues = getEnvLocalValues();
+    }
+
+    $launchers = array();
+    foreach ($config['tools'] as $tool) {
+        if (!isToolInstalled($tool, $installedTools, $envValues)) {
+            continue;
+        }
+
+        if (!isset($tool['dashboard_shell']) || !is_array($tool['dashboard_shell'])) {
+            continue;
+        }
+
+        $shellConfig = $tool['dashboard_shell'];
+        $toolConfigValues = getToolConfigValues($tool);
+        $launcherDefinition = buildBrowserShellLauncherDefinition($tool, $shellConfig, $toolConfigValues);
+        if ($launcherDefinition === null) {
+            continue;
+        }
+
+        $launchers[] = $launcherDefinition;
+    }
+
+    return $launchers;
+}
+
+function updateBrowserShellRegistry()
+{
+    $file = getBrowserShellRegistryFile();
+    $launchers = getInstalledBrowserShellLaunchers();
+
+    if (empty($launchers)) {
+        if (file_exists($file)) {
+            unlink($file);
+        }
+
+        return;
+    }
+
+    $dir = dirname($file);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0777, true);
+    }
+
+    file_put_contents($file, json_encode(array_values($launchers), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+}
+
 function getAddonConfigs()
 {
     $file = getAddonConfigFile();
@@ -609,6 +820,10 @@ function toolConfigRequiresRebuild($tool)
                 return true;
             }
         }
+    }
+
+    if (toolHasWebLauncher($tool)) {
+        return true;
     }
 
     return false;
@@ -887,6 +1102,7 @@ function handleToolConfigSave($tool, $postData)
     $outputParts = array('Saved tool configuration.');
     $installedTools = getInstalledTools();
     $currentEnvValues = getEnvLocalValues();
+    updateBrowserShellRegistry();
     if (isToolInstalled($tool, $installedTools, $currentEnvValues) && isset($tool['apply_commands'])) {
         $applyResult = applyDefinitionCommands($tool, $currentEnvValues, true);
         if (!$applyResult['ok']) {

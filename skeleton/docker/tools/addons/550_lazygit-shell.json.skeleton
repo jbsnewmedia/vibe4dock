@@ -1,0 +1,88 @@
+{
+    "categories": [
+        {
+            "unique_key": "browser-shells",
+            "id": "browser-shells",
+            "label": "Browser Shells",
+            "order": 550,
+            "menu_group": "addons"
+        }
+    ],
+    "tools": [
+        {
+            "id": "lazygit-shell",
+            "category": "browser-shells",
+            "label": "Lazygit Shell",
+            "description": "Dedicated browser-based Lazygit session that extends the web container with its own ttyd endpoint.",
+            "usage": "",
+            "version_regex": "/version=([0-9]+(?:\\.[0-9]+)*)/",
+            "dependencies": [
+                "lazygit"
+            ],
+            "mounts": [
+                "./docker/web/settings/lazygit:/home/application/.config/lazygit"
+            ],
+            "check": "lazygit --version 2>/dev/null | grep -oP 'version=\\K[0-9]+(?:\\.[0-9]+)*' | head -n1 | grep .",
+            "install": "command -v lazygit >/dev/null 2>&1 || { echo \"Install the Lazygit tool first.\" >&2; exit 1; }",
+            "uninstall": "true",
+            "config_schema": {
+                "fields": [
+                    {
+                        "key": "port",
+                        "label": "Host port",
+                        "default": "7683",
+                        "help_text": "Host port for the dedicated Lazygit browser session.",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "ports.0",
+                                "format": "%s:7683"
+                            }
+                        ]
+                    },
+                    {
+                        "key": "username",
+                        "label": "Username",
+                        "default": "lazygit",
+                        "help_text": "HTTP Basic Auth username for the Lazygit browser session."
+                    },
+                    {
+                        "key": "password",
+                        "label": "Password",
+                        "type": "password",
+                        "default": "change-me-lazygit",
+                        "help_text": "HTTP Basic Auth password for the Lazygit browser session."
+                    }
+                ]
+            },
+            "compose_service": {
+                "service": "web",
+                "definition": {
+                    "ports": [
+                        "7683:7683"
+                    ]
+                }
+            },
+            "dashboard_shell": {
+                "label": "Lazygit Shell",
+                "port_field": "port",
+                "username_field": "username",
+                "password_field": "password",
+                "button_label": "Open Shell",
+                "help_title": "Configure the Lazygit Shell",
+                "help_text": "Open the Addons section, configure the Lazygit Shell addon, and rebuild the stack to apply port or credential changes.",
+                "help_command": "./docker/rebuild.sh",
+                "launcher": {
+                    "type": "ttyd",
+                    "service": "web",
+                    "container_port": 7683,
+                    "run_as": "application",
+                    "working_directory": "/app",
+                    "executable": "lazygit",
+                    "arguments": [],
+                    "fallback_profile": "application-shell"
+                }
+            }
+        }
+    ]
+}

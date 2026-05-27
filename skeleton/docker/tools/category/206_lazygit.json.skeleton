@@ -1,0 +1,26 @@
+{
+    "categories": [
+        {
+            "unique_key": "git",
+            "id": "git",
+            "label": "Git",
+            "order": 205
+        }
+    ],
+    "tools": [
+        {
+            "id": "lazygit",
+            "category": "git",
+            "label": "Lazygit",
+            "mounts": [
+                "./docker/web/settings/lazygit:/home/application/.config/lazygit"
+            ],
+            "description": "A simple terminal UI for Git commands.",
+            "usage": "",
+            "version_regex": "/version=([0-9]+(?:\\.[0-9]+)*)/",
+            "check": "lazygit --version 2>/dev/null | grep -oP 'version=\\K[0-9]+(?:\\.[0-9]+)*' | head -n1 | grep .",
+            "install": "arch=$(uname -m) && case \"$arch\" in x86_64|amd64) asset_arch=x86_64 ;; aarch64|arm64) asset_arch=arm64 ;; *) echo \"Unsupported architecture: $arch\" >&2; exit 1 ;; esac && version=$(curl -fsSL https://api.github.com/repos/jesseduffield/lazygit/releases/latest | grep -m1 '\"tag_name\":' | cut -d '\"' -f4 | sed 's/^v//') && curl -fsSL -o /tmp/lazygit.tar.gz \"https://github.com/jesseduffield/lazygit/releases/download/v${version}/lazygit_${version}_Linux_${asset_arch}.tar.gz\" && tar -C /tmp -xf /tmp/lazygit.tar.gz lazygit && install /tmp/lazygit /usr/local/bin/lazygit && rm -f /tmp/lazygit /tmp/lazygit.tar.gz",
+            "uninstall": "rm -f /usr/local/bin/lazygit"
+        }
+    ]
+}
