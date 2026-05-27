@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="vibe4dock-logo.svg" alt="Vibe4Dock Logo" width="160">
+  <img src="vibe4dock-logo-icon.svg" alt="Vibe4Dock Logo" width="160">
 </p>
 
 # Vibe4Dock
