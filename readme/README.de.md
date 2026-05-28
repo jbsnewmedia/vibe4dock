@@ -12,7 +12,7 @@ Dieses Repository enthält nicht nur das Vibe4Dock-Skeleton, sondern auch die Se
 
 Technisch besteht Vibe4Dock aus einem PHP-basierten Web-Container für die eigentliche Arbeitsumgebung und einem separaten Tools-Service für das Management-UI. Optionale Laufzeit-Erweiterungen wie Datenbanken werden später über die Tools-Oberfläche aktiviert, die Provisioning-, Mount- und Compose-Override-Konfigurationen dynamisch aus JSON-Definitionen erzeugt.
 
-![Vibe4Dock Example](readme/example.webp)
+![Vibe4Dock Example](example.webp)
 
 ## Ziel des Projekts
 
@@ -239,7 +239,7 @@ Aktuell mitgelieferte Tool-Packs:
 
 Aktuell mitgelieferte Addon-Packs:
 
-- **Databases**: MariaDB, MySQL, PostgreSQL, Firebird
+- **Databases**: MariaDB, MySQL, PostgreSQL, Firebird, Adminer
 - **Browser Shells**: Lazygit Shell
 - **Browser IDEs**: code-server
 - **DevOps Platforms**: OneDev Community Edition
@@ -433,6 +433,7 @@ Installierte deklarative Launcher werden in `docker/web/settings/browser_shells.
 Beispiele für mitgelieferte Browser-Endpunkte:
 
 - **Lazygit Shell**: zusätzliche ttyd-Session im `web`-Container
+- **Adminer**: separater Addon-Service mit generierten One-Click-Logins für die installierten Datenbank-Addons
 - **code-server**: separater Addon-Service mit eigenem Port und passwortgeschützter Browser-IDE
 - **OneDev**: separater Addon-Service mit Web-UI auf Port `6610`, Git-SSH auf Port `6611` und Auto-Bootstrap für das aktuelle Workspace-Projekt
 
