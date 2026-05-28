@@ -241,7 +241,7 @@ Current bundled tool packs:
 
 Current bundled addon packs:
 
-- **Databases**: MariaDB, MySQL, PostgreSQL, Firebird
+- **Databases**: MariaDB, MySQL, PostgreSQL, Firebird, Adminer
 - **Browser Shells**: Lazygit Shell
 - **Browser IDEs**: code-server
 - **DevOps Platforms**: OneDev Community Edition
@@ -435,6 +435,7 @@ Installed declarative launchers are materialized into `docker/web/settings/brows
 Examples of bundled browser endpoints:
 
 - **Lazygit Shell**: additional ttyd session inside the `web` container
+- **Adminer**: separate addon service with generated one-click logins for the installed database addons
 - **code-server**: separate addon service with its own port and password-protected browser IDE
 - **OneDev**: separate addon service with a web UI on port `6610`, Git SSH on port `6611`, and an auto-bootstrap job for the current workspace
 
