@@ -57,6 +57,7 @@
                     {
                         "key": "password",
                         "label": "Password",
+                        "type": "password",
                         "default": "app",
                         "sources": [
                             {

@@ -57,6 +57,7 @@
                     {
                         "key": "password",
                         "label": "Password",
+                        "type": "password",
                         "default": "app",
                         "sources": [
                             {
@@ -68,6 +69,7 @@
                     {
                         "key": "root_password",
                         "label": "Root password",
+                        "type": "password",
                         "default": "root",
                         "sources": [
                             {

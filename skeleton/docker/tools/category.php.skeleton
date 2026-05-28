@@ -74,18 +74,13 @@ function renderToolConfigSummary($tool)
             continue;
         }
 
+        $fieldType = isset($field['type']) ? $field['type'] : 'text';
         $value = isset($values[$field['key']]) ? $values[$field['key']] : '';
-        if ($value === '') {
-            continue;
-        }
-
-        if (isset($field['type']) && $field['type'] === 'checkbox') {
-            if (!isTruthyConfigValue($value)) {
-                continue;
-            }
-
-            $value = 'Enabled';
-        } elseif (isset($field['type']) && $field['type'] === 'password') {
+        if ($fieldType === 'checkbox') {
+            $value = isTruthyConfigValue($value) ? 'Enabled' : 'Disabled';
+        } elseif ($value === '') {
+            $value = '*empty*';
+        } elseif ($fieldType === 'password') {
             $value = str_repeat('*', max(8, strlen($value)));
         }
 

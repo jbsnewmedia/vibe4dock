@@ -46,6 +46,7 @@
                     {
                         "key": "password",
                         "label": "SYSDBA password",
+                        "type": "password",
                         "default": "masterkey",
                         "sources": [
                             {
