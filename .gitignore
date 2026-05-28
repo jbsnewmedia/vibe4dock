@@ -4,3 +4,4 @@
 /docker/web/settings/
 /docker-compose.override.yml
 /.playwright-mcp/
+/project-example/
