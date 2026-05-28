@@ -2009,10 +2009,12 @@ function renderLayout($title, $content, $currentCategoryId = null)
             --primary-status-bg: rgba(136, 238, 255, 0.2);
             --primary-status-border: rgba(136, 238, 255, 0.3);
             --original-red: #cd1719;
-            --bg-body: #121212;
-            --bg-card: #1e1e1e;
-            --border: #333;
-            --border-light: #222;
+            --bg-body: #0f1115;
+            --bg-body-accent: #172033;
+            --bg-card: #181c23;
+            --bg-card-hover: #212733;
+            --border: #2b3340;
+            --border-light: #202733;
             --text: #e0e0e0;
             --text-dim: #aaa;
             --text-white: #fff;
@@ -2024,7 +2026,8 @@ function renderLayout($title, $content, $currentCategoryId = null)
             --status-text-missing: #888;
             --status-border-missing: #444;
           }
-          body { font-family: 'Segoe UI', system-ui, sans-serif; max-width: 1000px; margin: 0 auto; background: var(--bg-body); color: var(--text); padding: 0 20px; line-height: 1.5; display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; overflow-y: scroll; }
+          body { font-family: 'Segoe UI', system-ui, sans-serif; max-width: 1000px; margin: 0 auto; background: var(--bg-body); color: var(--text); padding: 0 20px; line-height: 1.5; display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; overflow-y: scroll; position: relative; }
+          body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: -1; background: radial-gradient(circle at top, var(--bg-body-accent) 0%, transparent 55%); }
           header { border-bottom: 1px solid var(--border); padding: 20px 0 15px 0; margin-bottom: 30px; }
           .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
           .brand-wrapper { display: flex; align-items: center; }
@@ -2044,7 +2047,7 @@ function renderLayout($title, $content, $currentCategoryId = null)
           .search-input:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
           .dropdown { position: relative; }
           .dropdown-toggle { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 14px; background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-size: 0.92em; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
-          .dropdown-toggle:hover { background: #252525; opacity: 1; }
+          .dropdown-toggle:hover { background: var(--bg-card-hover); opacity: 1; }
           .dropdown-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
           .dropdown-caret { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid currentColor; }
           .dropdown-menu { position: absolute; top: calc(100% + 8px); right: 0; min-width: 240px; display: none; padding: 8px 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 30px rgba(0,0,0,0.35); z-index: 100; }
@@ -2082,7 +2085,7 @@ function renderLayout($title, $content, $currentCategoryId = null)
           .form-dropdown-toggle { min-width: 180px; width: 100%; }
           .form-dropdown .dropdown-menu { left: 0; right: auto; min-width: 100%; max-height: 280px; overflow-y: auto; }
           .form-dropdown .dropdown-item { background: transparent; color: var(--text); border: 0; border-radius: 0; text-align: left; font-weight: 500; box-shadow: none; }
-          .form-dropdown .dropdown-item:hover { background: #252525; opacity: 1; }
+          .form-dropdown .dropdown-item:hover { background: var(--bg-card-hover); opacity: 1; }
           button { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: opacity 0.2s, background-color 0.2s; }
           button:hover { opacity: 0.9; }
           .btn-install { background: var(--primary); color: var(--text-dark); }
@@ -2324,7 +2327,7 @@ function renderLayout($title, $content, $currentCategoryId = null)
               .then(data => {
                 if (ramEl && data.ram) ramEl.textContent = data.ram;
                 if (diskEl && data.disk) diskEl.textContent = data.disk;
-                
+
                 if (data.offline) {
                     isOffline = true;
                     if (statusBadge) {
