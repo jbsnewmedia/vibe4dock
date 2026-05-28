@@ -2,6 +2,7 @@
 
 class Vibe4DockSetup
 {
+    public const VERSION = '1.0.2';
     private const COLORS = ['GREEN' => "\033[38;2;136;238;255m", 'RED' => "\033[31m", 'NONE' => "\033[0m"];
     private const NL = "\n";
     private const DEFAULT_WEB_PORT = 80;
@@ -64,7 +65,7 @@ class Vibe4DockSetup
     private function interactiveSetup(): void
     {
         echo self::NL;
-        echo 'Welcome to Vibe4Dock Setup Tool' . self::NL;
+        echo 'Welcome to Vibe4Dock Setup Tool ' . self::VERSION . self::NL;
         echo '------------------------------' . self::NL;
 
         $this->projectName = $this->ask('Project Name', $this->projectName);
@@ -907,12 +908,15 @@ class Vibe4DockSetup
     public static function printUsage(): void
     {
         echo self::NL;
+        echo 'Vibe4Dock ' . self::VERSION . self::NL;
+        echo self::NL;
         echo 'Create a Vibe4Dock project from the bundled skeleton template.' . self::NL;
         echo self::NL;
         echo 'USAGE' . self::NL;
         echo '    vibe4dock [OPTIONS]' . self::NL;
         echo self::NL;
         echo 'OPTIONS' . self::NL;
+        echo '    --version, -v' . self::NL;
         echo '    --project-name=<name>' . self::NL;
         echo '    --php-version=<version>' . self::NL;
         echo '    --web-port=<port>' . self::NL;
@@ -933,6 +937,11 @@ function vibe4dock_parse_options(array $args): array
     foreach ($args as $arg) {
         if ($arg === '--help' || $arg === '-h') {
             $options['help'] = true;
+            continue;
+        }
+
+        if ($arg === '--version' || $arg === '-v') {
+            $options['version'] = true;
             continue;
         }
 
@@ -957,6 +966,11 @@ $options = vibe4dock_parse_options($args);
 
 if (isset($options['help'])) {
     Vibe4DockSetup::printUsage();
+    exit(0);
+}
+
+if (isset($options['version'])) {
+    echo Vibe4DockSetup::VERSION . PHP_EOL;
     exit(0);
 }
 

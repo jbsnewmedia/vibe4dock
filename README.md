@@ -6,7 +6,7 @@
 
 For the German version, see [README.de.md](readme/README.de.md).
 
-This documentation describes **Vibe4Dock 1.0.1**.
+This documentation describes **Vibe4Dock 1.0.2**.
 
 Vibe4Dock is a Docker-based development environment with a web interface for CLI tools, browser shells, and project-specific runtime extensions. The main reason this project exists is simple: it gives you direct web access to AI CLI tools so you can keep working on your project anytime - on your desktop, phone, tablet, while traveling, or basically from anywhere.
 
@@ -40,7 +40,7 @@ The CLI itself only requires PHP CLI version 8 or newer. No additional dependenc
 Latest stable tag:
 
 ```bash
-git clone --branch 1.0.1 --depth 1 https://github.com/jbsnewmedia/vibe4dock.git
+git clone --branch 1.0.2 --depth 1 https://github.com/jbsnewmedia/vibe4dock.git
 cd vibe4dock
 chmod +x vibe4dock
 ```
@@ -224,7 +224,7 @@ The real work stays inside the container and therefore inside one consistent env
 
 ## Tool and addon packs
 
-Bundled definitions for **Vibe4Dock 1.0.1** are loaded from:
+Bundled definitions for **Vibe4Dock 1.0.2** are loaded from:
 
 ```text
 docker/tools/category/
@@ -323,7 +323,7 @@ Each file:
 - can define categories and tools,
 - is merged with all other files.
 
-Bundled tool files are already part of the repository in version 1.0.1, and additional team-specific or project-specific packs can be layered on top through the same merge mechanism.
+Bundled tool files are already part of the repository in version 1.0.2, and additional team-specific or project-specific packs can be layered on top through the same merge mechanism.
 
 ### Addon definitions
 
