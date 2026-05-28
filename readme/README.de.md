@@ -242,6 +242,7 @@ Aktuell mitgelieferte Addon-Packs:
 - **Databases**: MariaDB, MySQL, PostgreSQL, Firebird
 - **Browser Shells**: Lazygit Shell
 - **Browser IDEs**: code-server
+- **DevOps Platforms**: OneDev Community Edition
 
 Eigene Packs oder Überschreibungen können weiterhin zusätzlich ergänzt werden.
 
@@ -296,7 +297,7 @@ Dabei wird:
 
 1. `docker compose down` ausgeführt,
 2. der Web-Container neu gebaut,
-3. das Compose-Setup neu gestartet,
+3. das Compose-Setup neu gestartet und verwaiste Addon-Container entfernter oder umbenannter Services bereinigt,
 4. der Rebuild-Hinweis im Container entfernt.
 
 Zusätzlich fragt die UI den Rebuild-Status alle 15 Sekunden ab. Sobald das Hint-File entfernt wurde, blendet sich der Hinweis automatisch weich aus.
@@ -386,7 +387,10 @@ Ein Tool kann unter anderem folgende Felder besitzen:
 | `apply_commands` | Optionale Befehle, die nach Config-Änderungen oder Aktivierung laufen |
 | `package_operations` | Optionale Paket-/Datei-Operationen für Scaffold-Tools |
 | `compose_service` | Optionale Service-Definition, vor allem für Addons |
+| `compose_services` | Optionale Liste zusätzlicher Addon-Services wie Bootstrap- oder Sidecar-Jobs |
 | `dashboard_shell` | Optionaler Dashboard-Eintrag für browserfähige Shells oder Addon-Endpunkte |
+
+`package_operations.templates` kann Dateien jetzt entweder aus `source`, aus inline `content` oder aus gut lesbaren mehrzeiligen `content_lines` erzeugen. Über `mode` oder `executable` lassen sich damit auch Shell-Skripte und ähnliche Hilfsdateien direkt aus JSON-Definitionen schreiben.
 
 ### Browser-Endpunkt-Andockung
 
@@ -430,6 +434,7 @@ Beispiele für mitgelieferte Browser-Endpunkte:
 
 - **Lazygit Shell**: zusätzliche ttyd-Session im `web`-Container
 - **code-server**: separater Addon-Service mit eigenem Port und passwortgeschützter Browser-IDE
+- **OneDev**: separater Addon-Service mit Web-UI auf Port `6610`, Git-SSH auf Port `6611` und Auto-Bootstrap für das aktuelle Workspace-Projekt
 
 ## Einstellungen
 
@@ -477,8 +482,13 @@ Addon-Services speichern ihre Laufzeitdaten ebenfalls außerhalb des Images, zum
 
 - `docker/data/mariadb`
 - `docker/data/mysql`
+- `docker/data/onedev`
 - `docker/data/postgresql`
 - `docker/data/firebird`
+
+Manche Addons legen bei Bedarf zusätzlich Hilfsdateien ins Projekt, zum Beispiel:
+
+- `docker/onedev/bootstrap/bootstrap.sh`
 
 Außerdem werden dort technische Statusdateien abgelegt:
 
@@ -495,7 +505,9 @@ Vibe4Dock stellt zwei eingebaute Browser-Shells sowie addonbasierte Dashboard-En
 | Root Shell | Administrative Aufgaben im Container | `7681` |
 | Application Shell | Normale Entwicklungsarbeit als `application` | `7682` |
 
-Die Application Shell startet über `tmux`, damit Sessions bestehen bleiben können. Zusätzliche Browser-Shells können von Addons deklarativ registriert werden, und separate Addon-Services wie `code-server` können eigene Browser-IDE-Ports bereitstellen und trotzdem im selben Dashboard erscheinen.
+Die Application Shell startet über `tmux`, damit Sessions bestehen bleiben können. Zusätzliche Browser-Shells können von Addons deklarativ registriert werden, und separate Addon-Services wie `code-server` oder `OneDev` können eigene Browser-Endpunkte bereitstellen und trotzdem im selben Dashboard erscheinen.
+
+Das mitgelieferte OneDev-Addon bootstrapped beim ersten Start jetzt außerdem den konfigurierten Initial-Administrator und legt automatisch ein Projekt für das aktuelle Workspace an. Wenn das Workspace bereits ein Git-Repository mit Commits enthält, schiebt der Bootstrap-Job Branches und Tags direkt in das frisch angelegte OneDev-Projekt.
 
 ## Starten des Projekts
 
