@@ -85,7 +85,7 @@
                     "id": "mariadb-12",
                     "label": "12",
                     "check": "echo 12",
-                    "install": "true",
+                    "install": "if ! php -m | grep -qi pdo_mysql; then docker-php-ext-install pdo_mysql mysqli; fi",
                     "uninstall": "true",
                     "compose_service": {
                         "service": "mariadb",
@@ -110,7 +110,7 @@
                     "id": "mariadb-11",
                     "label": "11",
                     "check": "echo 11",
-                    "install": "true",
+                    "install": "if ! php -m | grep -qi pdo_mysql; then docker-php-ext-install pdo_mysql mysqli; fi",
                     "uninstall": "true",
                     "compose_service": {
                         "service": "mariadb",
@@ -135,7 +135,7 @@
                     "id": "mariadb-10",
                     "label": "10",
                     "check": "echo 10",
-                    "install": "true",
+                    "install": "if ! php -m | grep -qi pdo_mysql; then docker-php-ext-install pdo_mysql mysqli; fi",
                     "uninstall": "true",
                     "compose_service": {
                         "service": "mariadb",

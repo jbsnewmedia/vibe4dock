@@ -62,7 +62,7 @@
                     "id": "firebird-5",
                     "label": "5",
                     "check": "echo 5",
-                    "install": "true",
+                    "install": "if ! php -m | grep -qi pdo_firebird; then apt-get update && apt-get install -y --no-install-recommends firebird-dev && docker-php-ext-install pdo_firebird && rm -rf /var/lib/apt/lists/*; fi",
                     "uninstall": "true",
                     "compose_service": {
                         "service": "firebird",
@@ -85,7 +85,7 @@
                     "id": "firebird-4",
                     "label": "4",
                     "check": "echo 4",
-                    "install": "true",
+                    "install": "if ! php -m | grep -qi pdo_firebird; then apt-get update && apt-get install -y --no-install-recommends firebird-dev && docker-php-ext-install pdo_firebird && rm -rf /var/lib/apt/lists/*; fi",
                     "uninstall": "true",
                     "compose_service": {
                         "service": "firebird",
@@ -108,7 +108,7 @@
                     "id": "firebird-3",
                     "label": "3",
                     "check": "echo 3",
-                    "install": "true",
+                    "install": "if ! php -m | grep -qi pdo_firebird; then apt-get update && apt-get install -y --no-install-recommends firebird-dev && docker-php-ext-install pdo_firebird && rm -rf /var/lib/apt/lists/*; fi",
                     "uninstall": "true",
                     "compose_service": {
                         "service": "firebird",
