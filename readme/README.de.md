@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="vibe4dock-logo-icon.svg" alt="Vibe4Dock Logo" width="160">
+  <img src="readme/vibe4dock-logo-icon.svg" alt="Vibe4Dock logo" width="160">
 </p>
 
 # Vibe4Dock
@@ -12,7 +12,7 @@ Dieses Repository enthält nicht nur das Vibe4Dock-Skeleton, sondern auch die Se
 
 Technisch besteht Vibe4Dock aus einem PHP-basierten Web-Container für die eigentliche Arbeitsumgebung und einem separaten Tools-Service für das Management-UI. Optionale Laufzeit-Erweiterungen wie Datenbanken werden später über die Tools-Oberfläche aktiviert, die Provisioning-, Mount- und Compose-Override-Konfigurationen dynamisch aus JSON-Definitionen erzeugt.
 
-![Vibe4Dock Example](example.webp)
+![Vibe4Dock Example](vibe4dock-example.webp)
 
 ## Ziel des Projekts
 

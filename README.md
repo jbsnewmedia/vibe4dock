@@ -14,7 +14,7 @@ This repository contains both the Vibe4Dock skeleton template and the setup CLI 
 
 Technically, Vibe4Dock consists of a PHP-based web container for the actual workspace and a separate tools service for the management UI. Optional runtime extensions such as databases are activated later through the tools interface, which generates provisioning, mount, and Compose override configuration dynamically from JSON definitions.
 
-![Vibe4Dock Example](readme/example.webp)
+![Vibe4Dock Example](readme/vibe4dock-example.webp)
 
 ## Project goal
 
