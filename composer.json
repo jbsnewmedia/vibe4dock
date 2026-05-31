@@ -1,0 +1,73 @@
+{
+    "name": "jbsnewmedia/vibe4dock",
+    "description": "Docker-based development environment with a web interface for CLI tools, browser shells, and project-specific runtime extensions.",
+    "type": "project",
+    "license": "MIT",
+    "keywords": ["docker", "development", "cli", "symfony", "skeleton"],
+    "homepage": "https://github.com/jbsnewmedia/vibe4dock",
+    "authors": [
+        {
+            "name": "JBS New Media GmbH",
+            "homepage": "https://github.com/jbsnewmedia"
+        },
+        {
+            "name": "Juergen Schwind",
+            "homepage": "https://github.com/jschwind"
+        }
+    ],
+    "require": {
+        "php": ">=8.0"
+    },
+    "require-dev": {
+        "phpstan/extension-installer": "^1.4",
+        "phpstan/phpstan": "^2.1",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "phpunit/phpunit": "^12.0 || ^11.5",
+        "rector/rector": "^2.0",
+        "symplify/easy-coding-standard": "^12.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Vibe4Dock\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Vibe4Dock\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "phpstan/extension-installer": true
+        }
+    },
+    "scripts": {
+        "ecs": "ecs check",
+        "ecs:fix": "ecs check --fix",
+        "rector": "rector process --dry-run",
+        "rector:fix": "rector process",
+        "phpstan": "phpstan analyse --memory-limit=512M",
+        "test": "phpunit",
+        "check": [
+            "@ecs",
+            "@rector",
+            "@phpstan",
+            "@test"
+        ],
+        "fix": [
+            "@ecs:fix",
+            "@rector:fix"
+        ]
+    },
+    "scripts-descriptions": {
+        "ecs": "Run Easy Coding Standard in check mode.",
+        "ecs:fix": "Apply Easy Coding Standard fixes.",
+        "rector": "Run Rector in dry-run mode.",
+        "rector:fix": "Apply Rector refactorings.",
+        "phpstan": "Run PHPStan static analysis.",
+        "test": "Run the PHPUnit test suite.",
+        "check": "Run all quality checks (ecs, rector, phpstan, tests).",
+        "fix": "Apply all automatic fixes (ecs, rector)."
+    }
+}

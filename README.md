@@ -116,6 +116,46 @@ Without options, the setup runs interactively and asks for the project name, PHP
 | `--app-shell-port` | Host port for the application shell |
 | `--output-dir` | Target directory for the generated project |
 
+### Setup CLI internals
+
+The setup CLI source lives in `src/` under the `Vibe4Dock\` namespace and is loaded by a
+minimal PSR-4 autoloader in `vibe4dock.php`. **Running the CLI still only requires PHP 8 or
+newer - no Composer installation or `vendor/` directory is needed.** Composer is only used
+for development tooling.
+
+| Class | Responsibility |
+| --- | --- |
+| `Cli` | Argument handling, interactive prompts, and console output |
+| `OptionParser` | Parses raw CLI arguments into an options array |
+| `SetupConfig` | Immutable, validated project configuration |
+| `ProjectGenerator` | Copies and renders the `skeleton/` templates |
+| `TemplatePath` | Maps skeleton paths to rendered output paths |
+| `EnvironmentReader` | Reads defaults from an existing generated environment |
+| `PortNormalizer` | Normalizes and validates host ports |
+
+### Development and quality tooling
+
+Development requires Composer and a modern PHP version (8.3+ for the bundled tools).
+
+```bash
+composer install
+```
+
+The following tools are configured and wired up as Composer scripts:
+
+| Command | Tool | Purpose |
+| --- | --- | --- |
+| `composer ecs` / `composer ecs:fix` | Easy Coding Standard | Coding-style checks and fixes |
+| `composer rector` / `composer rector:fix` | Rector | Automated refactoring (dry-run / apply) |
+| `composer phpstan` | PHPStan (level max) | Static analysis |
+| `composer test` | PHPUnit | Test suite |
+| `composer check` | all of the above | Run ecs, rector (dry-run), phpstan and tests |
+| `composer fix` | ecs + rector | Apply all automatic fixes |
+
+```bash
+composer check
+```
+
 ## Architecture overview
 
 Vibe4Dock starts two Docker services by default:
@@ -247,6 +287,13 @@ Current bundled addon packs:
 - **DevOps Platforms**: OneDev Community Edition
 
 You can still add your own packs or overrides on top of these files.
+
+The base web image stays minimal and database-agnostic. Each database addon is
+self-contained ("autark"): installing it not only adds its Compose service but also
+provisions the matching PHP driver into the web container at image build time via
+`provision.sh` (for example `pdo_mysql`/`mysqli` for MariaDB and MySQL, `pdo_pgsql`/`pgsql`
+for PostgreSQL, and `pdo_firebird` for Firebird). The install commands are idempotent, so
+rebuilds are safe and uninstalling simply rebuilds the image from the clean base.
 
 ## How tool installation works
 
