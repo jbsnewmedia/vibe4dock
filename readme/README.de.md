@@ -243,6 +243,7 @@ Aktuell mitgelieferte Addon-Packs:
 - **Browser Shells**: Lazygit Shell
 - **Browser IDEs**: code-server
 - **DevOps Platforms**: OneDev Community Edition
+- **Mail & Messaging**: Mailpit
 
 Eigene Packs oder Überschreibungen können weiterhin zusätzlich ergänzt werden.
 
@@ -436,6 +437,7 @@ Beispiele für mitgelieferte Browser-Endpunkte:
 - **Adminer**: separater Addon-Service mit generierten One-Click-Logins für die installierten Datenbank-Addons
 - **code-server**: separater Addon-Service mit eigenem Port und passwortgeschützter Browser-IDE
 - **OneDev**: separater Addon-Service mit Web-UI auf Port `6610`, Git-SSH auf Port `6611` und Auto-Bootstrap für das aktuelle Workspace-Projekt
+- **Mailpit**: separater Addon-Service mit Web-UI auf Port `8025` zum Anzeigen abgefangener E-Mails und SMTP-Server auf Port `1025` für lokales Mail-Testing
 
 ## Einstellungen
 
@@ -486,6 +488,7 @@ Addon-Services speichern ihre Laufzeitdaten ebenfalls außerhalb des Images, zum
 - `docker/data/onedev`
 - `docker/data/postgresql`
 - `docker/data/firebird`
+- `docker/data/mailpit`
 
 Manche Addons legen bei Bedarf zusätzlich Hilfsdateien ins Projekt, zum Beispiel:
 

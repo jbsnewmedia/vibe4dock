@@ -1,0 +1,154 @@
+{
+    "categories": [
+        {
+            "unique_key": "mail-messaging",
+            "id": "mail-messaging",
+            "label": "Mail & Messaging",
+            "order": 590,
+            "menu_group": "addons"
+        }
+    ],
+    "tools": [
+        {
+            "id": "mailpit",
+            "category": "mail-messaging",
+            "label": "Mailpit",
+            "description": "Lightweight email testing tool with SMTP server and web UI for viewing caught mails during development.",
+            "usage": "",
+            "check": "false",
+            "install": "true",
+            "uninstall": "true",
+            "config_schema": {
+                "fields": [
+                    {
+                        "key": "port",
+                        "label": "Web UI port",
+                        "default": "8025",
+                        "help_text": "Host port for the Mailpit web interface.",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "ports.0",
+                                "format": "%s:8025",
+                                "target_services": [
+                                    "mailpit"
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "key": "smtp_port",
+                        "label": "SMTP port",
+                        "default": "1025",
+                        "help_text": "Host port for the Mailpit SMTP server. Configure your application to send mail to this port.",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "ports.1",
+                                "format": "%s:1025",
+                                "target_services": [
+                                    "mailpit"
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "key": "username",
+                        "label": "Username",
+                        "default": "",
+                        "required": false,
+                        "help_text": "Optional HTTP Basic Auth username for the Mailpit web UI. Protection is only enabled when username and password are both set."
+                    },
+                    {
+                        "key": "password",
+                        "label": "Password",
+                        "type": "password",
+                        "default": "",
+                        "required": false,
+                        "help_text": "Optional HTTP Basic Auth password for the Mailpit web UI. Protection is only enabled when username and password are both set."
+                    },
+                    {
+                        "key": "max_messages",
+                        "label": "Max messages",
+                        "default": "500",
+                        "help_text": "Maximum number of messages to store. Older messages are automatically deleted when the limit is reached.",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.MP_MAX_MESSAGES",
+                                "target_services": [
+                                    "mailpit"
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            "package_operations": {
+                "templates": [
+                    {
+                        "target": "docker/mailpit/README.md",
+                        "content_lines": [
+                            "# Mailpit",
+                            "",
+                            "This directory is managed by Vibe4Dock and contains configuration for the Mailpit addon.",
+                            "",
+                            "Mailpit is a lightweight, modern email testing tool for developers. It acts as an SMTP server",
+                            "and provides a web UI to view and inspect emails sent by your application during development.",
+                            "",
+                            "## Ports",
+                            "",
+                            "- **Web UI**: configured port (default 8025)",
+                            "- **SMTP**: configured port (default 1025)",
+                            "",
+                            "## Usage",
+                            "",
+                            "Configure your application to use Mailpit as the SMTP server:",
+                            "",
+                            "```",
+                            "Host: mailpit (or localhost from the host)",
+                            "Port: 1025 (or your configured SMTP port)",
+                            "Encryption: none",
+                            "Authentication: none (unless SMTP auth is configured)",
+                            "```",
+                            "",
+                            "## Data",
+                            "",
+                            "Mailpit stores emails in memory by default. When the container is restarted, stored emails are lost.",
+                            "Set `MP_MAX_MESSAGES` to control how many messages are retained."
+                        ]
+                    }
+                ],
+                "cleanup_directories": [
+                    "docker/mailpit"
+                ]
+            },
+            "compose_service": {
+                "service": "mailpit",
+                "definition": {
+                    "image": "axllent/mailpit:latest",
+                    "ports": [
+                        "8025:8025",
+                        "1025:1025"
+                    ],
+                    "environment": {
+                        "MP_MAX_MESSAGES": "500"
+                    },
+                    "volumes": [
+                        "./docker/data/mailpit:/data"
+                    ]
+                }
+            },
+            "dashboard_shell": {
+                "label": "Mailpit",
+                "port_field": "port",
+                "username_field": "username",
+                "password_field": "password",
+                "button_label": "Open Mailpit",
+                "help_title": "Configure Mailpit",
+                "help_text": "Open the Addons section, configure the Mailpit ports and optional credentials, and rebuild the stack to apply changes. Point your application SMTP settings to the configured SMTP port.",
+                "help_command": "./docker/rebuild.sh"
+            }
+        }
+    ]
+}

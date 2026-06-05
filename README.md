@@ -245,6 +245,7 @@ Current bundled addon packs:
 - **Browser Shells**: Lazygit Shell
 - **Browser IDEs**: code-server
 - **DevOps Platforms**: OneDev Community Edition
+- **Mail & Messaging**: Mailpit
 
 You can still add your own packs or overrides on top of these files.
 
@@ -438,6 +439,7 @@ Examples of bundled browser endpoints:
 - **Adminer**: separate addon service with generated one-click logins for the installed database addons
 - **code-server**: separate addon service with its own port and password-protected browser IDE
 - **OneDev**: separate addon service with a web UI on port `6610`, Git SSH on port `6611`, and an auto-bootstrap job for the current workspace
+- **Mailpit**: separate addon service with a web UI on port `8025` for viewing caught emails and an SMTP server on port `1025` for local mail testing
 
 ## Settings
 
@@ -488,6 +490,7 @@ Addon services also persist their runtime data outside the image, for example:
 - `docker/data/onedev`
 - `docker/data/postgresql`
 - `docker/data/firebird`
+- `docker/data/mailpit`
 
 Some addons also scaffold helper files into the project when they need bootstrap logic, for example:
 
