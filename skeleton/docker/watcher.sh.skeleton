@@ -1,0 +1,243 @@
+#!/usr/bin/env bash
+# Vibe4Dock Rebuild Watcher (host daemon)
+# Watches the rebuild hint file on the host and (optionally) runs the rebuild.
+#
+# Usage:
+#   ./docker/watcher.sh start    - Start the watcher as a background daemon
+#   ./docker/watcher.sh stop     - Stop the watcher
+#   ./docker/watcher.sh restart  - Restart the watcher
+#   ./docker/watcher.sh status   - Show current watcher status
+#   ./docker/watcher.sh run      - Run the watcher in the foreground
+#   ./docker/watcher.sh logs     - Tail the watcher log file
+#   ./docker/watcher.sh once     - Run a single poll and exit
+
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+PHP_BIN="${PHP_BIN:-php}"
+WATCHER_PHP="$SCRIPT_DIR/tools/watcher.php"
+
+if [ ! -f "$WATCHER_PHP" ]; then
+    echo "Error: watcher.php not found at $WATCHER_PHP" >&2
+    exit 1
+fi
+
+if ! command -v "$PHP_BIN" >/dev/null 2>&1; then
+    echo "Error: PHP CLI '$PHP_BIN' not found in PATH." >&2
+    echo "Install PHP 8+ or set PHP_BIN=/path/to/php" >&2
+    exit 1
+fi
+
+LOG_FILE="${VIBE4DOCK_WATCHER_LOG:-$SCRIPT_DIR/watcher.log}"
+PID_FILE="${VIBE4DOCK_WATCHER_PID:-$SCRIPT_DIR/.watcher.pid}"
+STOP_FILE="${VIBE4DOCK_WATCHER_STOP:-$SCRIPT_DIR/.watcher.stop}"
+STATE_FILE="${VIBE4DOCK_WATCHER_STATE:-$SCRIPT_DIR/.watcher.state}"
+HINT_FILE="${VIBE4DOCK_WATCHER_HINT:-$PROJECT_DIR/docker/web/settings/rebuild_required.hint}"
+LABEL="${VIBE4DOCK_WATCHER_LABEL:-Vibe4Dock Watcher}"
+AUTO_REBUILD="${WATCHER_AUTO_REBUILD:-1}"
+REBUILD_COMMAND="${WATCHER_REBUILD_COMMAND:-}"
+REBUILD_CWD="${WATCHER_REBUILD_CWD:-$PROJECT_DIR}"
+REBUILD_DEBOUNCE="${WATCHER_REBUILD_DEBOUNCE:-0}"
+REBUILD_TIMEOUT="${WATCHER_REBUILD_TIMEOUT:-0}"
+
+export WATCHER_HINT_FILE="$HINT_FILE"
+export WATCHER_LOG_FILE="$LOG_FILE"
+export WATCHER_PID_FILE="$PID_FILE"
+export WATCHER_STOP_FILE="$STOP_FILE"
+export WATCHER_STATE_FILE="$STATE_FILE"
+export WATCHER_LABEL="$LABEL"
+export WATCHER_AUTO_REBUILD="$AUTO_REBUILD"
+export WATCHER_REBUILD_COMMAND="$REBUILD_COMMAND"
+export WATCHER_REBUILD_CWD="$REBUILD_CWD"
+export WATCHER_REBUILD_DEBOUNCE="$REBUILD_DEBOUNCE"
+export WATCHER_REBUILD_TIMEOUT="$REBUILD_TIMEOUT"
+
+mkdir -p "$(dirname "$LOG_FILE")" "$(dirname "$PID_FILE")" 2>/dev/null || true
+
+read_pid() {
+    if [ -f "$PID_FILE" ]; then
+        local pid
+        pid="$(cat "$PID_FILE" 2>/dev/null || true)"
+        if [ -n "$pid" ] && [ "$pid" -gt 0 ] 2>/dev/null; then
+            echo "$pid"
+            return 0
+        fi
+    fi
+    return 1
+}
+
+is_running() {
+    local pid
+    if pid="$(read_pid)"; then
+        if kill -0 "$pid" 2>/dev/null; then
+            return 0
+        fi
+        rm -f "$PID_FILE"
+    fi
+    return 1
+}
+
+cmd_start() {
+    if is_running; then
+        local pid
+        pid="$(read_pid)"
+        echo "Watcher is already running (pid: $pid, log: $LOG_FILE)"
+        return 0
+    fi
+
+    echo "Starting $LABEL..."
+    : > "$LOG_FILE"
+
+    setsid "$PHP_BIN" "$WATCHER_PHP" >/dev/null 2>&1 < /dev/null &
+    local new_pid=$!
+    disown "$new_pid" 2>/dev/null || true
+    echo "$new_pid" > "$PID_FILE"
+
+    sleep 1
+    if is_running; then
+        echo "$LABEL started (pid: $new_pid, log: $LOG_FILE)"
+        return 0
+    fi
+
+    echo "Error: $LABEL failed to start. Check $LOG_FILE" >&2
+    rm -f "$PID_FILE"
+    return 1
+}
+
+cmd_stop() {
+    if ! is_running; then
+        echo "Watcher is not running"
+        rm -f "$PID_FILE" "$STOP_FILE"
+        return 0
+    fi
+
+    local pid
+    pid="$(read_pid)"
+    touch "$STOP_FILE"
+    kill -TERM "$pid" 2>/dev/null || true
+
+    local waited=0
+    while is_running && [ "$waited" -lt 10 ]; do
+        sleep 1
+        waited=$((waited + 1))
+    done
+
+    if is_running; then
+        kill -KILL "$pid" 2>/dev/null || true
+        sleep 1
+        echo "Watcher force-killed (pid: $pid)"
+    else
+        echo "Watcher stopped (pid: $pid)"
+    fi
+
+    rm -f "$PID_FILE" "$STOP_FILE"
+}
+
+cmd_status() {
+    if is_running; then
+        local pid
+        pid="$(read_pid)"
+        echo "Watcher: running (pid: $pid, log: $LOG_FILE)"
+        return 0
+    fi
+    echo "Watcher: stopped"
+    return 3
+}
+
+cmd_restart() {
+    cmd_stop
+    sleep 1
+    cmd_start
+}
+
+cmd_run() {
+    echo "Running $LABEL in the foreground (Ctrl+C to stop)..."
+    exec "$PHP_BIN" "$WATCHER_PHP" --verbose
+}
+
+cmd_once() {
+    exec "$PHP_BIN" "$WATCHER_PHP" --once
+}
+
+cmd_logs() {
+    if [ ! -f "$LOG_FILE" ]; then
+        echo "No log file yet: $LOG_FILE"
+        return 0
+    fi
+    tail -n 100 -f "$LOG_FILE"
+}
+
+cmd_service() {
+    cat <<SERVICE
+# Example systemd service unit. Save as:
+#   /etc/systemd/system/vibe4dock-watcher.service
+# Then:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now vibe4dock-watcher.service
+
+[Unit]
+Description=Vibe4Dock Rebuild Watcher
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=$PROJECT_DIR
+ExecStart=$SCRIPT_DIR/watcher.sh run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+}
+
+usage() {
+    cat <<USAGE
+Vibe4Dock Rebuild Watcher
+
+Usage:
+  $0 start    Start the watcher as a background daemon
+  $0 stop     Stop the watcher
+  $0 restart  Restart the watcher
+  $0 status   Show current watcher status
+  $0 run      Run the watcher in the foreground
+  $0 once     Run a single poll and exit
+  $0 logs     Tail the watcher log file
+  $0 service  Print an example systemd service unit for this project
+
+Environment:
+  PHP_BIN                     Path to the PHP CLI binary (default: php)
+  VIBE4DOCK_WATCHER_LOG       Log file (default: ./docker/watcher.log)
+  VIBE4DOCK_WATCHER_PID       PID file (default: ./docker/.watcher.pid)
+  VIBE4DOCK_WATCHER_STOP      Stop file (default: ./docker/.watcher.stop)
+  VIBE4DOCK_WATCHER_STATE     State file (default: ./docker/.watcher.state)
+  VIBE4DOCK_WATCHER_HINT      Hint file watched (default: ./docker/web/settings/rebuild_required.hint)
+  VIBE4DOCK_WATCHER_LABEL     Log label (default: Vibe4Dock Watcher)
+  WATCHER_POLL_INTERVAL       Poll interval in seconds (default: 3)
+  WATCHER_AUTO_REBUILD        1/0 - run the rebuild script when the hint is detected (default: 1)
+  WATCHER_REBUILD_COMMAND     Command to run (default: ./docker/rebuild.sh)
+  WATCHER_REBUILD_CWD         Working directory for the rebuild (default: project root)
+  WATCHER_REBUILD_DEBOUNCE    Wait this many seconds for additional changes before rebuilding (default: 0)
+  WATCHER_REBUILD_TIMEOUT     Kill the rebuild after N seconds (default: 0 = no timeout)
+USAGE
+}
+
+case "${1:-}" in
+    start) cmd_start ;;
+    stop) cmd_stop ;;
+    restart) cmd_restart ;;
+    status) cmd_status ;;
+    run) cmd_run ;;
+    once) cmd_once ;;
+    logs) cmd_logs ;;
+    service) cmd_service ;;
+    -h|--help|help|"") usage; exit 0 ;;
+    *)
+        echo "Unknown command: $1" >&2
+        usage
+        exit 1
+        ;;
+esac

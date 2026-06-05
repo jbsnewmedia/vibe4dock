@@ -1698,7 +1698,7 @@ function renderMessagePage($title, $headline, $message, $statusCode, $backUrl = 
     $badgeLabel = $statusCode >= 400 ? 'Error' : 'Info';
 
     $content = <<<HTML
-        <div class="tool-card">
+        <div class="tool-card" style="margin-top: 20px;">
             <a href="$safeBackUrl" class="back">← back</a>
             <div class="tool-header" style="margin-bottom: 0;">
                 <div>
@@ -1714,6 +1714,525 @@ HTML;
 
     echo renderLayout($safeTitle, $content, $currentCategoryId);
     exit;
+}
+
+function collectRebuildProgressData()
+{
+    $hintFile = '/app/docker/web/settings/rebuild_required.hint';
+    $stateFile = '/app/docker/.watcher.state';
+    $logFile = '/app/docker/watcher.log';
+
+    clearstatcache(true, $hintFile);
+    clearstatcache(true, $stateFile);
+
+    $hintExists = file_exists($hintFile);
+    $hintMtime = $hintExists ? (int) filemtime($hintFile) : 0;
+
+    $watcherSeenMtime = 0;
+    $watcherLastRebuild = 0;
+    $watcherStateFound = false;
+    if (file_exists($stateFile)) {
+        $raw = @file_get_contents($stateFile);
+        $decoded = $raw === false ? null : json_decode($raw, true);
+        if (is_array($decoded)) {
+            $watcherStateFound = true;
+            $watcherSeenMtime = isset($decoded['hint_mtime']) ? (int) $decoded['hint_mtime'] : 0;
+            $watcherLastRebuild = isset($decoded['last_rebuild']) ? (int) $decoded['last_rebuild'] : 0;
+        }
+    }
+
+    $logTail = array();
+    if (file_exists($logFile)) {
+        $fp = @fopen($logFile, 'rb');
+        if ($fp !== false) {
+            $position = -1;
+            $lineCount = 0;
+            $lines = array();
+            $stat = fstat($fp);
+            $fileSize = $stat['size'];
+            fseek($fp, 0, SEEK_END);
+            $cursor = ftell($fp);
+
+            while ($cursor > 0 && $lineCount < 40) {
+                $step = ($cursor >= 4096) ? 4096 : $cursor;
+                $cursor -= $step;
+                fseek($fp, $cursor);
+                $chunk = fread($fp, $step);
+                $lines[] = $chunk;
+                $lineCount += substr_count($chunk, "\n");
+            }
+            fclose($fp);
+            $joined = implode('', array_reverse($lines));
+            $allLines = explode("\n", $joined);
+            $allLines = array_slice($allLines, -30);
+            foreach ($allLines as $line) {
+                $line = rtrim($line, "\r");
+                if ($line !== '') {
+                    $logTail[] = $line;
+                }
+            }
+        }
+    }
+
+    $state = 'unknown';
+    $stateReason = '';
+
+    if (!$hintExists) {
+        $state = 'completed';
+        $stateReason = 'Hint file has been removed (rebuild script ran successfully).';
+        if ($watcherLastRebuild > 0) {
+            $stateReason .= ' Last watcher rebuild: ' . date('Y-m-d H:i:s', $watcherLastRebuild) . '.';
+        } else {
+            $stateReason .= ' No watcher state found - the host watcher may not be running (./docker/watcher.sh status).';
+        }
+    } elseif (!$watcherStateFound) {
+        $state = 'pending';
+        $stateReason = 'The host watcher has never written its state file. Start it on the host with: ./docker/watcher.sh start';
+    } elseif ($watcherSeenMtime < $hintMtime) {
+        $state = 'pending';
+        $stateReason = 'Host watcher has not yet processed this hint (waiting for next poll, default 3 s).';
+    } elseif ($watcherSeenMtime >= $hintMtime) {
+        $state = 'running';
+        $stateReason = 'Host watcher has picked up the request and is running ./docker/rebuild.sh on the host.';
+    }
+
+    $logMarkerFound = false;
+    $logHasFinished = false;
+    $logHasFinishedWithErrors = false;
+    $phase = 'pending';
+    $phaseIndex = 0;
+    $rebuildStartedAt = 0;
+    $rebuildEndedAt = 0;
+    $exitCode = null;
+
+    $phaseMarkers = array(
+        'stopping'  => 'Stopping containers...',
+        'building'  => 'Rebuilding web container (no-cache)...',
+        'starting'  => 'Starting containers...',
+        'clearing'  => 'Clearing rebuild hint...',
+        'done'      => 'Done. Vibe4Dock is restarting.',
+    );
+
+    foreach ($logTail as $line) {
+        if (preg_match('/^\[([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})\] (.*)$/', $line, $matches)) {
+            $lineTs = strtotime($matches[1]);
+        } else {
+            $lineTs = 0;
+        }
+
+        if (strpos($line, 'Rebuild requested') !== false && strpos($line, (string) $hintMtime) !== false) {
+            $logMarkerFound = true;
+            $logHasFinished = false;
+            $logHasFinishedWithErrors = false;
+            if ($lineTs > 0 && $rebuildStartedAt === 0) {
+                $rebuildStartedAt = $lineTs;
+            }
+        }
+
+        if ($logMarkerFound) {
+            foreach ($phaseMarkers as $key => $marker) {
+                if (strpos($line, $marker) !== false) {
+                    $idx = array_search($key, array_keys($phaseMarkers), true);
+                    if ($idx !== false && $idx >= $phaseIndex) {
+                        $phaseIndex = $idx;
+                        $phase = $key;
+                    }
+                }
+            }
+
+            if (strpos($line, 'Rebuild finished (exit: 0)') !== false) {
+                $logHasFinished = true;
+                $logHasFinishedWithErrors = false;
+                $exitCode = 0;
+                if ($lineTs > 0) {
+                    $rebuildEndedAt = $lineTs;
+                }
+            } elseif (strpos($line, 'Rebuild finished with errors') !== false) {
+                $logHasFinishedWithErrors = true;
+                $logHasFinished = false;
+                if (preg_match('/exit: (-?\d+)/', $line, $m)) {
+                    $exitCode = (int) $m[1];
+                }
+                if ($lineTs > 0) {
+                    $rebuildEndedAt = $lineTs;
+                }
+            }
+        }
+    }
+    if ($logMarkerFound && $logHasFinishedWithErrors) {
+        $state = 'failed';
+        $stateReason = 'Host watcher finished the rebuild with errors. Check ./docker/watcher.log for details.';
+    } elseif ($logMarkerFound && $logHasFinished && !$hintExists) {
+        $state = 'completed';
+        $stateReason = 'Host watcher finished the rebuild successfully.';
+    } elseif ($logMarkerFound && $logHasFinished && $hintExists) {
+        $state = 'completed';
+        $stateReason = 'Host watcher reports the rebuild finished, but the hint file is still present. Try ./docker/rebuild.sh manually.';
+    } elseif ($state === 'running') {
+        $phaseLabels = array(
+            'stopping' => 'Stopping containers',
+            'building' => 'Building web container (no-cache)',
+            'starting' => 'Starting containers',
+            'clearing' => 'Clearing rebuild hint',
+        );
+        if (isset($phaseLabels[$phase])) {
+            $stateReason = 'Host watcher is running ./docker/rebuild.sh. Current step: ' . $phaseLabels[$phase] . '.';
+        }
+    }
+
+    $elapsedSeconds = 0;
+    if ($state === 'running' && $rebuildStartedAt > 0) {
+        $elapsedSeconds = max(0, time() - $rebuildStartedAt);
+    } elseif (in_array($state, array('completed', 'failed'), true) && $rebuildStartedAt > 0 && $rebuildEndedAt > 0) {
+        $elapsedSeconds = max(0, $rebuildEndedAt - $rebuildStartedAt);
+    }
+
+    return array(
+        'state' => $state,
+        'state_reason' => $stateReason,
+        'hint_exists' => $hintExists,
+        'hint_mtime' => $hintMtime,
+        'watcher_state_found' => $watcherStateFound,
+        'watcher_seen_mtime' => $watcherSeenMtime,
+        'watcher_last_rebuild' => $watcherLastRebuild,
+        'log_tail' => $logTail,
+        'build_phase' => $phase,
+        'build_phase_index' => $phaseIndex,
+        'build_total_phases' => count($phaseMarkers),
+        'build_phase_labels' => array(
+            'stopping' => 'Stopping containers',
+            'building' => 'Building web container',
+            'starting' => 'Starting containers',
+            'clearing' => 'Clearing rebuild hint',
+            'done'     => 'Done',
+        ),
+        'build_started_at' => $rebuildStartedAt,
+        'build_ended_at' => $rebuildEndedAt,
+        'build_elapsed_seconds' => $elapsedSeconds,
+        'build_exit_code' => $exitCode,
+    );
+}
+
+function renderRebuildStatusPage($triggeredAt, $triggeredAtIso, $hintMtime, $writeOk)
+{
+    $initial = collectRebuildProgressData();
+    $initialJson = json_encode($initial, JSON_UNESCAPED_SLASHES);
+    $initialB64 = base64_encode($initialJson);
+
+    $safeTriggered = htmlspecialchars($triggeredAtIso);
+    $safeHintMtime = (int) $hintMtime;
+    $stateBadge = $writeOk ? 'status-installed' : 'status-missing';
+    $stateLabel = $writeOk ? 'Triggered' : 'Write failed';
+
+    $content = <<<HTML
+        <div class="tool-card" style="margin-top: 20px;" id="rebuild-status-card">
+            <a href="/dashboard" class="back">← back</a>
+            <div class="tool-header" style="margin-bottom: 0;">
+                <div>
+                    <h1 style="margin: 0 0 6px 0;" id="rebuild-title">Rebuild triggered</h1>
+                    <div style="color: var(--text-dim); line-height: 1.5; font-size: 0.9em;">
+                        Requested at <strong id="rebuild-triggered-at">$safeTriggered</strong> &middot;
+                        hint mtime <code id="rebuild-hint-mtime">$safeHintMtime</code>
+                    </div>
+                </div>
+                <div class="tool-actions">
+                    <span id="rebuild-state-badge" class="status $stateBadge" style="font-size: 0.9em;">$stateLabel</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="tool-card" style="margin-top: 16px;" id="rebuild-hero-card">
+            <div id="rebuild-hero" style="display: flex; align-items: center; gap: 16px; padding: 12px 4px;">
+                <div id="rebuild-hero-icon" style="font-size: 2.4em; line-height: 1; width: 48px; text-align: center; flex-shrink: 0;">&bull;</div>
+                <div style="flex: 1; min-width: 0;">
+                    <div id="rebuild-hero-title" style="font-size: 1.15em; font-weight: bold; margin-bottom: 4px;">Waiting&hellip;</div>
+                    <div id="rebuild-hero-sub" style="color: var(--text-dim); font-size: 0.9em;">&mdash;</div>
+                </div>
+                <div id="rebuild-hero-elapsed" style="color: var(--text-dim); font-size: 0.85em; text-align: right; min-width: 80px; font-variant-numeric: tabular-nums;">&mdash;</div>
+            </div>
+            <div id="rebuild-progress" style="margin-top: 14px; display: none;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.8em; color: var(--text-dim); margin-bottom: 4px;">
+                    <span id="rebuild-progress-step">Step 1 of 5</span>
+                    <span id="rebuild-progress-pct">0%</span>
+                </div>
+                <div style="background: var(--bg-body); border: 1px solid var(--border); border-radius: 6px; height: 8px; overflow: hidden;">
+                    <div id="rebuild-progress-bar" style="background: var(--primary); height: 100%; width: 0%; transition: width 0.4s ease;"></div>
+                </div>
+                <div id="rebuild-progress-steps" style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.75em; color: var(--text-dim);"></div>
+            </div>
+        </div>
+
+        <div class="tool-card" style="margin-top: 16px;">
+            <h2 style="margin: 0 0 12px 0; font-size: 1.05em;">Watcher status</h2>
+            <div class="stat-item"><span class="stat-label">State</span><span class="stat-value" id="rebuild-state-value">&mdash;</span></div>
+            <div class="stat-item"><span class="stat-label">Hint file</span><span class="stat-value" id="rebuild-hint-status">&mdash;</span></div>
+            <div class="stat-item"><span class="stat-label">Watcher last seen mtime</span><span class="stat-value" id="rebuild-watcher-seen">&mdash;</span></div>
+            <div class="stat-item"><span class="stat-label">Watcher last rebuild</span><span class="stat-value" id="rebuild-watcher-last">&mdash;</span></div>
+            <div class="stat-item"><span class="stat-label">Detail</span><span class="stat-value" id="rebuild-state-reason" style="font-weight: normal; font-size: 0.85em; text-align: right; max-width: 60%;">&mdash;</span></div>
+        </div>
+
+        <div class="tool-card" style="margin-top: 16px;">
+            <h2 style="margin: 0 0 12px 0; font-size: 1.05em;">Last log lines <span style="color: var(--text-dim); font-weight: normal; font-size: 0.85em;">(docker/watcher.log)</span></h2>
+            <pre id="rebuild-log-tail" style="max-height: 320px; overflow-y: auto; font-size: 0.8em; line-height: 1.4; margin: 0;">Loading...</pre>
+        </div>
+
+        <style>
+          @keyframes rebuild-spin { to { transform: rotate(360deg); } }
+          #rebuild-hero-icon.is-spinning { display: inline-block; animation: rebuild-spin 1.2s linear infinite; }
+          #rebuild-hero-icon.is-check    { color: #6ad27a; }
+          #rebuild-hero-icon.is-x        { color: #ff6b6b; }
+          #rebuild-hero-icon.is-clock    { color: #ffaa00; }
+          #rebuild-hero-icon.is-dot      { color: var(--text-dim); }
+          #rebuild-progress-bar.is-done   { background: #6ad27a; }
+          #rebuild-progress-bar.is-failed { background: #ff6b6b; }
+        </style>
+
+        <script>
+          (function() {
+            const POLL_INTERVAL_MS = 2000;
+            const STATE_LABELS = {
+              pending: 'Pending',
+              running: 'Building',
+              completed: 'Completed',
+              failed: 'Failed',
+              unknown: 'Unknown'
+            };
+            const STATE_BADGE_CLASSES = {
+              pending: 'status-missing',
+              running: 'status',
+              completed: 'status-installed',
+              failed: 'status-missing',
+              unknown: 'status-missing'
+            };
+            const PHASE_LABELS = {
+              pending:  'Waiting for watcher',
+              stopping: 'Stopping containers',
+              building: 'Building web container',
+              starting: 'Starting containers',
+              clearing: 'Clearing rebuild hint',
+              done:     'Done',
+            };
+            const HERO_TITLES = {
+              pending: 'Waiting for host watcher',
+              running: 'Rebuilding&hellip;',
+              completed: 'Build complete',
+              failed: 'Build failed',
+              unknown: 'Unknown state',
+            };
+            const HERO_ICONS = {
+              pending: '\u23F3', pendingAnim: false,
+              running: '\u25CC', pendingAnim: true,
+              completed: '\u2713', pendingAnim: false,
+              failed: '\u2717', pendingAnim: false,
+              unknown: '\u2022', pendingAnim: false,
+            };
+            const TOTAL_PHASES = 5;
+
+            function escapeHtml(value) {
+              if (value === null || value === undefined) return '';
+              return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+            }
+
+            function formatElapsed(seconds) {
+              seconds = Math.max(0, Math.floor(seconds || 0));
+              if (seconds < 60) return seconds + 's';
+              const m = Math.floor(seconds / 60);
+              const s = seconds % 60;
+              if (m < 60) return m + 'm ' + String(s).padStart(2, '0') + 's';
+              const h = Math.floor(m / 60);
+              const mm = m % 60;
+              return h + 'h ' + String(mm).padStart(2, '0') + 'm';
+            }
+
+            function renderLogTail(lines) {
+              if (!Array.isArray(lines) || lines.length === 0) {
+                return '<span style="color: var(--text-dim);">(log is empty)</span>';
+              }
+              return lines.map(escapeHtml).join('\\n');
+            }
+
+            function renderProgressSteps(currentIndex, currentPhase) {
+              const order = ['stopping', 'building', 'starting', 'clearing', 'done'];
+              return order.map(function(key) {
+                const idx = order.indexOf(key);
+                let marker = '\u25CB';
+                let style = 'color: var(--text-dim);';
+                if (idx < currentIndex) { marker = '\u2713'; style = 'color: #6ad27a;'; }
+                else if (idx === currentIndex) { marker = '\u25CF'; style = 'color: var(--primary); font-weight: bold;'; }
+                return '<span style="' + style + '">' + marker + ' ' + escapeHtml(PHASE_LABELS[key]) + '</span>';
+              }).join(' &middot; ');
+            }
+
+            function applyProgress(data) {
+              if (!data) return;
+              const state = data.state || 'unknown';
+              const label = STATE_LABELS[state] || state;
+              const cls = STATE_BADGE_CLASSES[state] || 'status-missing';
+
+              const badge = document.getElementById('rebuild-state-badge');
+              if (badge) {
+                badge.textContent = label;
+                badge.className = 'status ' + cls;
+                badge.style.fontSize = '0.9em';
+              }
+
+              const titleEl = document.getElementById('rebuild-title');
+              if (titleEl) {
+                titleEl.textContent = state === 'completed'
+                  ? 'Build complete'
+                  : (state === 'failed' ? 'Build failed' : 'Rebuild triggered');
+              }
+
+              const stateValue = document.getElementById('rebuild-state-value');
+              if (stateValue) stateValue.textContent = label;
+
+              const hintStatus = document.getElementById('rebuild-hint-status');
+              if (hintStatus) {
+                hintStatus.textContent = data.hint_exists
+                  ? 'present (mtime ' + data.hint_mtime + ')'
+                  : 'removed';
+              }
+
+              const seen = document.getElementById('rebuild-watcher-seen');
+              if (seen) {
+                if (!data.watcher_state_found) {
+                  seen.textContent = 'no state file yet';
+                } else {
+                  seen.textContent = String(data.watcher_seen_mtime);
+                }
+              }
+
+              const last = document.getElementById('rebuild-watcher-last');
+              if (last) {
+                if (data.watcher_last_rebuild > 0) {
+                  const d = new Date(data.watcher_last_rebuild * 1000);
+                  last.textContent = d.toLocaleTimeString() + ' (' + data.watcher_last_rebuild + ')';
+                } else {
+                  last.textContent = 'never';
+                }
+              }
+
+              const reason = document.getElementById('rebuild-state-reason');
+              if (reason) reason.textContent = data.state_reason || '';
+
+              const iconEl = document.getElementById('rebuild-hero-icon');
+              const heroTitleEl = document.getElementById('rebuild-hero-title');
+              const heroSubEl = document.getElementById('rebuild-hero-sub');
+              const elapsedEl = document.getElementById('rebuild-hero-elapsed');
+              const progressEl = document.getElementById('rebuild-progress');
+              const barEl = document.getElementById('rebuild-progress-bar');
+              const stepEl = document.getElementById('rebuild-progress-step');
+              const pctEl = document.getElementById('rebuild-progress-pct');
+              const stepsEl = document.getElementById('rebuild-progress-steps');
+
+              const iconInfo = HERO_ICONS[state] || HERO_ICONS.unknown;
+              if (iconEl) {
+                iconEl.textContent = iconInfo[0];
+                iconEl.className = '';
+                if (iconInfo.pendingAnim) iconEl.classList.add('is-spinning');
+                if (state === 'completed') iconEl.classList.add('is-check');
+                else if (state === 'failed') iconEl.classList.add('is-x');
+                else if (state === 'pending') iconEl.classList.add('is-clock');
+                else iconEl.classList.add('is-dot');
+              }
+
+              if (heroTitleEl) heroTitleEl.innerHTML = HERO_TITLES[state] || state;
+              if (heroSubEl) {
+                let sub = data.state_reason || '';
+                if (state === 'running' && data.build_phase && PHASE_LABELS[data.build_phase]) {
+                  sub = 'Current step: ' + PHASE_LABELS[data.build_phase];
+                }
+                heroSubEl.innerHTML = escapeHtml(sub);
+              }
+
+              if (elapsedEl) {
+                if (state === 'running' && data.build_elapsed_seconds > 0) {
+                  elapsedEl.innerHTML = '<strong style="color: var(--text);">' + formatElapsed(data.build_elapsed_seconds) + '</strong> elapsed';
+                } else if (state === 'completed' || state === 'failed') {
+                  if (data.build_elapsed_seconds > 0) {
+                    elapsedEl.innerHTML = 'took ' + formatElapsed(data.build_elapsed_seconds) + (data.build_exit_code !== null && data.build_exit_code !== 0 ? ' (exit ' + data.build_exit_code + ')' : '');
+                  } else {
+                    elapsedEl.innerHTML = '&mdash;';
+                  }
+                } else {
+                  elapsedEl.innerHTML = '&mdash;';
+                }
+              }
+
+              if (progressEl) {
+                if (state === 'running' || state === 'completed' || state === 'failed') {
+                  progressEl.style.display = 'block';
+                  const phaseIndex = typeof data.build_phase_index === 'number' ? data.build_phase_index : 0;
+                  const pct = state === 'running'
+                    ? Math.min(95, Math.round((phaseIndex + 0.5) / TOTAL_PHASES * 100))
+                    : (state === 'completed' ? 100 : Math.min(100, Math.round((phaseIndex + 1) / TOTAL_PHASES * 100)));
+                  if (barEl) {
+                    barEl.style.width = pct + '%';
+                    barEl.className = '';
+                    if (state === 'completed') barEl.classList.add('is-done');
+                    else if (state === 'failed') barEl.classList.add('is-failed');
+                  }
+                  if (stepEl) {
+                    const stepNum = Math.min(TOTAL_PHASES, phaseIndex + 1);
+                    stepEl.textContent = 'Step ' + stepNum + ' of ' + TOTAL_PHASES + ': ' + (PHASE_LABELS[data.build_phase] || '...');
+                  }
+                  if (pctEl) pctEl.textContent = pct + '%';
+                  if (stepsEl) stepsEl.innerHTML = renderProgressSteps(phaseIndex, data.build_phase);
+                } else {
+                  progressEl.style.display = 'none';
+                }
+              }
+
+              const logEl = document.getElementById('rebuild-log-tail');
+              if (logEl) {
+                const wasAtBottom = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 10;
+                logEl.innerHTML = renderLogTail(data.log_tail);
+                if (wasAtBottom) {
+                  logEl.scrollTop = logEl.scrollHeight;
+                }
+              }
+            }
+
+            function fetchProgress() {
+              fetch('/api/rebuild-progress?t=' + Date.now(), { cache: 'no-store' })
+                .then(function(response) {
+                  if (!response.ok) throw new Error('HTTP ' + response.status);
+                  return response.json();
+                })
+                .then(applyProgress)
+                .catch(function(err) {
+                  const reason = document.getElementById('rebuild-state-reason');
+                  if (reason) {
+                    reason.textContent = 'Tools container is restarting as part of the rebuild script (./docker/rebuild.sh). Polling resumes automatically once it is back up...';
+                  }
+                  const iconEl = document.getElementById('rebuild-hero-icon');
+                  if (iconEl) {
+                    iconEl.textContent = HERO_ICONS.running[0];
+                    iconEl.className = 'is-spinning';
+                  }
+                  const titleEl = document.getElementById('rebuild-hero-title');
+                  if (titleEl) titleEl.innerHTML = 'Rebuilding&hellip;';
+                  const progressEl = document.getElementById('rebuild-progress');
+                  if (progressEl) progressEl.style.display = 'block';
+                });
+            }
+
+            try {
+              const initial = JSON.parse(atob('$initialB64'));
+              applyProgress(initial);
+            } catch (e) {}
+
+            setInterval(fetchProgress, POLL_INTERVAL_MS);
+          })();
+        </script>
+HTML;
+
+    echo renderLayout('Rebuild triggered', $content, 'dashboard');
 }
 
 function addTimestamp($url)
@@ -1937,15 +2456,21 @@ function renderLayout($title, $content, $currentCategoryId = null)
     $restartRequired = isRestartRequired();
     $restartIndicator = '';
     if ($restartRequired) {
+        $rebuildActionUrl = addTimestamp('/action/system/rebuild');
         $restartIndicator = '
         <div id="rebuild-banner" class="rebuild-banner">
             <span style="color: #ffaa00; font-size: 0.9em; font-weight: bold;">Manual Rebuild Required</span>
+            <form method="post" action="' . $rebuildActionUrl . '" style="display: inline; margin: 0;">
+                <input type="hidden" name="csrf" value="rebuild">
+                <button type="submit" name="action" value="rebuild" class="btn-install" style="background: #ffaa00; color: #000; padding: 5px 12px; font-size: 0.85em; font-weight: bold;">Rebuild now</button>
+            </form>
             <button type="button" class="btn-install" style="background: #ffaa00; color: #000; padding: 5px 10px; font-size: 0.85em;" onclick="showRebuildInstructions()">Instructions</button>
         </div>
         <div id="rebuild-modal" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,0.8); align-items:center; justify-content:center;">
             <div style="background:#1e1e1e; padding:20px; border-radius:8px; border:1px solid #333; max-width:500px; width:90%;">
                 <h3 style="margin-top:0;">Manual Rebuild Required</h3>
                 <p>To apply new tool mounts or addon service changes, you need to rebuild and recreate the containers on your host machine.</p>
+                <p>You can either click <strong>Rebuild now</strong> in the banner (the host watcher will run the rebuild for you, as long as it is running with <code>./docker/watcher.sh start</code>) or copy the command below and run it manually.</p>
                 <p><strong>Linux / macOS:</strong></p>
                 <div style="display:flex; gap:10px; align-items:center; background:#000; padding:10px; border-radius:4px; margin-bottom:10px;">
                     <pre id="cmd-linux" style="margin:0; color:#fff; flex:1;">./docker/rebuild.sh</pre>
@@ -2429,9 +2954,41 @@ $containerCheck = runInWebContainer('ls /app');
 $isOffline = !$containerCheck['ok'];
 $GLOBALS['container_is_offline'] = $isOffline;
 
-if ($method === 'POST' && $requestUri === '/action/system/restart') {
+$requestPath = $requestUri;
+$queryPos = strpos($requestPath, '?');
+if ($queryPos !== false) {
+    $requestPath = substr($requestPath, 0, $queryPos);
+}
+
+if ($method === 'POST' && $requestPath === '/action/system/restart') {
     // Legacy endpoint, we don't need it anymore as we use manual instructions
     header('Location: /dashboard');
+    exit;
+}
+
+if ($method === 'POST' && $requestPath === '/action/system/rebuild') {
+    $hintFile = '/app/docker/web/settings/rebuild_required.hint';
+    $triggeredAt = time();
+    $triggeredAtIso = date('Y-m-d H:i:s', $triggeredAt);
+
+    $existingMtime = file_exists($hintFile) ? (int) filemtime($hintFile) : 0;
+    $now = $triggeredAt;
+    if ($existingMtime >= $now) {
+        $now = $existingMtime + 1;
+    }
+    $payload = json_encode(array(
+        'requested_at' => $now,
+        'source' => 'tools-ui',
+        'pid' => getmypid(),
+    ));
+    $writeResult = @file_put_contents($hintFile, "REBUILD_REQUIRED\n" . $payload);
+    if ($writeResult === false) {
+        @touch($hintFile, $now);
+    }
+    clearstatcache(true, $hintFile);
+    $hintMtime = (int) filemtime($hintFile);
+
+    renderRebuildStatusPage($triggeredAt, $triggeredAtIso, $hintMtime, $writeResult !== false);
     exit;
 }
 
@@ -2462,6 +3019,12 @@ if (preg_match('#^/api/rebuild-status#', $requestUri)) {
     echo json_encode([
         'rebuildRequired' => isRestartRequired()
     ]);
+    exit;
+}
+
+if (preg_match('#^/api/rebuild-progress#', $requestUri)) {
+    header('Content-Type: application/json');
+    echo json_encode(collectRebuildProgressData(), JSON_UNESCAPED_SLASHES);
     exit;
 }
 

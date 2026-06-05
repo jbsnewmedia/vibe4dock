@@ -2,16 +2,62 @@
 # Vibe4Dock Rebuild Script
 # This script rebuilds the web container to apply new mounts and provisions.
 
+set -u
+
+resolve_container_name() {
+    local service="$1"
+    local name
+    name=$(docker compose config --services 2>/dev/null | grep -qx "$service" || echo "")
+    if [ -z "$name" ]; then
+        return 0
+    fi
+    docker compose config --format json 2>/dev/null \
+        | grep -oE "\"container_name\"[[:space:]]*:[[:space:]]*\"[^\"]+\"" \
+        | head -n 1 \
+        | sed -E 's/.*"container_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/'
+}
+
+remove_stale_container() {
+    local name="$1"
+    if [ -z "$name" ]; then
+        return 0
+    fi
+    if docker ps -a --format '{{.Names}}' | grep -qx "$name"; then
+        local existing_id
+        existing_id=$(docker ps -a --filter "name=^${name}\$" --format '{{.ID}}' | head -n 1)
+        if [ -n "$existing_id" ]; then
+            echo "Removing stale container: $name ($existing_id)"
+            docker rm -f "$existing_id" >/dev/null 2>&1 || true
+        fi
+    fi
+}
+
 echo "Stopping containers..."
-docker compose down --remove-orphans
+docker compose down --remove-orphans || true
+
+# Give the docker daemon a moment to release container names and the network.
+sleep 2
+
+# Defensive: if a container with the web's container_name still exists (e.g. from
+# another compose stack or a previous failed run), remove it explicitly.
+WEB_NAME=$(resolve_container_name web)
+if [ -n "$WEB_NAME" ]; then
+    remove_stale_container "$WEB_NAME"
+fi
 
 echo "Rebuilding web container (no-cache)..."
-docker compose build --no-cache web
+docker compose build --no-cache web || {
+    echo "Build failed. Leaving the rebuild hint in place so the watcher can retry." >&2
+    exit 1
+}
 
 echo "Starting containers..."
-docker compose up -d --remove-orphans
+docker compose up -d --force-recreate --remove-orphans || {
+    echo "docker compose up failed. Leaving the rebuild hint in place so the watcher can retry." >&2
+    exit 1
+}
 
 echo "Clearing rebuild hint..."
-docker compose exec -T -u root web sh -lc 'rm -f /app/docker/web/settings/rebuild_required.hint /app/docker/web/settings/restart_required.json'
+docker compose exec -T -u root web sh -lc 'rm -f /app/docker/web/settings/rebuild_required.hint /app/docker/web/settings/restart_required.json' || true
 
 echo "Done. Vibe4Dock is restarting."

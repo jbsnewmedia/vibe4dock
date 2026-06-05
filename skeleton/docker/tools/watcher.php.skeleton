@@ -1,0 +1,433 @@
+<?php
+
+if (php_sapi_name() !== 'cli') {
+    fwrite(STDERR, "watcher.php must be run from the command line.\n");
+    exit(1);
+}
+
+$projectRoot = '/app';
+if (is_dir($projectRoot . '/docker/web/settings')) {
+    $defaultHint = $projectRoot . '/docker/web/settings/rebuild_required.hint';
+    $defaultProjectRoot = '/app';
+} else {
+    $scriptDir = dirname(__FILE__);
+    $defaultProjectRoot = dirname(dirname($scriptDir));
+    $projectRoot = $defaultProjectRoot;
+    $defaultHint = $defaultProjectRoot . '/docker/web/settings/rebuild_required.hint';
+}
+
+$hintFile = getenv('WATCHER_HINT_FILE') ?: $defaultHint;
+$logFile = getenv('WATCHER_LOG_FILE') ?: $projectRoot . '/docker/watcher.log';
+$pidFile = getenv('WATCHER_PID_FILE') ?: $projectRoot . '/docker/.watcher.pid';
+$stopFile = getenv('WATCHER_STOP_FILE') ?: $projectRoot . '/docker/.watcher.stop';
+$stateFile = getenv('WATCHER_STATE_FILE') ?: $projectRoot . '/docker/.watcher.state';
+
+$interval = (int) (getenv('WATCHER_POLL_INTERVAL') ?: '3');
+if ($interval < 1) {
+    $interval = 1;
+}
+
+$label = getenv('WATCHER_LABEL') ?: 'Vibe4Dock Watcher';
+
+$autoRebuild = watcherParseBool(getenv('WATCHER_AUTO_REBUILD'), true);
+$rebuildCommandRaw = getenv('WATCHER_REBUILD_COMMAND');
+$rebuildCwd = getenv('WATCHER_REBUILD_CWD') ?: $defaultProjectRoot;
+$rebuildDebounce = (int) (getenv('WATCHER_REBUILD_DEBOUNCE') ?: '0');
+if ($rebuildDebounce < 0) {
+    $rebuildDebounce = 0;
+}
+$rebuildTimeout = (int) (getenv('WATCHER_REBUILD_TIMEOUT') ?: '0');
+if ($rebuildTimeout < 0) {
+    $rebuildTimeout = 0;
+}
+
+if ($autoRebuild) {
+    if ($rebuildCommandRaw === false || $rebuildCommandRaw === '' || $rebuildCommandRaw === null) {
+        if (is_file($rebuildCwd . '/docker/rebuild.sh')) {
+            $rebuildCommand = './docker/rebuild.sh';
+        } elseif (is_file($rebuildCwd . '/docker/rebuild.bat')) {
+            $rebuildCommand = (PHP_OS_FAMILY === 'Windows')
+                ? 'docker\\rebuild.bat'
+                : 'bash ./docker/rebuild.sh';
+        } else {
+            $rebuildCommand = 'docker compose down --remove-orphans && docker compose build --no-cache web && docker compose up -d --remove-orphans';
+        }
+    } else {
+        $rebuildCommand = $rebuildCommandRaw;
+    }
+} else {
+    $rebuildCommand = null;
+}
+
+$runOnce = in_array('--once', $argv, true);
+$printStatus = in_array('--status', $argv, true);
+$verbose = $runOnce || in_array('--verbose', $argv, true) || in_array('-v', $argv, true);
+
+function watcherParseBool($value, $default = false)
+{
+    if ($value === false || $value === null || $value === '') {
+        return $default;
+    }
+    return in_array(strtolower(trim((string) $value)), array('1', 'true', 'yes', 'on'), true);
+}
+
+function watcherLog($logFile, $message, $verbose = false)
+{
+    $timestamp = date('Y-m-d H:i:s');
+    $line = "[$timestamp] $message\n";
+    @file_put_contents($logFile, $line, FILE_APPEND);
+    if ($verbose && defined('STDOUT')) {
+        fwrite(STDOUT, $line);
+    }
+}
+
+function watcherLogChunk($logFile, $label, $chunk, $verbose = false)
+{
+    if ($chunk === '' || $chunk === null) {
+        return;
+    }
+    foreach (preg_split("/(\r\n|\n|\r)/", (string) $chunk) as $line) {
+        if ($line === '') {
+            continue;
+        }
+        watcherLog($logFile, "  | " . $line, $verbose);
+    }
+}
+
+function watcherEnsureDir($path)
+{
+    $dir = dirname($path);
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0777, true);
+    }
+}
+
+function watcherReadMtime($file)
+{
+    if (!file_exists($file)) {
+        return 0;
+    }
+    $mtime = @filemtime($file);
+    return $mtime === false ? 0 : (int) $mtime;
+}
+
+function watcherReadState($file)
+{
+    if (!file_exists($file)) {
+        return array('hint_mtime' => 0, 'last_rebuild' => 0);
+    }
+    $raw = @file_get_contents($file);
+    $decoded = $raw === false ? array() : json_decode($raw, true);
+    if (!is_array($decoded)) {
+        $decoded = array();
+    }
+    return array(
+        'hint_mtime' => isset($decoded['hint_mtime']) ? (int) $decoded['hint_mtime'] : 0,
+        'last_rebuild' => isset($decoded['last_rebuild']) ? (int) $decoded['last_rebuild'] : 0,
+    );
+}
+
+function watcherWriteState($file, $state)
+{
+    @file_put_contents($file, json_encode($state));
+}
+
+function watcherRunRebuild($command, $cwd, $logFile, $verbose, $timeout = 0)
+{
+    if ($command === '' || $command === null) {
+        return array('ok' => false, 'output' => 'No rebuild command configured.', 'exit' => -1);
+    }
+
+    watcherLog($logFile, "Running rebuild in $cwd: $command", $verbose);
+
+    $descriptors = array(
+        0 => array('file', 'php://stdin', 'r'),
+        1 => array('pipe', 'w'),
+        2 => array('pipe', 'w'),
+    );
+
+    $process = proc_open(
+        $command,
+        $descriptors,
+        $pipes,
+        $cwd,
+        null,
+        array('suppress_errors' => false, 'bypass_shell' => false)
+    );
+
+    if (!is_resource($process)) {
+        return array('ok' => false, 'output' => 'Failed to start rebuild process.', 'exit' => -1);
+    }
+
+    stream_set_blocking($pipes[1], false);
+    stream_set_blocking($pipes[2], false);
+
+    $output = '';
+    $started = time();
+
+    while (true) {
+        $status = proc_get_status($process);
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        if ($stdout !== false && $stdout !== '') {
+            $output .= $stdout;
+            watcherLogChunk($logFile, 'rebuild', $stdout, $verbose);
+        }
+        if ($stderr !== false && $stderr !== '') {
+            $output .= $stderr;
+            watcherLogChunk($logFile, 'rebuild', $stderr, $verbose);
+        }
+        if (!$status['running']) {
+            $stdout = stream_get_contents($pipes[1]);
+            $stderr = stream_get_contents($pipes[2]);
+            if ($stdout !== false && $stdout !== '') {
+                $output .= $stdout;
+                watcherLogChunk($logFile, 'rebuild', $stdout, $verbose);
+            }
+            if ($stderr !== false && $stderr !== '') {
+                $output .= $stderr;
+                watcherLogChunk($logFile, 'rebuild', $stderr, $verbose);
+            }
+            break;
+        }
+        if ($timeout > 0 && (time() - $started) > $timeout) {
+            proc_terminate($process, 9);
+            watcherLog($logFile, "Rebuild exceeded timeout of {$timeout}s, terminated.", $verbose);
+            $stdout = stream_get_contents($pipes[1]);
+            $stderr = stream_get_contents($pipes[2]);
+            if ($stdout !== false) {
+                $output .= $stdout;
+            }
+            if ($stderr !== false) {
+                $output .= $stderr;
+            }
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            proc_close($process);
+            return array('ok' => false, 'output' => $output, 'exit' => -1);
+        }
+        usleep(200000);
+    }
+
+    $exitCode = $status['exitcode'];
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    proc_close($process);
+
+    return array(
+        'ok' => $exitCode === 0,
+        'output' => $output,
+        'exit' => $exitCode,
+    );
+}
+
+if ($printStatus) {
+    if (!file_exists($pidFile)) {
+        echo "stopped\n";
+        exit(3);
+    }
+    $pid = (int) trim((string) @file_get_contents($pidFile));
+    if ($pid <= 0) {
+        echo "stopped (stale pid file)\n";
+        exit(3);
+    }
+    if (function_exists('posix_kill') && posix_kill($pid, 0)) {
+        echo "running (pid: $pid)\n";
+        exit(0);
+    }
+    if (is_dir('/proc')) {
+        echo is_file('/proc/' . $pid) ? "running (pid: $pid)\n" : "stopped (stale pid file)\n";
+        exit(is_file('/proc/' . $pid) ? 0 : 3);
+    }
+    echo "unknown\n";
+    exit(4);
+}
+
+watcherEnsureDir($logFile);
+watcherEnsureDir($pidFile);
+watcherEnsureDir($stateFile);
+
+if (!$runOnce) {
+    @file_put_contents($pidFile, (string) getmypid());
+}
+
+$shutdown = false;
+if (function_exists('pcntl_async_signals')) {
+    pcntl_async_signals(true);
+    $handler = function () use (&$shutdown) {
+        $shutdown = true;
+    };
+    pcntl_signal(SIGTERM, $handler);
+    pcntl_signal(SIGINT, $handler);
+    pcntl_signal(SIGQUIT, $handler);
+    pcntl_signal(SIGHUP, $handler);
+}
+
+watcherLog($logFile, "$label started (pid: " . getmypid() . ", interval: {$interval}s, auto-rebuild: " . ($autoRebuild ? 'on' : 'off') . ")", $verbose);
+watcherLog($logFile, "Watching hint file: $hintFile", $verbose);
+if ($autoRebuild) {
+    watcherLog($logFile, "Rebuild command: $rebuildCommand (cwd: $rebuildCwd)", $verbose);
+    if ($rebuildDebounce > 0) {
+        watcherLog($logFile, "Rebuild debounce: {$rebuildDebounce}s", $verbose);
+    }
+}
+
+$state = watcherReadState($stateFile);
+$knownMtime = (int) $state['hint_mtime'];
+$previousExisted = $knownMtime > 0;
+
+$rebuildInProgress = false;
+$rebuildRequestedAt = 0;
+
+if ($previousExisted && file_exists($hintFile)) {
+    $currentMtime = watcherReadMtime($hintFile);
+    if ($currentMtime > $knownMtime) {
+        watcherLog($logFile, "Initial state: rebuild hint present and newer than last seen (mtime: $currentMtime, last seen: $knownMtime). Click 'Rebuild now' in the tools UI or run ./docker/rebuild.sh.", $verbose);
+        $knownMtime = $currentMtime;
+        $state['hint_mtime'] = $knownMtime;
+        watcherWriteState($stateFile, $state);
+    } else {
+        watcherLog($logFile, "Initial state: rebuild hint present but already processed (mtime: $currentMtime). Run ./docker/rebuild.sh if you have not done so.", $verbose);
+    }
+} elseif ($previousExisted && !file_exists($hintFile)) {
+    watcherLog($logFile, "Initial state: hint was previously seen and has been cleared (last mtime: $knownMtime).", $verbose);
+    $knownMtime = 0;
+    $state['hint_mtime'] = 0;
+    watcherWriteState($stateFile, $state);
+}
+
+if ($runOnce) {
+    $currentMtime = file_exists($hintFile) ? watcherReadMtime($hintFile) : 0;
+    $currentExists = $currentMtime > 0;
+    if ($currentExists && $currentMtime > $knownMtime) {
+        watcherLog($logFile, "Rebuild requested - hint file detected at $hintFile (mtime: $currentMtime)", $verbose);
+        if ($autoRebuild) {
+            if ($rebuildDebounce > 0) {
+                watcherLog($logFile, "Waiting {$rebuildDebounce}s for additional changes to settle...", $verbose);
+                sleep($rebuildDebounce);
+            }
+            $result = watcherRunRebuild($rebuildCommand, $rebuildCwd, $logFile, $verbose, $rebuildTimeout);
+            $state['hint_mtime'] = watcherReadMtime($hintFile);
+            $state['last_rebuild'] = time();
+            watcherWriteState($stateFile, $state);
+            if ($result['ok']) {
+                watcherLog($logFile, "Rebuild finished (exit: 0).", $verbose);
+            } else {
+                watcherLog($logFile, "Rebuild finished with errors (exit: " . (int) $result['exit'] . ").", $verbose);
+            }
+        } else {
+            watcherLog($logFile, "Action required: run ./docker/rebuild.sh on the host to apply changes.", $verbose);
+            $state['hint_mtime'] = $currentMtime;
+            watcherWriteState($stateFile, $state);
+        }
+    } elseif (!$currentExists && $previousExisted) {
+        watcherLog($logFile, "Rebuild hint cleared - rebuild appears to have completed.", $verbose);
+        $state['hint_mtime'] = 0;
+        watcherWriteState($stateFile, $state);
+    } else {
+        watcherLog($logFile, "No rebuild transition detected.", $verbose);
+    }
+    if (file_exists($pidFile)) {
+        @unlink($pidFile);
+    }
+    exit(0);
+}
+
+while (true) {
+    if ($shutdown) {
+        watcherLog($logFile, "$label stopping (signal received)", $verbose);
+        break;
+    }
+
+    if (file_exists($stopFile)) {
+        @unlink($stopFile);
+        watcherLog($logFile, "$label stopping (stop file detected)", $verbose);
+        break;
+    }
+
+    $currentExists = file_exists($hintFile);
+    $currentMtime = $currentExists ? watcherReadMtime($hintFile) : 0;
+
+    if ($currentExists && $currentMtime > $knownMtime) {
+        watcherLog($logFile, "Rebuild requested - hint file detected at $hintFile (mtime: $currentMtime)", $verbose);
+        $knownMtime = $currentMtime;
+        $state['hint_mtime'] = $knownMtime;
+        watcherWriteState($stateFile, $state);
+
+        if ($autoRebuild) {
+            $rebuildRequestedAt = time();
+            if ($rebuildDebounce > 0) {
+                watcherLog($logFile, "Waiting {$rebuildDebounce}s for additional changes to settle...", $verbose);
+                $waited = 0;
+                while ($waited < $rebuildDebounce) {
+                    if ($shutdown) {
+                        break 2;
+                    }
+                    sleep(1);
+                    $waited++;
+                    if (file_exists($hintFile)) {
+                        $newMtime = watcherReadMtime($hintFile);
+                        if ($newMtime > $knownMtime) {
+                            $knownMtime = $newMtime;
+                            $state['hint_mtime'] = $knownMtime;
+                            watcherWriteState($stateFile, $state);
+                            $rebuildRequestedAt = time();
+                            watcherLog($logFile, "Hint mtime updated to $newMtime during debounce, restarting wait.", $verbose);
+                            $waited = 0;
+                        }
+                    }
+                }
+            }
+
+            $rebuildInProgress = true;
+            $result = watcherRunRebuild($rebuildCommand, $rebuildCwd, $logFile, $verbose, $rebuildTimeout);
+            $rebuildInProgress = false;
+
+            $state['last_rebuild'] = time();
+            $state['hint_mtime'] = watcherReadMtime($hintFile);
+            watcherWriteState($stateFile, $state);
+
+            if ($result['ok']) {
+                watcherLog($logFile, "Rebuild finished (exit: 0).", $verbose);
+                if (file_exists($hintFile)) {
+                    watcherLog($logFile, "Warning: hint file is still present after a successful rebuild.", $verbose);
+                } else {
+                    $knownMtime = 0;
+                    $state['hint_mtime'] = 0;
+                    watcherWriteState($stateFile, $state);
+                }
+            } else {
+                watcherLog($logFile, "Rebuild finished with errors (exit: " . (int) $result['exit'] . ").", $verbose);
+            }
+        } else {
+            watcherLog($logFile, "Action required: run ./docker/rebuild.sh on the host to apply changes.", $verbose);
+        }
+    } elseif (!$currentExists && $knownMtime > 0) {
+        if ($rebuildInProgress) {
+            watcherLog($logFile, "Rebuild hint cleared (rebuild still finalising).", $verbose);
+        } else {
+            watcherLog($logFile, "Rebuild hint cleared - rebuild appears to have completed.", $verbose);
+        }
+        $knownMtime = 0;
+        $state['hint_mtime'] = 0;
+        watcherWriteState($stateFile, $state);
+    }
+
+    for ($i = 0; $i < $interval; $i++) {
+        if ($shutdown) {
+            break 2;
+        }
+        if (file_exists($stopFile)) {
+            @unlink($stopFile);
+            watcherLog($logFile, "$label stopping (stop file detected)", $verbose);
+            break 2;
+        }
+        sleep(1);
+    }
+}
+
+if (file_exists($pidFile)) {
+    @unlink($pidFile);
+}
+watcherLog($logFile, "$label stopped", $verbose);
+exit(0);

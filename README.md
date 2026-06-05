@@ -305,6 +305,112 @@ This will:
 
 In addition, the UI polls rebuild status every 15 seconds. As soon as the hint file disappears, the banner fades out automatically.
 
+When you click **Rebuild now** the Tools UI takes you to a live status page that polls `/api/rebuild-progress` every two seconds. The page shows:
+
+- the moment the hint file was touched,
+- whether the host watcher has picked up the request (`pending` → `running` → `completed`/`failed`),
+- the watcher's last seen mtime and the timestamp of the last rebuild,
+- the most recent 30 lines of `docker/watcher.log` with auto-scroll.
+
+While the rebuild script runs `docker compose down` the tools container itself is briefly unavailable. The page shows a "Rebuilding" state during that gap and resumes polling automatically once the container comes back.
+
+### Rebuild watcher (host daemon)
+
+Vibe4Dock ships a small PHP-based **host daemon** as `./docker/watcher.sh`. It runs on the host, watches `docker/web/settings/rebuild_required.hint`, and - by default - runs `./docker/rebuild.sh` as soon as a new mtime is detected. The **Rebuild now** button in the Tools UI banner touches the same hint file with a fresh mtime, so the daemon picks up the request on its next poll and runs the rebuild for you.
+
+#### Starting and managing the daemon
+
+```bash
+./docker/watcher.sh start    # start as a background daemon
+./docker/watcher.sh status   # is it running?
+./docker/watcher.sh logs     # tail ./docker/watcher.log
+./docker/watcher.sh stop     # stop it
+./docker/watcher.sh restart  # restart it
+./docker/watcher.sh run      # run in the foreground (Ctrl+C to stop)
+./docker/watcher.sh once     # single poll, then exit
+./docker/watcher.sh service  # print a ready-to-use systemd service unit
+```
+
+On Windows the equivalent is `./docker/watcher.bat run|once|status|logs`.
+
+The daemon uses `setsid`, a PID file, and a stop file for clean shutdowns. Its state survives restarts through a small JSON file at `docker/.watcher.state` so that a touch of the hint file (for example from the **Rebuild now** button) is always detected as a fresh request.
+
+#### Run as a real OS service (recommended)
+
+The daemon is opt-in. The recommended way to run it is via your platform's service manager so it survives reboots and crashes. The wrapper itself is project-local, which is why the paths in the examples below use absolute paths.
+
+**systemd** (Linux, recommended)
+
+```bash
+sudo ./docker/watcher.sh service | sudo tee /etc/systemd/system/vibe4dock-watcher.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now vibe4dock-watcher.service
+sudo systemctl status vibe4dock-watcher.service
+```
+
+`./docker/watcher.sh service` prints a ready-to-use unit file with the right `WorkingDirectory` and `ExecStart` for the current project. It looks like this:
+
+```ini
+[Unit]
+Description=Vibe4Dock Rebuild Watcher
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/absolute/path/to/your/vibe4dock-project
+ExecStart=/absolute/path/to/your/vibe4dock-project/docker/watcher.sh run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**launchd** (macOS, as a user LaunchAgent)
+
+Save the following as `~/Library/LaunchAgents/com.vibe4dock.watcher.plist` and adjust the two absolute paths:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key><string>com.vibe4dock.watcher</string>
+    <key>WorkingDirectory</key><string>/absolute/path/to/your/vibe4dock-project</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>/absolute/path/to/your/vibe4dock-project/docker/watcher.sh</string>
+      <string>run</string>
+    </array>
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+  </dict>
+</plist>
+```
+
+```bash
+launchctl load -w ~/Library/LaunchAgents/com.vibe4dock.watcher.plist
+launchctl list | grep vibe4dock
+```
+
+**Windows Task Scheduler**
+
+Create a basic task that runs `docker\watcher.bat run` at user logon. Because the wrapper is a foreground loop, set "Stop the task if it runs longer than" to "Do not stop" or a long duration.
+
+#### Tuning the daemon
+
+All knobs are environment variables; `.env.local` is the right place for them. The shell wrappers pass them through to the PHP process automatically.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `WATCHER_POLL_INTERVAL` | `3` | Seconds between polls. |
+| `WATCHER_AUTO_REBUILD` | `1` | `1` runs `./docker/rebuild.sh` on detection, `0` only logs. |
+| `WATCHER_REBUILD_DEBOUNCE` | `0` | Wait this many seconds after the last change before rebuilding (useful when multiple tool installs happen in quick succession). |
+| `WATCHER_REBUILD_TIMEOUT` | `0` | Hard timeout in seconds for the rebuild command (`0` = no timeout). |
+| `WATCHER_REBUILD_COMMAND` | `./docker/rebuild.sh` | Command to execute (relative to `WATCHER_REBUILD_CWD`). |
+| `WATCHER_REBUILD_CWD` | project root | Working directory for the rebuild command. |
+
 ## Configuration system
 
 A central part of the project is the mergeable JSON configuration system.

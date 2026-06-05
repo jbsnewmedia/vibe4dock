@@ -62,3 +62,32 @@ Notes:
 
 - the Tools UI login title is `Vibe4Dock Login`
 - the browser login dialog for the shells is provided by `ttyd` and uses its own default title
+
+## Rebuild watcher (host daemon)
+
+This project ships an opt-in rebuild watcher as a host daemon. The Tools UI's **Manual Rebuild Required** banner exposes a **Rebuild now** button that asks the watcher to run `./docker/rebuild.sh` for you. By default the watcher also runs the rebuild automatically whenever a tool install marks the hint file.
+
+```bash
+./docker/watcher.sh start    # host daemon (Linux / macOS)
+./docker/watcher.sh status
+./docker/watcher.sh logs
+./docker/watcher.sh stop
+```
+
+On Windows:
+
+```bat
+.\docker\watcher.bat run
+.\docker\watcher.bat status
+```
+
+To run it as a real OS service (recommended):
+
+```bash
+sudo ./docker/watcher.sh service | sudo tee /etc/systemd/system/vibe4dock-watcher.service
+sudo systemctl enable --now vibe4dock-watcher.service
+```
+
+On macOS save the matching `~/Library/LaunchAgents/com.vibe4dock.watcher.plist` (see the main README for the template) and `launchctl load -w` it.
+
+Set `WATCHER_AUTO_REBUILD=0` in `.env.local` to keep the watcher in pure-logging mode. The button in the UI still works, but the watcher will only log the request - you have to run `./docker/rebuild.sh` manually.

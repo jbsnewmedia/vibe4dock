@@ -1,0 +1,118 @@
+@echo off
+REM Vibe4Dock Rebuild Watcher (Windows host daemon)
+REM Polls the rebuild hint file and (optionally) runs the rebuild.
+REM
+REM Usage:
+REM   watcher.bat run     Run the watcher in the foreground (Ctrl+C to stop)
+REM   watcher.bat once    Run a single poll and exit
+REM   watcher.bat status  Print the current watcher hint state
+REM   watcher.bat logs    Print the last 100 log lines
+REM
+REM Environment overrides (set before calling):
+REM   VIBE4DOCK_WATCHER_HINT   Hint file path (default: %~dp0web\settings\rebuild_required.hint)
+REM   VIBE4DOCK_WATCHER_LOG    Log file path  (default: %~dp0watcher.log)
+REM   VIBE4DOCK_WATCHER_STATE  State file path (default: %~dp0.watcher.state)
+REM   WATCHER_POLL_INTERVAL    Poll interval in seconds (default: 3)
+REM   WATCHER_AUTO_REBUILD     1/0 - run the rebuild script (default: 1)
+REM   WATCHER_REBUILD_COMMAND  Command to run (default: docker compose ...)
+REM   WATCHER_REBUILD_CWD      Working directory (default: project root)
+REM   WATCHER_REBUILD_DEBOUNCE Wait this many seconds before rebuilding (default: 0)
+REM   WATCHER_REBUILD_TIMEOUT  Kill the rebuild after N seconds (default: 0 = no timeout)
+
+setlocal EnableExtensions EnableDelayedExpansion
+
+set "SCRIPT_DIR=%~dp0"
+set "PROJECT_DIR=%SCRIPT_DIR%.."
+pushd "%PROJECT_DIR%" >nul
+
+if "%VIBE4DOCK_WATCHER_HINT%"=="" set "VIBE4DOCK_WATCHER_HINT=%PROJECT_DIR%\docker\web\settings\rebuild_required.hint"
+if "%VIBE4DOCK_WATCHER_LOG%"=="" set "VIBE4DOCK_WATCHER_LOG=%SCRIPT_DIR%watcher.log"
+if "%VIBE4DOCK_WATCHER_STATE%"=="" set "VIBE4DOCK_WATCHER_STATE=%SCRIPT_DIR%.watcher.state"
+if "%WATCHER_POLL_INTERVAL%"=="" set "WATCHER_POLL_INTERVAL=3"
+if "%WATCHER_AUTO_REBUILD%"=="" set "WATCHER_AUTO_REBUILD=1"
+
+where php >nul 2>nul
+if errorlevel 1 (
+    echo Error: PHP CLI not found in PATH. Install PHP 8+ or add it to PATH. 1>&2
+    popd
+    exit /b 1
+)
+
+if "%~1"=="" goto :usage
+if /i "%~1"=="run" goto :run
+if /i "%~1"=="once" goto :once
+if /i "%~1"=="status" goto :status
+if /i "%~1"=="logs" goto :logs
+if /i "%~1"=="help" goto :usage
+if /i "%~1"=="-h" goto :usage
+if /i "%~1"=="--help" goto :usage
+
+echo Unknown command: %~1 1>&2
+goto :usage
+
+:run
+echo Running Vibe4Dock Watcher in the foreground (interval: %WATCHER_POLL_INTERVAL%s). Press Ctrl+C to stop.
+:runloop
+if exist "%VIBE4DOCK_WATCHER_LOG%.stop" del "%VIBE4DOCK_WATCHER_LOG%.stop" >nul 2>nul & goto :stopped
+php "%SCRIPT_DIR%tools\watcher.php" --once
+if errorlevel 1 (
+    timeout /t %WATCHER_POLL_INTERVAL% /nobreak >nul
+) else (
+    timeout /t %WATCHER_POLL_INTERVAL% /nobreak >nul
+)
+goto :runloop
+
+:once
+php "%SCRIPT_DIR%tools\watcher.php" --once
+set "RC=%errorlevel%"
+popd
+exit /b %RC%
+
+:status
+if exist "%VIBE4DOCK_WATCHER_HINT%" (
+    echo Rebuild hint: PRESENT at %VIBE4DOCK_WATCHER_HINT%
+    echo Action required: run .\docker\rebuild.bat on the host.
+    popd
+    exit /b 0
+) else (
+    echo Rebuild hint: not present at %VIBE4DOCK_WATCHER_HINT%
+    popd
+    exit /b 1
+)
+
+:logs
+if not exist "%VIBE4DOCK_WATCHER_LOG%" (
+    echo No log file yet: %VIBE4DOCK_WATCHER_LOG%
+    popd
+    exit /b 0
+)
+powershell -NoProfile -Command "Get-Content -Path '%VIBE4DOCK_WATCHER_LOG%' -Tail 100 -Wait"
+popd
+exit /b 0
+
+:stopped
+echo Watcher stopped.
+popd
+exit /b 0
+
+:usage
+echo Vibe4Dock Rebuild Watcher (Windows)
+echo.
+echo Usage:
+echo   %~nx0 run     Run the watcher in the foreground
+echo   %~nx0 once    Run a single poll and exit
+echo   %~nx0 status  Print the current watcher hint state
+echo   %~nx0 logs    Print the last 100 log lines
+echo.
+echo Environment overrides:
+echo   VIBE4DOCK_WATCHER_HINT   Hint file path
+echo   VIBE4DOCK_WATCHER_LOG    Log file path
+echo   VIBE4DOCK_WATCHER_STATE  State file path
+echo   WATCHER_POLL_INTERVAL    Poll interval in seconds
+echo   WATCHER_AUTO_REBUILD     1/0 - run the rebuild script
+echo   WATCHER_REBUILD_COMMAND  Command to run
+echo   WATCHER_REBUILD_CWD      Working directory
+echo   WATCHER_REBUILD_DEBOUNCE Wait this many seconds before rebuilding
+echo   WATCHER_REBUILD_TIMEOUT  Kill the rebuild after N seconds
+popd
+exit /b 0
