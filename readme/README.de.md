@@ -231,7 +231,7 @@ docker/tools/addons/
 
 Aktuell mitgelieferte Tool-Packs:
 
-- **AI CLI**: GitHub Copilot CLI, Codex CLI, Claude Code, Cline CLI, Hermes CLI, Junie CLI
+- **AI CLI**: GitHub Copilot CLI, Codex CLI, Claude Code, Cline CLI, Hermes CLI, Junie CLI, OpenCode CLI
 - **Git**: Git Config, Lazygit
 - **System & Runtime**: Node.js, pnpm, Yarn
 - **PHP Frameworks**: Laravel CLI, Symfony CLI, WordPress CLI

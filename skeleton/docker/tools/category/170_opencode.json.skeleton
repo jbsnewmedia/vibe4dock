@@ -1,0 +1,27 @@
+{
+    "categories": [
+        {
+            "unique_key": "ai-cli",
+            "id": "ai-cli",
+            "label": "AI CLI",
+            "order": 100
+        }
+    ],
+    "tools": [
+        {
+            "id": "opencode",
+            "category": "ai-cli",
+            "label": "OpenCode CLI",
+            "mounts": [
+                "./docker/web/settings/opencode:/home/application/.config/opencode"
+            ],
+            "description": "Open source AI coding agent for the terminal, desktop, and IDE.",
+            "usage": "",
+            "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
+            "dependencies": [],
+            "check": "opencode --version 2>/dev/null | grep .",
+            "install": "sudo -u application env HOME=/home/application bash -lc 'curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path' && ln -sf /home/application/.opencode/bin/opencode /usr/local/bin/opencode",
+            "uninstall": "rm -f /usr/local/bin/opencode && sudo -u application env HOME=/home/application bash -lc 'rm -rf ~/.opencode' || true"
+        }
+    ]
+}
