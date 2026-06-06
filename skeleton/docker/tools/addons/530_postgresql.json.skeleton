@@ -73,7 +73,7 @@
                     "id": "postgresql-16",
                     "label": "16",
                     "check": "echo 16",
-                    "install": "true",
+                    "install": "if ! php -m | grep -qi pdo_pgsql; then apt-get update && apt-get install -y --no-install-recommends libpq-dev && docker-php-ext-install pdo_pgsql pgsql && rm -rf /var/lib/apt/lists/*; fi",
                     "uninstall": "true",
                     "compose_service": {
                         "service": "postgresql",
@@ -97,7 +97,7 @@
                     "id": "postgresql-15",
                     "label": "15",
                     "check": "echo 15",
-                    "install": "true",
+                    "install": "if ! php -m | grep -qi pdo_pgsql; then apt-get update && apt-get install -y --no-install-recommends libpq-dev && docker-php-ext-install pdo_pgsql pgsql && rm -rf /var/lib/apt/lists/*; fi",
                     "uninstall": "true",
                     "compose_service": {
                         "service": "postgresql",
@@ -121,7 +121,7 @@
                     "id": "postgresql-14",
                     "label": "14",
                     "check": "echo 14",
-                    "install": "true",
+                    "install": "if ! php -m | grep -qi pdo_pgsql; then apt-get update && apt-get install -y --no-install-recommends libpq-dev && docker-php-ext-install pdo_pgsql pgsql && rm -rf /var/lib/apt/lists/*; fi",
                     "uninstall": "true",
                     "compose_service": {
                         "service": "postgresql",

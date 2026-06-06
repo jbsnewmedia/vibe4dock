@@ -85,7 +85,7 @@
                     "id": "mysql-9",
                     "label": "9",
                     "check": "echo 9",
-                    "install": "true",
+                    "install": "if ! php -m | grep -qi pdo_mysql; then docker-php-ext-install pdo_mysql mysqli; fi",
                     "uninstall": "true",
                     "compose_service": {
                         "service": "mysql",
@@ -110,7 +110,7 @@
                     "id": "mysql-8",
                     "label": "8",
                     "check": "echo 8",
-                    "install": "true",
+                    "install": "if ! php -m | grep -qi pdo_mysql; then docker-php-ext-install pdo_mysql mysqli; fi",
                     "uninstall": "true",
                     "compose_service": {
                         "service": "mysql",
@@ -135,7 +135,7 @@
                     "id": "mysql-5",
                     "label": "5",
                     "check": "echo 5",
-                    "install": "true",
+                    "install": "if ! php -m | grep -qi pdo_mysql; then docker-php-ext-install pdo_mysql mysqli; fi",
                     "uninstall": "true",
                     "compose_service": {
                         "service": "mysql",

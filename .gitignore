@@ -1,4 +1,7 @@
 /.idea/
+/vendor/
+/.phpunit.cache/
+/.phpstan.cache/
 /.env.local
 /docker/web/provision.sh
 /docker/web/settings/
