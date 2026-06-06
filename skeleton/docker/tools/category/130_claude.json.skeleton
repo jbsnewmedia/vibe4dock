@@ -18,12 +18,10 @@
             "description": "Claude Code is a command-line interface that brings Claude's coding expertise directly to your terminal.",
             "usage": "",
             "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
-            "dependencies": [
-                "node"
-            ],
+            "dependencies": [],
             "check": "claude --version 2>/dev/null | cut -d' ' -f1 | grep .",
-            "install": "npm install -g @anthropic-ai/claude-code --prefix=/usr",
-            "uninstall": "npm uninstall -g @anthropic-ai/claude-code --prefix=/usr || true"
+            "install": "sudo -u application -H env HOME=/home/application bash -lc 'curl -fsSL https://claude.ai/install.sh | bash' && ln -sf /home/application/.local/bin/claude /usr/local/bin/claude",
+            "uninstall": "rm -f /usr/local/bin/claude && sudo -u application -H env HOME=/home/application bash -lc 'rm -f ~/.local/bin/claude && rm -rf ~/.local/share/claude' || true"
         }
     ]
 }

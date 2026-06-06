@@ -18,12 +18,10 @@
             "description": "OpenAI's local coding agent for the terminal.",
             "usage": "",
             "version_regex": "/v?([0-9]+(?:\\.[0-9]+)*)/",
-            "dependencies": [
-                "node"
-            ],
+            "dependencies": [],
             "check": "codex --version 2>/dev/null | grep .",
-            "install": "npm install -g @openai/codex@latest --prefix=/usr",
-            "uninstall": "npm uninstall -g @openai/codex --prefix=/usr || true"
+            "install": "CODEX_INSTALL_DIR=/usr/local/bin CODEX_HOME=/home/application/.codex CODEX_NON_INTERACTIVE=1 bash -c 'curl -fsSL https://chatgpt.com/codex/install.sh | sh' && chown -R application:application /home/application/.codex",
+            "uninstall": "rm -f /usr/local/bin/codex && sudo -u application env HOME=/home/application bash -c 'rm -rf ~/.codex' || true"
         }
     ]
 }
