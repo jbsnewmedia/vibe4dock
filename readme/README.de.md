@@ -244,6 +244,7 @@ Aktuell mitgelieferte Addon-Packs:
 - **Browser IDEs**: code-server
 - **DevOps Platforms**: OneDev Community Edition
 - **Mail & Messaging**: Mailpit
+- **AI Assistants**: opencode
 
 Eigene Packs oder Überschreibungen können weiterhin zusätzlich ergänzt werden.
 
@@ -544,6 +545,7 @@ Beispiele für mitgelieferte Browser-Endpunkte:
 - **code-server**: separater Addon-Service mit eigenem Port und passwortgeschützter Browser-IDE
 - **OneDev**: separater Addon-Service mit Web-UI auf Port `6610`, Git-SSH auf Port `6611` und Auto-Bootstrap für das aktuelle Workspace-Projekt
 - **Mailpit**: separater Addon-Service mit Web-UI auf Port `8025` zum Anzeigen abgefangener E-Mails und SMTP-Server auf Port `1025` für lokales Mail-Testing
+- **opencode**: separater Addon-Service, der den opencode AI-Coding-Agenten mit Browser-Web-UI auf Port `4096` und dem Projekt als Workspace bereitstellt
 
 ## Einstellungen
 

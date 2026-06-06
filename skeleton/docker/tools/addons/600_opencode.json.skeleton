@@ -1,0 +1,199 @@
+{
+    "categories": [
+        {
+            "unique_key": "ai-assistants",
+            "id": "ai-assistants",
+            "label": "AI Assistants",
+            "order": 600,
+            "menu_group": "addons"
+        }
+    ],
+    "tools": [
+        {
+            "id": "opencode",
+            "category": "ai-assistants",
+            "label": "opencode",
+            "description": "Run the opencode AI coding agent in the browser with the project mounted as workspace.",
+            "usage": "",
+            "check": "false",
+            "install": "true",
+            "uninstall": "true",
+            "config_schema": {
+                "fields": [
+                    {
+                        "key": "port",
+                        "label": "Web UI port",
+                        "default": "4096",
+                        "help_text": "Host port for the opencode web interface.",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "ports.0",
+                                "format": "%s:4096",
+                                "target_services": [
+                                    "opencode"
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "key": "username",
+                        "label": "Username",
+                        "default": "",
+                        "required": false,
+                        "help_text": "Optional HTTP Basic Auth username for the opencode web UI. Protection is only enabled when username and password are both set."
+                    },
+                    {
+                        "key": "password",
+                        "label": "Password",
+                        "type": "password",
+                        "default": "",
+                        "required": false,
+                        "help_text": "Optional HTTP Basic Auth password for the opencode web UI. Protection is only enabled when username and password are both set."
+                    },
+                    {
+                        "key": "api_key",
+                        "label": "Provider API key",
+                        "type": "password",
+                        "default": "",
+                        "required": false,
+                        "help_text": "API key for your AI provider. Passed to the opencode container as OPENCODE_API_KEY. Leave empty to configure credentials inside the opencode UI instead.",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.OPENCODE_API_KEY",
+                                "target_services": [
+                                    "opencode"
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "key": "provider",
+                        "label": "Provider",
+                        "default": "anthropic",
+                        "help_text": "Default AI provider identifier passed to opencode as OPENCODE_PROVIDER (e.g. anthropic, openai, google, ollama).",
+                        "sources": [
+                            {
+                                "type": "docker_yaml",
+                                "path": "environment.OPENCODE_PROVIDER",
+                                "target_services": [
+                                    "opencode"
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            "package_operations": {
+                "templates": [
+                    {
+                        "target": "docker/opencode/Dockerfile",
+                        "content_lines": [
+                            "FROM debian:bookworm-slim",
+                            "",
+                            "RUN apt-get update \\",
+                            "    && apt-get install -y --no-install-recommends \\",
+                            "        ca-certificates \\",
+                            "        curl \\",
+                            "        git \\",
+                            "    && rm -rf /var/lib/apt/lists/*",
+                            "",
+                            "RUN curl -fsSL https://opencode.ai/install | bash",
+                            "",
+                            "ENV PATH=\"/root/.opencode/bin:${PATH}\"",
+                            "",
+                            "WORKDIR /app",
+                            "",
+                            "EXPOSE 4096",
+                            "",
+                            "COPY start.sh /start.sh",
+                            "RUN chmod +x /start.sh",
+                            "",
+                            "ENTRYPOINT [\"/start.sh\"]"
+                        ]
+                    },
+                    {
+                        "target": "docker/opencode/start.sh",
+                        "mode": "0755",
+                        "content_lines": [
+                            "#!/bin/sh",
+                            "set -e",
+                            "",
+                            "PORT_VALUE=\"${PORT:-4096}\"",
+                            "HOST_VALUE=\"${HOST:-0.0.0.0}\"",
+                            "",
+                            "if [ -n \"${OPENCODE_API_KEY}\" ]; then",
+                            "    export ANTHROPIC_API_KEY=\"${OPENCODE_API_KEY}\"",
+                            "    export OPENAI_API_KEY=\"${OPENCODE_API_KEY}\"",
+                            "fi",
+                            "",
+                            "exec opencode web --hostname \"${HOST_VALUE}\" --port \"${PORT_VALUE}\""
+                        ]
+                    },
+                    {
+                        "target": "docker/opencode/README.md",
+                        "content_lines": [
+                            "# opencode",
+                            "",
+                            "This directory is managed by Vibe4Dock and contains configuration for the opencode addon.",
+                            "",
+                            "opencode is an AI coding agent that runs in the browser and operates on the project",
+                            "mounted at `/app` inside the container.",
+                            "",
+                            "## Ports",
+                            "",
+                            "- **Web UI**: configured port (default 4096)",
+                            "",
+                            "## Usage",
+                            "",
+                            "Open the Vibe4Dock dashboard and click the opencode button to launch the agent in your browser.",
+                            "If HTTP Basic Auth is configured, your browser will prompt for the configured credentials first.",
+                            "",
+                            "## Credentials",
+                            "",
+                            "Set the provider API key in the addon configuration. It is forwarded to the opencode container as",
+                            "`OPENCODE_API_KEY` and also exported as `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` for convenience.",
+                            "",
+                            "## Data",
+                            "",
+                            "opencode stores its configuration and session state in `/root/.opencode` inside the container.",
+                            "The data is recreated on rebuild because the directory is not persisted to the host by default."
+                        ]
+                    }
+                ],
+                "cleanup_directories": [
+                    "docker/opencode"
+                ]
+            },
+            "compose_service": {
+                "service": "opencode",
+                "definition": {
+                    "build": "./docker/opencode",
+                    "ports": [
+                        "4096:4096"
+                    ],
+                    "working_dir": "/app",
+                    "environment": {
+                        "OPENCODE_PROVIDER": "anthropic",
+                        "PORT": "4096",
+                        "HOST": "0.0.0.0"
+                    },
+                    "volumes": [
+                        "./:/app"
+                    ]
+                }
+            },
+            "dashboard_shell": {
+                "label": "opencode",
+                "port_field": "port",
+                "username_field": "username",
+                "password_field": "password",
+                "button_label": "Open opencode",
+                "help_title": "Configure opencode",
+                "help_text": "Open the Addons section, configure the opencode port, optional credentials, and the provider API key, then rebuild the stack to apply changes. The dashboard button launches the opencode web UI in your browser.",
+                "help_command": "./docker/rebuild.sh"
+            }
+        }
+    ]
+}

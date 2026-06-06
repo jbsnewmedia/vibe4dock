@@ -286,6 +286,7 @@ Current bundled addon packs:
 - **Browser IDEs**: code-server
 - **DevOps Platforms**: OneDev Community Edition
 - **Mail & Messaging**: Mailpit
+- **AI Assistants**: opencode
 
 You can still add your own packs or overrides on top of these files.
 
@@ -593,6 +594,7 @@ Examples of bundled browser endpoints:
 - **code-server**: separate addon service with its own port and password-protected browser IDE
 - **OneDev**: separate addon service with a web UI on port `6610`, Git SSH on port `6611`, and an auto-bootstrap job for the current workspace
 - **Mailpit**: separate addon service with a web UI on port `8025` for viewing caught emails and an SMTP server on port `1025` for local mail testing
+- **opencode**: separate addon service that runs the opencode AI coding agent with a browser-based web UI on port `4096` and the project mounted as workspace
 
 ## Settings
 
