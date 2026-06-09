@@ -11,7 +11,7 @@ use Vibe4Dock\Exception\Vibe4DockException;
  */
 final class Cli
 {
-    public const VERSION = '1.0.4';
+    public const VERSION = '1.0.3';
 
     private const COLOR_GREEN = "\033[38;2;136;238;255m";
 
