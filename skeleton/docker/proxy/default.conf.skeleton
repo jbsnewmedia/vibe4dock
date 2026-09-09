@@ -41,17 +41,57 @@
 {{!PATHS_ONLY}}
 {{!PATHS_ONLY}}    # Root shell (ttyd, requires --base-path)
 {{!PATHS_ONLY}}    location = {{VIBE4DOCK_BASE_PATH_ROOT_SHELL}} {
+{{!PATHS_ONLY}}        proxy_set_header Host $host;
+{{!PATHS_ONLY}}        proxy_set_header X-Real-IP $remote_addr;
+{{!PATHS_ONLY}}        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+{{!PATHS_ONLY}}        proxy_set_header X-Forwarded-Proto $scheme;
+{{!PATHS_ONLY}}        proxy_set_header Upgrade $http_upgrade;
+{{!PATHS_ONLY}}        proxy_set_header Connection $vibe4dock_connection_upgrade;
+{{!PATHS_ONLY}}        proxy_set_header Accept-Encoding "";
+{{!PATHS_ONLY}}        sub_filter_types text/html;
+{{!PATHS_ONLY}}        sub_filter_once on;
+{{!PATHS_ONLY}}        sub_filter '</head>' '<style>*{scrollbar-width:thin;scrollbar-color:#2b3340 transparent}::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2b3340;border-radius:5px}::-webkit-scrollbar-thumb:hover{background:#3d4757}</style></head>';
 {{!PATHS_ONLY}}        proxy_pass http://web:{{VIBE4DOCK_ROOT_SHELL_CONTAINER_PORT}};
 {{!PATHS_ONLY}}    }
 {{!PATHS_ONLY}}    location {{VIBE4DOCK_BASE_PATH_ROOT_SHELL}}/ {
+{{!PATHS_ONLY}}        proxy_set_header Host $host;
+{{!PATHS_ONLY}}        proxy_set_header X-Real-IP $remote_addr;
+{{!PATHS_ONLY}}        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+{{!PATHS_ONLY}}        proxy_set_header X-Forwarded-Proto $scheme;
+{{!PATHS_ONLY}}        proxy_set_header Upgrade $http_upgrade;
+{{!PATHS_ONLY}}        proxy_set_header Connection $vibe4dock_connection_upgrade;
+{{!PATHS_ONLY}}        proxy_set_header Accept-Encoding "";
+{{!PATHS_ONLY}}        sub_filter_types text/html;
+{{!PATHS_ONLY}}        sub_filter_once on;
+{{!PATHS_ONLY}}        sub_filter '</head>' '<style>*{scrollbar-width:thin;scrollbar-color:#2b3340 transparent}::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2b3340;border-radius:5px}::-webkit-scrollbar-thumb:hover{background:#3d4757}</style></head>';
 {{!PATHS_ONLY}}        proxy_pass http://web:{{VIBE4DOCK_ROOT_SHELL_CONTAINER_PORT}};
 {{!PATHS_ONLY}}    }
 {{!PATHS_ONLY}}
 {{!PATHS_ONLY}}    # Application shell (ttyd, requires --base-path)
 {{!PATHS_ONLY}}    location = {{VIBE4DOCK_BASE_PATH_APP_SHELL}} {
+{{!PATHS_ONLY}}        proxy_set_header Host $host;
+{{!PATHS_ONLY}}        proxy_set_header X-Real-IP $remote_addr;
+{{!PATHS_ONLY}}        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+{{!PATHS_ONLY}}        proxy_set_header X-Forwarded-Proto $scheme;
+{{!PATHS_ONLY}}        proxy_set_header Upgrade $http_upgrade;
+{{!PATHS_ONLY}}        proxy_set_header Connection $vibe4dock_connection_upgrade;
+{{!PATHS_ONLY}}        proxy_set_header Accept-Encoding "";
+{{!PATHS_ONLY}}        sub_filter_types text/html;
+{{!PATHS_ONLY}}        sub_filter_once on;
+{{!PATHS_ONLY}}        sub_filter '</head>' '<style>*{scrollbar-width:thin;scrollbar-color:#2b3340 transparent}::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2b3340;border-radius:5px}::-webkit-scrollbar-thumb:hover{background:#3d4757}</style></head>';
 {{!PATHS_ONLY}}        proxy_pass http://web:{{VIBE4DOCK_APP_SHELL_CONTAINER_PORT}};
 {{!PATHS_ONLY}}    }
 {{!PATHS_ONLY}}    location {{VIBE4DOCK_BASE_PATH_APP_SHELL}}/ {
+{{!PATHS_ONLY}}        proxy_set_header Host $host;
+{{!PATHS_ONLY}}        proxy_set_header X-Real-IP $remote_addr;
+{{!PATHS_ONLY}}        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+{{!PATHS_ONLY}}        proxy_set_header X-Forwarded-Proto $scheme;
+{{!PATHS_ONLY}}        proxy_set_header Upgrade $http_upgrade;
+{{!PATHS_ONLY}}        proxy_set_header Connection $vibe4dock_connection_upgrade;
+{{!PATHS_ONLY}}        proxy_set_header Accept-Encoding "";
+{{!PATHS_ONLY}}        sub_filter_types text/html;
+{{!PATHS_ONLY}}        sub_filter_once on;
+{{!PATHS_ONLY}}        sub_filter '</head>' '<style>*{scrollbar-width:thin;scrollbar-color:#2b3340 transparent}::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2b3340;border-radius:5px}::-webkit-scrollbar-thumb:hover{background:#3d4757}</style></head>';
 {{!PATHS_ONLY}}        proxy_pass http://web:{{VIBE4DOCK_APP_SHELL_CONTAINER_PORT}};
 {{!PATHS_ONLY}}    }
 {{!PATHS_ONLY}}

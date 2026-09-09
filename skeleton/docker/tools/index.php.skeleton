@@ -2947,6 +2947,12 @@ function renderLayout($title, $content, $currentCategoryId = null)
           @keyframes spin {
             to { transform: rotate(360deg); }
           }
+          * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+          ::-webkit-scrollbar { width: 10px; height: 10px; }
+          ::-webkit-scrollbar-track { background: transparent; }
+          ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+          ::-webkit-scrollbar-thumb:hover { background: #3d4757; }
+          ::-webkit-scrollbar-corner { background: transparent; }
         </style>
       </head>
       <body>
