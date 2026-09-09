@@ -104,17 +104,63 @@ Without options, the setup runs interactively and asks for the project name, PHP
   --output-dir=./build/my-vibe4dock
 ```
 
+Path-based routing (single host port, all endpoints under `/vibe-*` paths):
+
+```bash
+./vibe4dock \
+  --project-name=my-vibe4dock \
+  --php-version=8.4 \
+  --routing=paths \
+  --web-port=8080 \
+  --output-dir=./build/my-vibe4dock
+```
+
 ### Supported options
 
 | Option | Meaning |
 | --- | --- |
 | `--project-name` | Name of the generated project |
 | `--php-version` | PHP base version for the web image |
-| `--web-port` | Host port for the web application |
-| `--tools-port` | Host port for the tools UI |
-| `--root-shell-port` | Host port for the root shell |
-| `--app-shell-port` | Host port for the application shell |
+| `--routing` | `ports` (default) or `paths`; see [Routing modes](#routing-modes) |
+| `--base-path-prefix` | Path prefix for `--routing=paths` (default: `vibe`) |
+| `--web-port` | Host port for the web application (proxy port in `paths` mode) |
+| `--tools-port` | Host port for the tools UI (`ports` mode only) |
+| `--root-shell-port` | Host port for the root shell (`ports` mode only) |
+| `--app-shell-port` | Host port for the application shell (`ports` mode only) |
 | `--output-dir` | Target directory for the generated project |
+
+### Routing modes
+
+Vibe4Dock supports two mutually exclusive routing modes, selected when the
+project is generated and stored in `vibe4dock.project.json`:
+
+- **`ports`** (default): every endpoint is published on its own host port -
+  web app, Tools UI, both browser shells, plus one port per browser-capable
+  addon. This is the classic behavior of previous releases.
+- **`paths`**: a single HTTP host port serves everything through a built-in
+  `nginx:alpine` proxy service. Only the web project, Tools UI, browser shells,
+  and path-capable addons live under reserved paths; non-HTTP ports (SMTP,
+  database, Git SSH) and addons without path support keep their own host ports.
+
+| Endpoint | `ports` mode | `paths` mode |
+| --- | --- | --- |
+| Web project | `:{{web-port}}` | `/` |
+| Tools UI | `:{{tools-port}}` | `/vibe-dashboard` |
+| Root shell | `:{{root-shell-port}}` | `/vibe-shell-root` |
+| Application shell | `:{{app-shell-port}}` | `/vibe-shell-app` |
+| code-server | own port | `/vibe-code-server` |
+| Adminer | own port | `/vibe-adminer` |
+| Mailpit (web UI) | own port | `/vibe-mailpit` (SMTP stays on its own port) |
+| OneDev | own port | own port (no path support) |
+
+In `paths` mode the `vibe-` namespace (configurable via
+`--base-path-prefix`) is reserved: the web project should not use URLs
+starting with `/<prefix>-`. Addons declare their path support via the
+`dashboard_shell.routing` JSON field (`path`, `service`, `container_port`,
+optional `environment` for path-aware services such as Mailpit's `MP_WEBROOT`).
+The Tools UI regenerates the proxy location blocks
+(`docker/proxy/default.conf`) between the managed markers whenever addons are
+installed, removed, or reconfigured.
 
 ### Setup CLI internals
 
@@ -164,6 +210,12 @@ Vibe4Dock starts two Docker services by default:
 | --- | --- | --- |
 | `web` | Main development environment with Apache/PHP, ttyd, shells, and installed tools | `80`, `7681`, `7682` |
 | `tools` | Management UI for dashboard, categories, settings, and install/uninstall workflows | `8090` |
+
+In `paths` routing mode (see [Routing modes](#routing-modes)) a third service is added:
+
+| Service | Purpose | Port(s) |
+| --- | --- | --- |
+| `proxy` | nginx:alpine reverse proxy that serves every HTTP endpoint under a single host port | single configured HTTP port |
 
 ### `web` service
 
@@ -661,12 +713,12 @@ Technical state files are also stored there:
 
 Vibe4Dock provides two built-in browser shells plus addon-provided dashboard endpoints such as extra shells or browser IDEs:
 
-| Shell | Purpose | Port |
-| --- | --- | --- |
-| Root Shell | Administrative tasks inside the container | `7681` |
-| Application Shell | Normal development work as `application` | `7682` |
+| Shell | Purpose | `ports` mode | `paths` mode |
+| --- | --- | --- | --- |
+| Root Shell | Administrative tasks inside the container | dedicated port | `/vibe-shell-root` |
+| Application Shell | Normal development work as `application` | dedicated port | `/vibe-shell-app` |
 
-The application shell starts through `tmux` so sessions can persist. Additional browser shells can be registered declaratively by addons, and separate addon services such as `code-server` or `OneDev` can expose their own browser endpoints while still appearing on the same dashboard.
+The application shell starts through `tmux` so sessions can persist. Additional browser shells can be registered declaratively by addons, and separate addon services such as `code-server` or `OneDev` can expose their own browser endpoints while still appearing on the same dashboard. In `paths` mode the dashboard links point to the proxy paths (`/vibe-*`) instead of host ports.
 
 The bundled OneDev addon now also bootstraps the configured initial administrator and creates a project for the current workspace automatically on first start. If the workspace already contains a Git repository with commits, the bootstrap job pushes branches and tags into the freshly created OneDev project.
 
@@ -690,6 +742,11 @@ After that, the most important endpoints are:
 - tools UI: `http://localhost:8090` (protected if both `TOOLS_USERNAME` and `TOOLS_PASSWORD` are set in `.env.local`)
 - root shell: `http://localhost:7681` (protected if both `ROOT_SHELL_USERNAME` and `ROOT_SHELL_PASSWORD` are set in `.env.local`)
 - application shell: `http://localhost:7682` (protected if both `APP_SHELL_USERNAME` and `APP_SHELL_PASSWORD` are set in `.env.local`)
+
+In `paths` routing mode all of the above live under a single port instead:
+`http://localhost:8080/` for the application, `/vibe-dashboard` for the tools
+UI, `/vibe-shell-root` and `/vibe-shell-app` for the shells (see
+[Routing modes](#routing-modes)).
 
 ## Typical workflow
 

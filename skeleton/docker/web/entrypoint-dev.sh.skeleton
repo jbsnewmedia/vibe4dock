@@ -90,6 +90,16 @@ export VIBE4DOCK_SHELL_HINT='Vibe4Dock, Copyright (c) 2026+ JBS New Media GmbH, 
 root_shell_username="${ROOT_SHELL_USERNAME:-}"
 app_shell_username="${APP_SHELL_USERNAME:-}"
 
+root_base_path_args=()
+if [ "${VIBE4DOCK_ROUTING:-ports}" = "paths" ] && [ -n "${VIBE4DOCK_BASE_PATH_ROOT_SHELL:-}" ]; then
+  root_base_path_args=(--base-path "${VIBE4DOCK_BASE_PATH_ROOT_SHELL}")
+fi
+
+app_base_path_args=()
+if [ "${VIBE4DOCK_ROUTING:-ports}" = "paths" ] && [ -n "${VIBE4DOCK_BASE_PATH_APP_SHELL:-}" ]; then
+  app_base_path_args=(--base-path "${VIBE4DOCK_BASE_PATH_APP_SHELL}")
+fi
+
 root_ttyd_auth_args=()
 if [ -n "$root_shell_username" ] && [ -n "${ROOT_SHELL_PASSWORD:-}" ]; then
   root_ttyd_auth_args=(--credential "${root_shell_username}:${ROOT_SHELL_PASSWORD}")
@@ -102,6 +112,7 @@ fi
 
 # ROOT TERMINAL
 ttyd \
+  "${root_base_path_args[@]}" \
   "${root_ttyd_auth_args[@]}" \
   --writable \
   --port {{VIBE4DOCK_ROOT_SHELL_CONTAINER_PORT}} \
@@ -110,6 +121,7 @@ ttyd \
 
 # APPLICATION USER TERMINAL
 ttyd \
+  "${app_base_path_args[@]}" \
   "${app_ttyd_auth_args[@]}" \
   --writable \
   --port {{VIBE4DOCK_APP_SHELL_CONTAINER_PORT}} \
@@ -145,6 +157,10 @@ if [ -f "$browser_shells_file" ]; then
         $hintSuffix = isset($shell["hint_suffix"]) ? trim((string) $shell["hint_suffix"]) : "";
         $fallbackProfile = isset($shell["fallback_profile"]) ? (string) $shell["fallback_profile"] : "";
         $missingMessage = isset($shell["missing_message"]) ? trim((string) $shell["missing_message"]) : "";
+        $routing = getenv("VIBE4DOCK_ROUTING") ?: "ports";
+        $basePath = ($routing === "paths" && isset($shell["base_path"]) && is_string($shell["base_path"]))
+            ? trim($shell["base_path"])
+            : "";
         $hint = $baseHint;
         if ($hintSuffix !== "") {
             $hint .= " | " . $hintSuffix;
@@ -195,6 +211,11 @@ if [ -f "$browser_shells_file" ]; then
         $parts[] = (string) $port;
         $parts[] = "--interface";
         $parts[] = "0.0.0.0";
+
+        if ($basePath !== "") {
+            $parts[] = "--base-path";
+            $parts[] = $basePath;
+        }
 
         if ($runAs === "application") {
             $parts[] = "sudo";

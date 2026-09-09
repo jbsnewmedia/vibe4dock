@@ -69,6 +69,11 @@
                 "username_field": "username",
                 "password_field": "password",
                 "button_label": "Open Shell",
+                "routing": {
+                    "path": "lazygit",
+                    "service": "web",
+                    "container_port": 7683
+                },
                 "help_title": "Configure the Lazygit Shell",
                 "help_text": "Open the Addons section, configure the Lazygit Shell addon, and rebuild the stack to apply port or credential changes.",
                 "help_command": "./docker/rebuild.sh",

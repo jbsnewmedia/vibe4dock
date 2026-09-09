@@ -508,6 +508,11 @@
                 "username_field": "username",
                 "password_field": "password",
                 "button_label": "Open Adminer",
+                "routing": {
+                    "path": "adminer",
+                    "service": "adminer",
+                    "container_port": 8080
+                },
                 "help_title": "Configure Adminer",
                 "help_text": "Open the Addons section, configure the Adminer port and optional credentials, rebuild the stack after port changes, and password protection is only enabled when username and password are both set.",
                 "help_command": "./docker/rebuild.sh"

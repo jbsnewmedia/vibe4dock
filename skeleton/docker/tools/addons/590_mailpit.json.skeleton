@@ -145,6 +145,14 @@
                 "username_field": "username",
                 "password_field": "password",
                 "button_label": "Open Mailpit",
+                "routing": {
+                    "path": "mailpit",
+                    "service": "mailpit",
+                    "container_port": 8025,
+                    "environment": {
+                        "MP_WEBROOT": "{{path}}"
+                    }
+                },
                 "help_title": "Configure Mailpit",
                 "help_text": "Open the Addons section, configure the Mailpit ports and optional credentials, and rebuild the stack to apply changes. Point your application SMTP settings to the configured SMTP port.",
                 "help_command": "./docker/rebuild.sh"

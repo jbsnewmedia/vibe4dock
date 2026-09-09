@@ -89,4 +89,107 @@ final class SetupConfigTest extends TestCase
             'tools-port' => '9000',
         ]);
     }
+
+    public function testRoutingDefaultsToPorts(): void
+    {
+        $config = SetupConfig::fromOptions([
+            'project-name' => 'demo',
+        ]);
+
+        self::assertSame(SetupConfig::ROUTING_PORTS, $config->routing());
+        self::assertSame(SetupConfig::DEFAULT_BASE_PATH_PREFIX, $config->basePathPrefix());
+    }
+
+    public function testPathsRoutingDerivesBasePaths(): void
+    {
+        $config = SetupConfig::fromOptions([
+            'project-name' => 'demo',
+            'routing' => 'paths',
+        ]);
+
+        self::assertSame(SetupConfig::ROUTING_PATHS, $config->routing());
+        self::assertSame('/vibe-dashboard', $config->basePathDashboard());
+        self::assertSame('/vibe-shell-root', $config->basePathRootShell());
+        self::assertSame('/vibe-shell-app', $config->basePathAppShell());
+    }
+
+    public function testPathsRoutingWithCustomPrefix(): void
+    {
+        $config = SetupConfig::fromOptions([
+            'project-name' => 'demo',
+            'routing' => 'paths',
+            'base-path-prefix' => 'Vibe4Dock',
+        ]);
+
+        self::assertSame('vibe4dock', $config->basePathPrefix());
+        self::assertSame('/vibe4dock-dashboard', $config->basePathDashboard());
+    }
+
+    public function testRejectsInvalidRouting(): void
+    {
+        $this->expectException(InvalidConfigException::class);
+
+        SetupConfig::fromOptions([
+            'project-name' => 'demo',
+            'routing' => 'subdomains',
+        ]);
+    }
+
+    public function testRejectsInvalidBasePathPrefix(): void
+    {
+        $this->expectException(InvalidConfigException::class);
+
+        SetupConfig::fromOptions([
+            'project-name' => 'demo',
+            'routing' => 'paths',
+            'base-path-prefix' => '-invalid-',
+        ]);
+    }
+
+    public function testAllowsDuplicatePortsInPathsMode(): void
+    {
+        $config = SetupConfig::fromOptions([
+            'project-name' => 'demo',
+            'routing' => 'paths',
+            'web-port' => '8080',
+            'tools-port' => '8080',
+        ]);
+
+        self::assertSame(8080, $config->webPort());
+    }
+
+    public function testTemplateReplacementsIncludeRoutingValues(): void
+    {
+        $config = SetupConfig::fromOptions([
+            'project-name' => 'demo',
+            'routing' => 'paths',
+            'base-path-prefix' => 'dev',
+        ]);
+
+        $replacements = $config->templateReplacements();
+
+        self::assertSame('paths', $replacements['{{VIBE4DOCK_ROUTING}}']);
+        self::assertSame('dev', $replacements['{{VIBE4DOCK_BASE_PATH_PREFIX}}']);
+        self::assertSame('/dev-dashboard', $replacements['{{VIBE4DOCK_BASE_PATH_DASHBOARD}}']);
+        self::assertSame('/dev-shell-root', $replacements['{{VIBE4DOCK_BASE_PATH_ROOT_SHELL}}']);
+        self::assertSame('/dev-shell-app', $replacements['{{VIBE4DOCK_BASE_PATH_APP_SHELL}}']);
+    }
+
+    public function testProvidesManifest(): void
+    {
+        $config = SetupConfig::fromOptions([
+            'project-name' => 'demo',
+            'php-version' => '8.3',
+            'routing' => 'paths',
+            'base-path-prefix' => 'vibe4dock',
+        ]);
+
+        $manifest = $config->manifest();
+
+        self::assertSame('demo', $manifest['project_name']);
+        self::assertSame('8.3', $manifest['php_version']);
+        self::assertSame('paths', $manifest['routing']);
+        self::assertSame('vibe4dock', $manifest['base_path_prefix']);
+        self::assertArrayHasKey('version', $manifest);
+    }
 }

@@ -19,6 +19,12 @@ RUN if [ -f /usr/local/bin/provision.sh ]; then chmod +x /usr/local/bin/provisio
 COPY entrypoint-dev.sh /usr/local/bin/entrypoint-dev.sh
 RUN chmod +x /usr/local/bin/entrypoint-dev.sh
 
+# The webdevops entrypoint strips the gosu suid bit after the first root
+# elevation, which breaks every subsequent `docker compose restart web`: the
+# container starts as "application" and can no longer elevate itself. Keep the
+# suid bit so the documented restart flow keeps working.
+RUN sed -i '/chmod -s \/sbin\/gosu/d' /opt/docker/bin/entrypoint.sh
+
 USER application
 
 CMD ["/usr/local/bin/entrypoint-dev.sh"]

@@ -99,11 +99,21 @@ final class Cli
         $options['project-name'] = $this->ask('Project Name', $defaults['project-name']);
         $options['php-version'] = $this->ask('PHP Version', $defaults['php-version']);
 
-        echo PHP_EOL . 'Port Configuration:' . PHP_EOL;
-        $options['web-port'] = (string) $this->askPort('Web Port', $defaults['web-port']);
-        $options['tools-port'] = (string) $this->askPort('Tools UI Port', $defaults['tools-port']);
-        $options['root-shell-port'] = (string) $this->askPort('Root Shell Port', $defaults['root-shell-port']);
-        $options['app-shell-port'] = (string) $this->askPort('Application Shell Port', $defaults['app-shell-port']);
+        echo PHP_EOL . 'Routing Configuration:' . PHP_EOL;
+        $options['routing'] = $this->askRouting($defaults['routing']);
+
+        if ($options['routing'] === SetupConfig::ROUTING_PATHS) {
+            $options['base-path-prefix'] = $this->askBasePathPrefix($defaults['base-path-prefix']);
+
+            echo PHP_EOL . 'Port Configuration (single HTTP port for all endpoints):' . PHP_EOL;
+            $options['web-port'] = (string) $this->askPort('Web Port (proxy)', $defaults['web-port']);
+        } else {
+            echo PHP_EOL . 'Port Configuration:' . PHP_EOL;
+            $options['web-port'] = (string) $this->askPort('Web Port', $defaults['web-port']);
+            $options['tools-port'] = (string) $this->askPort('Tools UI Port', $defaults['tools-port']);
+            $options['root-shell-port'] = (string) $this->askPort('Root Shell Port', $defaults['root-shell-port']);
+            $options['app-shell-port'] = (string) $this->askPort('Application Shell Port', $defaults['app-shell-port']);
+        }
 
         echo PHP_EOL;
         $options['output-dir'] = $this->ask('Output Directory', $defaults['output-dir']);
@@ -111,10 +121,39 @@ final class Cli
         return $options;
     }
 
+    private function askRouting(string $default): string
+    {
+        $value = $this->ask('Routing Mode (ports = one port per endpoint, paths = single port with /vibe- paths)', $default);
+        $normalized = strtolower($value);
+
+        if ($normalized !== SetupConfig::ROUTING_PORTS && $normalized !== SetupConfig::ROUTING_PATHS) {
+            echo 'Invalid routing mode. Use "ports" or "paths".' . PHP_EOL;
+
+            return $this->askRouting($default);
+        }
+
+        return $normalized;
+    }
+
+    private function askBasePathPrefix(string $default): string
+    {
+        $value = $this->ask('Base Path Prefix (endpoints become /<prefix>-dashboard etc.)', $default);
+
+        if ($value === '' || preg_match('/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/', strtolower($value)) !== 1) {
+            echo 'Invalid prefix. Allowed characters: [a-z0-9-], must start and end with a letter or digit.' . PHP_EOL;
+
+            return $this->askBasePathPrefix($default);
+        }
+
+        return strtolower($value);
+    }
+
     /**
      * @return array{
      *     project-name: string,
      *     php-version: string,
+     *     routing: string,
+     *     base-path-prefix: string,
      *     web-port: string,
      *     tools-port: string,
      *     root-shell-port: string,
@@ -129,6 +168,8 @@ final class Cli
         $defaults = [
             'project-name' => basename($cwd),
             'php-version' => SetupConfig::DEFAULT_PHP_VERSION,
+            'routing' => SetupConfig::ROUTING_PORTS,
+            'base-path-prefix' => SetupConfig::DEFAULT_BASE_PATH_PREFIX,
             'web-port' => (string) SetupConfig::DEFAULT_WEB_PORT,
             'tools-port' => (string) SetupConfig::DEFAULT_TOOLS_PORT,
             'root-shell-port' => (string) SetupConfig::DEFAULT_ROOT_SHELL_PORT,
@@ -137,24 +178,35 @@ final class Cli
         ];
 
         $environmentDir = $this->detectExistingEnvironmentDirectory($cwd);
-        if ($environmentDir === null) {
-            return $defaults;
+
+        $manifest = $environmentDir === null
+            ? null
+            : $this->readFileIfExists($environmentDir . DIRECTORY_SEPARATOR . 'vibe4dock.project.json');
+        if ($manifest !== null) {
+            $defaults['project-name'] = EnvironmentReader::manifestValue($manifest, 'project_name') ?? $defaults['project-name'];
+            $defaults['php-version'] = EnvironmentReader::manifestValue($manifest, 'php_version') ?? $defaults['php-version'];
+            $defaults['routing'] = EnvironmentReader::manifestRouting($manifest) ?? $defaults['routing'];
+            $defaults['base-path-prefix'] = EnvironmentReader::manifestValue($manifest, 'base_path_prefix') ?? $defaults['base-path-prefix'];
         }
 
-        $compose = $this->readFileIfExists($environmentDir . DIRECTORY_SEPARATOR . 'docker-compose.yml');
-        if ($compose !== null) {
-            $defaults['project-name'] = EnvironmentReader::projectName($compose) ?? $defaults['project-name'];
-            $defaults['web-port'] = $this->portDefault($compose, 'web', SetupConfig::WEB_CONTAINER_PORT, $defaults['web-port']);
-            $defaults['root-shell-port'] = $this->portDefault($compose, 'web', SetupConfig::ROOT_SHELL_CONTAINER_PORT, $defaults['root-shell-port']);
-            $defaults['app-shell-port'] = $this->portDefault($compose, 'web', SetupConfig::APP_SHELL_CONTAINER_PORT, $defaults['app-shell-port']);
-            $defaults['tools-port'] = $this->portDefault($compose, 'tools', SetupConfig::TOOLS_CONTAINER_PORT, $defaults['tools-port']);
-        }
+        if ($environmentDir !== null) {
+            $compose = $this->readFileIfExists($environmentDir . DIRECTORY_SEPARATOR . 'docker-compose.yml');
+            if ($compose !== null) {
+                $defaults['project-name'] = EnvironmentReader::projectName($compose) ?? $defaults['project-name'];
+                if ($defaults['routing'] === SetupConfig::ROUTING_PORTS) {
+                    $defaults['web-port'] = $this->portDefault($compose, 'web', SetupConfig::WEB_CONTAINER_PORT, $defaults['web-port']);
+                    $defaults['root-shell-port'] = $this->portDefault($compose, 'web', SetupConfig::ROOT_SHELL_CONTAINER_PORT, $defaults['root-shell-port']);
+                    $defaults['app-shell-port'] = $this->portDefault($compose, 'web', SetupConfig::APP_SHELL_CONTAINER_PORT, $defaults['app-shell-port']);
+                    $defaults['tools-port'] = $this->portDefault($compose, 'tools', SetupConfig::TOOLS_CONTAINER_PORT, $defaults['tools-port']);
+                }
+            }
 
-        $dockerfile = $this->readFileIfExists(
-            $environmentDir . DIRECTORY_SEPARATOR . 'docker' . DIRECTORY_SEPARATOR . 'web' . DIRECTORY_SEPARATOR . 'Dockerfile'
-        );
-        if ($dockerfile !== null) {
-            $defaults['php-version'] = EnvironmentReader::phpVersion($dockerfile) ?? $defaults['php-version'];
+            $dockerfile = $this->readFileIfExists(
+                $environmentDir . DIRECTORY_SEPARATOR . 'docker' . DIRECTORY_SEPARATOR . 'web' . DIRECTORY_SEPARATOR . 'Dockerfile'
+            );
+            if ($dockerfile !== null) {
+                $defaults['php-version'] = EnvironmentReader::phpVersion($dockerfile) ?? $defaults['php-version'];
+            }
         }
 
         return $defaults;
@@ -252,6 +304,9 @@ final class Cli
         echo '    --version, -v' . PHP_EOL;
         echo '    --project-name=<name>' . PHP_EOL;
         echo '    --php-version=<version>' . PHP_EOL;
+        echo '    --routing=<ports|paths>            ports: one host port per endpoint (default)' . PHP_EOL;
+        echo '                                        paths: single host port, endpoints under /<prefix>-* paths' . PHP_EOL;
+        echo '    --base-path-prefix=<prefix>         Base path prefix for paths mode (default: vibe)' . PHP_EOL;
         echo '    --web-port=<port>' . PHP_EOL;
         echo '    --tools-port=<port>' . PHP_EOL;
         echo '    --root-shell-port=<port>' . PHP_EOL;
@@ -260,5 +315,6 @@ final class Cli
         echo PHP_EOL;
         echo 'EXAMPLE' . PHP_EOL;
         echo '    vibe4dock --project-name=my-vibe4dock --web-port=8080 --tools-port=8095' . PHP_EOL;
+        echo '    vibe4dock --project-name=my-vibe4dock --routing=paths --web-port=8080' . PHP_EOL;
     }
 }

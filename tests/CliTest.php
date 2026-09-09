@@ -60,6 +60,36 @@ final class CliTest extends TestCase
         self::assertFileExists($this->outputDir . DIRECTORY_SEPARATOR . 'docker-compose.yml');
     }
 
+    public function testGeneratesPathsModeProject(): void
+    {
+        $result = $this->runCli([
+            '--project-name=demo',
+            '--output-dir=' . $this->outputDir,
+            '--routing=paths',
+            '--web-port=8080',
+        ]);
+
+        self::assertSame(0, $result['code'], $result['stdout'] . $result['stderr']);
+
+        $compose = (string) file_get_contents($this->outputDir . DIRECTORY_SEPARATOR . 'docker-compose.yml');
+        self::assertStringContainsString('image: nginx:alpine', $compose);
+        self::assertStringContainsString('"8080:80"', $compose);
+        self::assertStringNotContainsString('"8090:8090"', $compose);
+
+        self::assertFileExists($this->outputDir . DIRECTORY_SEPARATOR . 'vibe4dock.project.json');
+    }
+
+    public function testFailsOnInvalidRouting(): void
+    {
+        $result = $this->runCli([
+            '--project-name=demo',
+            '--output-dir=' . $this->outputDir,
+            '--routing=subdomains',
+        ]);
+
+        self::assertSame(1, $result['code']);
+    }
+
     public function testFailsOnInvalidPort(): void
     {
         $result = $this->runCli([

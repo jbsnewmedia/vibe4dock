@@ -102,6 +102,7 @@ function setInstalledTool($toolId, $installed)
     updateProvisionScript();
     updateDockerOverride();
     updateBrowserShellRegistry();
+    updateProxyConfig();
 }
 
 function findToolVersionById($tool, $versionId)
@@ -301,6 +302,7 @@ function updateDockerOverride()
                 $serviceConfig['definition'],
                 array('compose_service' => $serviceName)
             );
+            $resolvedDefinition = applyToolPathRouting($tool, $serviceName, $resolvedDefinition);
             $composeServices[$serviceName] = mergeComposeDefinitions(
                 isset($composeServices[$serviceName]) ? $composeServices[$serviceName] : array(),
                 $resolvedDefinition
@@ -337,6 +339,214 @@ function updateDockerOverride()
     }
 
     file_put_contents($overrideFile, $yaml);
+}
+
+function getToolRoutingConfig($tool)
+{
+    if (!isset($tool['dashboard_shell']['routing']) || !is_array($tool['dashboard_shell']['routing'])) {
+        return null;
+    }
+
+    return $tool['dashboard_shell']['routing'];
+}
+
+function getToolRoutingServiceName($tool, $routing)
+{
+    if (isset($routing['service']) && is_string($routing['service']) && trim($routing['service']) !== '') {
+        return trim($routing['service']);
+    }
+
+    foreach (getComposeServiceConfigs($tool) as $serviceConfig) {
+        if (isset($serviceConfig['service']) && is_string($serviceConfig['service'])) {
+            return $serviceConfig['service'];
+        }
+    }
+
+    return null;
+}
+
+function getToolRoutingContainerPort($routing, $definition)
+{
+    if (isset($routing['container_port']) && is_numeric($routing['container_port'])) {
+        return (int) $routing['container_port'];
+    }
+
+    if (isset($definition['ports']) && is_array($definition['ports'])) {
+        foreach ($definition['ports'] as $port) {
+            if (!is_string($port) || strpos($port, ':') === false) {
+                continue;
+            }
+
+            $parts = explode(':', $port);
+            $containerSide = end($parts);
+            if (is_numeric($containerSide)) {
+                return (int) $containerSide;
+            }
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Applies path-routing adjustments to a resolved compose service definition
+ * in paths routing mode: routed web-UI host port mappings are removed (the
+ * proxy reaches the container port directly) and declared service environment
+ * variables (e.g. Mailpit's MP_WEBROOT) are injected with the {{path}}
+ * placeholder replaced by the addon base path.
+ */
+function applyToolPathRouting($tool, $serviceName, $definition)
+{
+    if (!vibeRoutingIsPaths() || !is_array($definition)) {
+        return $definition;
+    }
+
+    $routing = getToolRoutingConfig($tool);
+    if ($routing === null || getToolRoutingServiceName($tool, $routing) !== $serviceName) {
+        return $definition;
+    }
+
+    $basePath = vibeAddonBasePath($routing);
+    if ($basePath === '') {
+        return $definition;
+    }
+
+    $routedContainerPort = getToolRoutingContainerPort($routing, $definition);
+    if (isset($definition['ports']) && is_array($definition['ports']) && $routedContainerPort !== null) {
+        $filteredPorts = array();
+        foreach ($definition['ports'] as $port) {
+            if (is_string($port) && strpos($port, ':') !== false) {
+                $parts = explode(':', $port);
+                $containerSide = end($parts);
+                if (is_numeric($containerSide) && (int) $containerSide === $routedContainerPort) {
+                    continue;
+                }
+            }
+
+            $filteredPorts[] = $port;
+        }
+
+        if ($filteredPorts === array()) {
+            unset($definition['ports']);
+        } else {
+            $definition['ports'] = $filteredPorts;
+        }
+    }
+
+    if (isset($routing['environment']) && is_array($routing['environment'])) {
+        $environment = isset($definition['environment']) && is_array($definition['environment']) ? $definition['environment'] : array();
+        foreach ($routing['environment'] as $key => $value) {
+            if (!is_string($key) || $key === '' || !is_string($value)) {
+                continue;
+            }
+
+            $environment[$key] = str_replace('{{path}}', $basePath, $value);
+        }
+
+        $definition['environment'] = $environment;
+    }
+
+    return $definition;
+}
+
+/**
+ * Regenerates the managed addon location blocks inside the nginx proxy
+ * configuration (paths routing mode only) and reloads nginx when the proxy
+ * container is running. Failures are ignored on purpose: a rebuild or a later
+ * action picks the configuration up again.
+ */
+function updateProxyConfig()
+{
+    if (!vibeRoutingIsPaths()) {
+        return;
+    }
+
+    $proxyConfFile = '/app/docker/proxy/default.conf';
+    if (!is_file($proxyConfFile)) {
+        return;
+    }
+
+    $content = (string) file_get_contents($proxyConfFile);
+    $startMarker = '# VIBE4DOCK_MANAGED_LOCATIONS_START';
+    $endMarker = '# VIBE4DOCK_MANAGED_LOCATIONS_END';
+    $startPos = strpos($content, $startMarker);
+    $endPos = strpos($content, $endMarker);
+    if ($startPos === false || $endPos === false || $endPos < $startPos) {
+        return;
+    }
+
+    global $config;
+    $installedTools = getInstalledTools();
+    $managedLines = array();
+
+    foreach ($config['tools'] as $tool) {
+        if (!isToolInstalled($tool, $installedTools)) {
+            continue;
+        }
+
+        $routing = getToolRoutingConfig($tool);
+        if ($routing === null) {
+            continue;
+        }
+
+        $basePath = vibeAddonBasePath($routing);
+        if ($basePath === '') {
+            continue;
+        }
+
+        $serviceName = getToolRoutingServiceName($tool, $routing);
+        if ($serviceName === null) {
+            continue;
+        }
+
+        $definition = array();
+        foreach (getComposeServiceConfigs($tool) as $serviceConfig) {
+            if (isset($serviceConfig['service']) && $serviceConfig['service'] === $serviceName
+                && isset($serviceConfig['definition']) && is_array($serviceConfig['definition'])
+            ) {
+                $definition = $serviceConfig['definition'];
+                break;
+            }
+        }
+
+        $containerPort = getToolRoutingContainerPort($routing, $definition);
+        if ($containerPort === null || $containerPort < 1 || $containerPort > 65535) {
+            continue;
+        }
+
+        $label = isset($tool['label']) ? (string) $tool['label'] : (string) ($tool['id'] ?? 'Addon');
+        $managedLines[] = '    # ' . $label . ' (' . $basePath . ')';
+        $managedLines[] = '    location = ' . $basePath . ' {';
+        $managedLines[] = '        set $vibe4dock_upstream "' . $serviceName . '";';
+        $managedLines[] = '        proxy_pass http://$vibe4dock_upstream:' . $containerPort . ';';
+        $managedLines[] = '    }';
+        $managedLines[] = '    location ' . $basePath . '/ {';
+        $managedLines[] = '        set $vibe4dock_upstream "' . $serviceName . '";';
+        $managedLines[] = '        proxy_pass http://$vibe4dock_upstream:' . $containerPort . ';';
+        $managedLines[] = '    }';
+    }
+
+    $managedBlock = '';
+    if ($managedLines !== array()) {
+        $managedBlock = implode("\n", $managedLines) . "\n";
+    }
+
+    $newContent = substr($content, 0, $startPos)
+        . $startMarker . "\n"
+        . $managedBlock
+        . substr($content, $endPos);
+    file_put_contents($proxyConfFile, $newContent);
+
+    $targetContainer = getenv('TARGET_CONTAINER') ?: '';
+    if ($targetContainer === '') {
+        return;
+    }
+
+    $proxyContainer = $targetContainer . '-proxy';
+    exec(sprintf('docker exec %s nginx -t 2>&1', escapeshellarg($proxyContainer)), $testOutput, $testCode);
+    if ($testCode === 0) {
+        exec(sprintf('docker exec %s nginx -s reload 2>&1', escapeshellarg($proxyContainer)));
+    }
 }
 
 function getComposeServiceConfigs($definition)
@@ -702,6 +912,7 @@ function buildBrowserShellLauncherDefinition($tool, $shellConfig, $toolConfigVal
         'run_as' => (isset($launcher['run_as']) && $launcher['run_as'] === 'root') ? 'root' : 'application',
         'username' => getDashboardShellConfigValue($shellConfig, $toolConfigValues, 'username_field', 'username', ''),
         'password' => getDashboardShellConfigValue($shellConfig, $toolConfigValues, 'password_field', 'password', ''),
+        'base_path' => vibeAddonBasePath(isset($shellConfig['routing']) && is_array($shellConfig['routing']) ? $shellConfig['routing'] : null),
         'hint_suffix' => isset($launcher['hint_suffix']) && trim((string) $launcher['hint_suffix']) !== ''
             ? (string) $launcher['hint_suffix']
             : $defaultHintSuffix,
@@ -1166,6 +1377,7 @@ function handleToolConfigSave($tool, $postData)
     if (toolConfigRequiresRebuild($tool)) {
         setRestartRequired(true);
         updateDockerOverride();
+        updateProxyConfig();
 
         return array(
             'ok' => true,
@@ -1693,7 +1905,7 @@ function renderMessagePage($title, $headline, $message, $statusCode, $backUrl = 
     $safeTitle = htmlspecialchars($title);
     $safeHeadline = htmlspecialchars($headline);
     $safeMessage = nl2br(htmlspecialchars($message));
-    $safeBackUrl = htmlspecialchars(addTimestamp($backUrl));
+    $safeBackUrl = htmlspecialchars(addTimestamp(vibeUrl($backUrl)));
     $badgeClass = $statusCode >= 400 ? 'status-missing' : 'status-installed';
     $badgeLabel = $statusCode >= 400 ? 'Error' : 'Info';
 
@@ -1923,10 +2135,12 @@ function renderRebuildStatusPage($triggeredAt, $triggeredAtIso, $hintMtime, $wri
     $safeHintMtime = (int) $hintMtime;
     $stateBadge = $writeOk ? 'status-installed' : 'status-missing';
     $stateLabel = $writeOk ? 'Triggered' : 'Write failed';
+    $dashboardUrl = vibeUrl('/dashboard');
+    $rebuildProgressUrl = vibeUrl('/api/rebuild-progress');
 
     $content = <<<HTML
         <div class="tool-card" style="margin-top: 20px;" id="rebuild-status-card">
-            <a href="/dashboard" class="back">← back</a>
+            <a href="$dashboardUrl" class="back">← back</a>
             <div class="tool-header" style="margin-bottom: 0;">
                 <div>
                     <h1 style="margin: 0 0 6px 0;" id="rebuild-title">Rebuild triggered</h1>
@@ -2199,7 +2413,7 @@ function renderRebuildStatusPage($triggeredAt, $triggeredAtIso, $hintMtime, $wri
             }
 
             function fetchProgress() {
-              fetch('/api/rebuild-progress?t=' + Date.now(), { cache: 'no-store' })
+              fetch('$rebuildProgressUrl?t=' + Date.now(), { cache: 'no-store' })
                 .then(function(response) {
                   if (!response.ok) throw new Error('HTTP ' + response.status);
                   return response.json();
@@ -2239,6 +2453,82 @@ function addTimestamp($url)
 {
     $separator = (strpos($url, '?') === false) ? '?' : '&';
     return $url . $separator . 't=' . time();
+}
+
+function vibeRoutingIsPaths()
+{
+    return getenv('VIBE4DOCK_ROUTING') === 'paths';
+}
+
+function vibeBasePathPrefix()
+{
+    $prefix = getenv('VIBE4DOCK_BASE_PATH_PREFIX');
+    if ($prefix === false || $prefix === '') {
+        return 'vibe';
+    }
+
+    return $prefix;
+}
+
+function vibeBasePath()
+{
+    if (!vibeRoutingIsPaths()) {
+        return '';
+    }
+
+    $basePath = getenv('VIBE4DOCK_BASE_PATH_DASHBOARD');
+    if ($basePath === false || $basePath === '') {
+        $basePath = '/' . vibeBasePathPrefix() . '-dashboard';
+    }
+
+    return rtrim($basePath, '/');
+}
+
+function vibeUrl($path)
+{
+    $base = vibeBasePath();
+    if ($base === '' || $base === '/') {
+        return $path;
+    }
+
+    if ($path === '/' || $path === '') {
+        return $base . '/';
+    }
+
+    return $base . (str_starts_with($path, '/') ? $path : '/' . $path);
+}
+
+function vibeLink($path)
+{
+    return addTimestamp(vibeUrl($path));
+}
+
+function vibeAddonBasePath($routingConfig)
+{
+    if (!vibeRoutingIsPaths() || !is_array($routingConfig)) {
+        return '';
+    }
+
+    $segment = isset($routingConfig['path']) ? trim((string) $routingConfig['path']) : '';
+    if ($segment === '') {
+        return '';
+    }
+
+    return '/' . vibeBasePathPrefix() . '-' . trim($segment, '/');
+}
+
+function vibeEndpointBasePath($envKey)
+{
+    if (!vibeRoutingIsPaths()) {
+        return '';
+    }
+
+    $path = getenv($envKey);
+    if ($path === false || $path === '') {
+        return '';
+    }
+
+    return rtrim($path, '/');
 }
 
 function getMenuCategories($config, $menuGroup = 'tools')
@@ -2345,7 +2635,7 @@ function renderCategoryGroupSubnav($currentCategoryId, $groupId, $overviewPath)
         $itemClass = $currentCategoryId === $category['id'] ? 'active' : '';
         $dropdownItems .= sprintf(
             '<a href="%s" class="dropdown-item %s">%s</a>',
-            htmlspecialchars(addTimestamp('/category/' . $category['id'])),
+            htmlspecialchars(addTimestamp(vibeUrl('/category/' . $category['id']))),
             $itemClass,
             htmlspecialchars($category['label'])
         );
@@ -2449,14 +2739,14 @@ function renderLayout($title, $content, $currentCategoryId = null)
     $toolsSubnav = $toolsActive !== '' ? renderToolsSubnav($currentCategoryId) : '';
     $addonsSubnav = $addonsActive !== '' ? renderAddonsSubnav($currentCategoryId) : '';
 
-    $navLinks .= sprintf('<a href="%s" class="%s">%s</a>', addTimestamp('/dashboard'), $dashboardActive, 'Dashboard');
-    $navLinks .= sprintf('<a href="%s" class="%s">%s</a>', addTimestamp('/tools'), $toolsActive, 'Tools');
-    $navLinks .= sprintf('<a href="%s" class="%s">%s</a>', addTimestamp('/addons'), $addonsActive, 'Addons');
+    $navLinks .= sprintf('<a href="%s" class="%s">%s</a>', vibeLink('/dashboard'), $dashboardActive, 'Dashboard');
+    $navLinks .= sprintf('<a href="%s" class="%s">%s</a>', vibeLink('/tools'), $toolsActive, 'Tools');
+    $navLinks .= sprintf('<a href="%s" class="%s">%s</a>', vibeLink('/addons'), $addonsActive, 'Addons');
 
     $restartRequired = isRestartRequired();
     $restartIndicator = '';
     if ($restartRequired) {
-        $rebuildActionUrl = addTimestamp('/action/system/rebuild');
+        $rebuildActionUrl = vibeLink('/action/system/rebuild');
         $restartIndicator = '
         <div id="rebuild-banner" class="rebuild-banner">
             <span style="color: #ffaa00; font-size: 0.9em; font-weight: bold;">Manual Rebuild Required</span>
@@ -2518,6 +2808,10 @@ function renderLayout($title, $content, $currentCategoryId = null)
     } else {
         $statusBadge = '<span class="status" style="background: var(--primary); color: var(--text-dark); margin-left: 15px;">Online</span>';
     }
+
+    $brandUrl = vibeUrl('/');
+    $apiStatsUrl = vibeUrl('/api/stats');
+    $apiRebuildStatusUrl = vibeUrl('/api/rebuild-status');
 
     return <<<HTML
     <!doctype html>
@@ -2665,7 +2959,7 @@ function renderLayout($title, $content, $currentCategoryId = null)
         <header>
           <div class="header-top">
             <div class="brand-wrapper" style="width: 100%; justify-content: space-between;">
-              <a href="/" class="brand">
+              <a href="$brandUrl" class="brand">
                 $logoSvgHeader
                 <span class="brand-name">Vibe4Dock</span>
               </a>
@@ -2847,7 +3141,7 @@ function renderLayout($title, $content, $currentCategoryId = null)
             if (ramEl) ramEl.classList.add('updating');
             if (diskEl) diskEl.classList.add('updating');
 
-            fetch('/api/stats')
+            fetch('$apiStatsUrl')
               .then(response => response.json())
               .then(data => {
                 if (ramEl && data.ram) ramEl.textContent = data.ram;
@@ -2912,7 +3206,7 @@ function renderLayout($title, $content, $currentCategoryId = null)
               return;
             }
 
-            fetch('/api/rebuild-status')
+            fetch('$apiRebuildStatusUrl')
               .then(response => response.json())
               .then(data => {
                 if (!data.rebuildRequired) {
@@ -2945,6 +3239,20 @@ HTML;
 $requestUri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
 $method = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : '';
 
+// Strip the base path prefix when running behind the vibe4dock proxy (paths routing mode)
+$routerBasePath = vibeBasePath();
+if ($routerBasePath !== '') {
+    $queryPos = strpos($requestUri, '?');
+    $uriPath = $queryPos === false ? $requestUri : substr($requestUri, 0, $queryPos);
+    $uriQuery = $queryPos === false ? '' : substr($requestUri, $queryPos);
+    if ($uriPath === $routerBasePath) {
+        $uriPath = '/';
+    } elseif (str_starts_with($uriPath, $routerBasePath . '/')) {
+        $uriPath = '/' . substr($uriPath, strlen($routerBasePath) + 1);
+    }
+    $requestUri = $uriPath . $uriQuery;
+}
+
 if (php_sapi_name() !== 'cli') {
     enforceToolsAuthentication(getEnvLocalValues());
 }
@@ -2962,7 +3270,7 @@ if ($queryPos !== false) {
 
 if ($method === 'POST' && $requestPath === '/action/system/restart') {
     // Legacy endpoint, we don't need it anymore as we use manual instructions
-    header('Location: /dashboard');
+    header('Location: ' . vibeUrl('/dashboard'));
     exit;
 }
 
@@ -3284,10 +3592,10 @@ if ($method === 'POST' && preg_match('#^/action/([^/]+)/([^/?]+)#', $requestUri,
     if ($tool['category'] === 'settings') {
         $fallbackCategoryId = getSettingsFallbackCategoryId();
         $backUrl = in_array($fallbackCategoryId, array('dashboard', 'tools', 'addons'), true)
-            ? addTimestamp('/' . $fallbackCategoryId)
-            : addTimestamp('/category/' . $fallbackCategoryId);
+            ? addTimestamp(vibeUrl('/' . $fallbackCategoryId))
+            : addTimestamp(vibeUrl('/category/' . $fallbackCategoryId));
     } else {
-        $backUrl = addTimestamp('/category/' . $tool['category']);
+        $backUrl = addTimestamp(vibeUrl('/category/' . $tool['category']));
     }
     $content = <<<HTML
         <a href="$backUrl" class="back">← back</a>
