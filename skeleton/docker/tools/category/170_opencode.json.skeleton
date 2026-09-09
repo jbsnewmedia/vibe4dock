@@ -9,7 +9,7 @@
     ],
     "tools": [
         {
-            "id": "opencode",
+            "id": "opencode-cli",
             "category": "ai-cli",
             "label": "OpenCode CLI",
             "mounts": [
