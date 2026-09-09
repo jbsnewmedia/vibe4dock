@@ -50,7 +50,7 @@
 {{!PATHS_ONLY}}        proxy_set_header Accept-Encoding "";
 {{!PATHS_ONLY}}        sub_filter_types text/html;
 {{!PATHS_ONLY}}        sub_filter_once on;
-{{!PATHS_ONLY}}        sub_filter '</head>' '<style>*{scrollbar-width:thin;scrollbar-color:#2b3340 transparent}::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2b3340;border-radius:5px}::-webkit-scrollbar-thumb:hover{background:#3d4757}</style></head>';
+{{!PATHS_ONLY}}        sub_filter '</head>' '<style>*{scrollbar-width:thin;scrollbar-color:#2b3340 transparent}::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2b3340;border-radius:5px}::-webkit-scrollbar-thumb:hover{background:#3d4757}</style><script>var t="Root Shell - Vibe4Dock";(function(){var d=Object.getOwnPropertyDescriptor(Document.prototype,"title");if(d&&d.set)d.set.call(document,t)})();Object.defineProperty(document,"title",{get:function(){return t},set:function(){}})</script></head>';
 {{!PATHS_ONLY}}        proxy_pass http://web:{{VIBE4DOCK_ROOT_SHELL_CONTAINER_PORT}};
 {{!PATHS_ONLY}}    }
 {{!PATHS_ONLY}}    location {{VIBE4DOCK_BASE_PATH_ROOT_SHELL}}/ {
@@ -63,7 +63,7 @@
 {{!PATHS_ONLY}}        proxy_set_header Accept-Encoding "";
 {{!PATHS_ONLY}}        sub_filter_types text/html;
 {{!PATHS_ONLY}}        sub_filter_once on;
-{{!PATHS_ONLY}}        sub_filter '</head>' '<style>*{scrollbar-width:thin;scrollbar-color:#2b3340 transparent}::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2b3340;border-radius:5px}::-webkit-scrollbar-thumb:hover{background:#3d4757}</style></head>';
+{{!PATHS_ONLY}}        sub_filter '</head>' '<style>*{scrollbar-width:thin;scrollbar-color:#2b3340 transparent}::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2b3340;border-radius:5px}::-webkit-scrollbar-thumb:hover{background:#3d4757}</style><script>var t="Root Shell - Vibe4Dock";(function(){var d=Object.getOwnPropertyDescriptor(Document.prototype,"title");if(d&&d.set)d.set.call(document,t)})();Object.defineProperty(document,"title",{get:function(){return t},set:function(){}})</script></head>';
 {{!PATHS_ONLY}}        proxy_pass http://web:{{VIBE4DOCK_ROOT_SHELL_CONTAINER_PORT}};
 {{!PATHS_ONLY}}    }
 {{!PATHS_ONLY}}
@@ -78,7 +78,7 @@
 {{!PATHS_ONLY}}        proxy_set_header Accept-Encoding "";
 {{!PATHS_ONLY}}        sub_filter_types text/html;
 {{!PATHS_ONLY}}        sub_filter_once on;
-{{!PATHS_ONLY}}        sub_filter '</head>' '<style>*{scrollbar-width:thin;scrollbar-color:#2b3340 transparent}::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2b3340;border-radius:5px}::-webkit-scrollbar-thumb:hover{background:#3d4757}</style></head>';
+{{!PATHS_ONLY}}        sub_filter '</head>' '<style>*{scrollbar-width:thin;scrollbar-color:#2b3340 transparent}::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2b3340;border-radius:5px}::-webkit-scrollbar-thumb:hover{background:#3d4757}</style><script>var t="Application Shell - Vibe4Dock";(function(){var d=Object.getOwnPropertyDescriptor(Document.prototype,"title");if(d&&d.set)d.set.call(document,t)})();Object.defineProperty(document,"title",{get:function(){return t},set:function(){}})</script></head>';
 {{!PATHS_ONLY}}        proxy_pass http://web:{{VIBE4DOCK_APP_SHELL_CONTAINER_PORT}};
 {{!PATHS_ONLY}}    }
 {{!PATHS_ONLY}}    location {{VIBE4DOCK_BASE_PATH_APP_SHELL}}/ {
@@ -91,7 +91,7 @@
 {{!PATHS_ONLY}}        proxy_set_header Accept-Encoding "";
 {{!PATHS_ONLY}}        sub_filter_types text/html;
 {{!PATHS_ONLY}}        sub_filter_once on;
-{{!PATHS_ONLY}}        sub_filter '</head>' '<style>*{scrollbar-width:thin;scrollbar-color:#2b3340 transparent}::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2b3340;border-radius:5px}::-webkit-scrollbar-thumb:hover{background:#3d4757}</style></head>';
+{{!PATHS_ONLY}}        sub_filter '</head>' '<style>*{scrollbar-width:thin;scrollbar-color:#2b3340 transparent}::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2b3340;border-radius:5px}::-webkit-scrollbar-thumb:hover{background:#3d4757}</style><script>var t="Application Shell - Vibe4Dock";(function(){var d=Object.getOwnPropertyDescriptor(Document.prototype,"title");if(d&&d.set)d.set.call(document,t)})();Object.defineProperty(document,"title",{get:function(){return t},set:function(){}})</script></head>';
 {{!PATHS_ONLY}}        proxy_pass http://web:{{VIBE4DOCK_APP_SHELL_CONTAINER_PORT}};
 {{!PATHS_ONLY}}    }
 {{!PATHS_ONLY}}
