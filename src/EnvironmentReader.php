@@ -51,6 +51,49 @@ final class EnvironmentReader
         return $matches[1];
     }
 
+    /**
+     * Decodes the content of a vibe4dock.project.json manifest file.
+     *
+     * @return array<string, string>|null
+     */
+    public static function projectManifest(string $manifestContent): ?array
+    {
+        $decoded = json_decode($manifestContent, true);
+        if (! is_array($decoded)) {
+            return null;
+        }
+
+        $manifest = [];
+        foreach (['version', 'project_name', 'php_version', 'routing', 'base_path_prefix'] as $key) {
+            if (isset($decoded[$key]) && is_string($decoded[$key]) && $decoded[$key] !== '') {
+                $manifest[$key] = $decoded[$key];
+            }
+        }
+
+        if ($manifest === []) {
+            return null;
+        }
+
+        return $manifest;
+    }
+
+    public static function manifestValue(string $manifestContent, string $key): ?string
+    {
+        $manifest = self::projectManifest($manifestContent);
+
+        return $manifest === null ? null : ($manifest[$key] ?? null);
+    }
+
+    public static function manifestRouting(string $manifestContent): ?string
+    {
+        $routing = self::manifestValue($manifestContent, 'routing');
+        if ($routing !== SetupConfig::ROUTING_PORTS && $routing !== SetupConfig::ROUTING_PATHS) {
+            return null;
+        }
+
+        return $routing;
+    }
+
     private static function serviceBlock(string $dockerCompose, string $serviceName): ?string
     {
         $pattern = '/^  ' . preg_quote($serviceName, '/') . ":\n((?:    .*?(?:\n|$))*)/m";

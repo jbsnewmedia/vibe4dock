@@ -29,6 +29,12 @@ final class SetupConfig
 
     public const APP_SHELL_CONTAINER_PORT = 7682;
 
+    public const ROUTING_PORTS = 'ports';
+
+    public const ROUTING_PATHS = 'paths';
+
+    public const DEFAULT_BASE_PATH_PREFIX = 'vibe';
+
     private function __construct(
         private string $projectName,
         private string $phpVersion,
@@ -37,6 +43,8 @@ final class SetupConfig
         private int $rootShellPort,
         private int $appShellPort,
         private string $outputDir,
+        private string $routing = self::ROUTING_PORTS,
+        private string $basePathPrefix = self::DEFAULT_BASE_PATH_PREFIX,
     ) {
     }
 
@@ -52,6 +60,12 @@ final class SetupConfig
         $outputDir = self::normalizeDirectory(
             self::stringOption($options, 'output-dir', (string) getcwd())
         );
+        $routing = self::normalizeRouting(
+            self::stringOption($options, 'routing', self::ROUTING_PORTS)
+        );
+        $basePathPrefix = self::normalizeBasePathPrefix(
+            self::stringOption($options, 'base-path-prefix', self::DEFAULT_BASE_PATH_PREFIX)
+        );
 
         $webPort = PortNormalizer::normalize($options['web-port'] ?? self::DEFAULT_WEB_PORT);
         $toolsPort = PortNormalizer::normalize($options['tools-port'] ?? self::DEFAULT_TOOLS_PORT);
@@ -65,7 +79,9 @@ final class SetupConfig
             $toolsPort,
             $rootShellPort,
             $appShellPort,
-            $outputDir
+            $outputDir,
+            $routing,
+            $basePathPrefix
         );
         $config->validate();
 
@@ -107,6 +123,31 @@ final class SetupConfig
         return $this->outputDir;
     }
 
+    public function routing(): string
+    {
+        return $this->routing;
+    }
+
+    public function basePathPrefix(): string
+    {
+        return $this->basePathPrefix;
+    }
+
+    public function basePathDashboard(): string
+    {
+        return $this->basePath('/dashboard');
+    }
+
+    public function basePathRootShell(): string
+    {
+        return $this->basePath('/shell-root');
+    }
+
+    public function basePathAppShell(): string
+    {
+        return $this->basePath('/shell-app');
+    }
+
     public function targetContainer(): string
     {
         return $this->projectName . '-web-1';
@@ -129,7 +170,31 @@ final class SetupConfig
             '{{VIBE4DOCK_APP_SHELL_HOST_PORT}}' => (string) $this->appShellPort,
             '{{VIBE4DOCK_APP_SHELL_CONTAINER_PORT}}' => (string) self::APP_SHELL_CONTAINER_PORT,
             '{{VIBE4DOCK_TARGET_CONTAINER}}' => $this->targetContainer(),
+            '{{VIBE4DOCK_ROUTING}}' => $this->routing,
+            '{{VIBE4DOCK_BASE_PATH_PREFIX}}' => $this->basePathPrefix,
+            '{{VIBE4DOCK_BASE_PATH_DASHBOARD}}' => $this->basePathDashboard(),
+            '{{VIBE4DOCK_BASE_PATH_ROOT_SHELL}}' => $this->basePathRootShell(),
+            '{{VIBE4DOCK_BASE_PATH_APP_SHELL}}' => $this->basePathAppShell(),
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function manifest(): array
+    {
+        return [
+            'version' => Cli::VERSION,
+            'project_name' => $this->projectName,
+            'php_version' => $this->phpVersion,
+            'routing' => $this->routing,
+            'base_path_prefix' => $this->basePathPrefix,
+        ];
+    }
+
+    private function basePath(string $suffix): string
+    {
+        return '/' . $this->basePathPrefix . '-' . ltrim($suffix, '/');
     }
 
     /**
@@ -149,9 +214,37 @@ final class SetupConfig
             }
         }
 
-        if (count($ports) !== count(array_unique($ports))) {
+        if ($this->routing === self::ROUTING_PORTS && count($ports) !== count(array_unique($ports))) {
             throw new InvalidConfigException('All host ports must be unique.');
         }
+    }
+
+    /**
+     * @throws InvalidConfigException
+     */
+    private static function normalizeRouting(string $value): string
+    {
+        $routing = strtolower(trim($value));
+        if ($routing !== self::ROUTING_PORTS && $routing !== self::ROUTING_PATHS) {
+            throw new InvalidConfigException('Invalid routing mode. Use "ports" or "paths".');
+        }
+
+        return $routing;
+    }
+
+    /**
+     * @throws InvalidConfigException
+     */
+    private static function normalizeBasePathPrefix(string $value): string
+    {
+        $prefix = strtolower(trim($value));
+        if ($prefix === '' || preg_match('/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/', $prefix) !== 1) {
+            throw new InvalidConfigException(
+                'Invalid base path prefix. Allowed characters: [a-z0-9-], must start and end with a letter or digit.'
+            );
+        }
+
+        return $prefix;
     }
 
     /**

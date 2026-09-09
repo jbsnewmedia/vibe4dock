@@ -62,4 +62,37 @@ final class EnvironmentReaderTest extends TestCase
     {
         self::assertNull(EnvironmentReader::phpVersion("RUN echo hi\n"));
     }
+
+    public function testReadsProjectManifest(): void
+    {
+        $manifest = (string) json_encode([
+            'version' => '1.0.3',
+            'project_name' => 'demo',
+            'php_version' => '8.4',
+            'routing' => 'paths',
+            'base_path_prefix' => 'vibe',
+        ]);
+
+        self::assertSame('demo', EnvironmentReader::manifestValue($manifest, 'project_name'));
+        self::assertSame('8.4', EnvironmentReader::manifestValue($manifest, 'php_version'));
+        self::assertSame('vibe', EnvironmentReader::manifestValue($manifest, 'base_path_prefix'));
+        self::assertSame('paths', EnvironmentReader::manifestRouting($manifest));
+    }
+
+    public function testReturnsNullForInvalidManifest(): void
+    {
+        self::assertNull(EnvironmentReader::projectManifest('not-json'));
+        self::assertNull(EnvironmentReader::projectManifest('[]'));
+        self::assertNull(EnvironmentReader::manifestValue('not-json', 'project_name'));
+    }
+
+    public function testReturnsNullForInvalidRoutingInManifest(): void
+    {
+        $manifest = (string) json_encode([
+            'project_name' => 'demo',
+            'routing' => 'subdomains',
+        ]);
+
+        self::assertNull(EnvironmentReader::manifestRouting($manifest));
+    }
 }

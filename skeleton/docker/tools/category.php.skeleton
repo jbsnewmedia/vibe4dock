@@ -173,7 +173,7 @@ function renderToolConfigModal($tool)
             </div>
         </div>',
         htmlspecialchars($modalId, ENT_QUOTES),
-        htmlspecialchars(addTimestamp('/action/' . $tool['id'] . '/save')),
+        htmlspecialchars(addTimestamp(vibeUrl('/action/' . $tool['id'] . '/save'))),
         htmlspecialchars($tool['label']),
         $fieldsHtml,
         htmlspecialchars($modalId, ENT_QUOTES)
@@ -221,7 +221,7 @@ function renderCategory($config, $categoryId, $envValues, $installedTools)
                     </label>
                 ', $installed ? 'checked' : '');
             }
-            $actions .= sprintf('<button class="btn-install" formaction="%s">Save</button>', addTimestamp('/action/' . $tool['id'] . '/save'));
+            $actions .= sprintf('<button class="btn-install" formaction="%s">Save</button>', addTimestamp(vibeUrl('/action/' . $tool['id'] . '/save')));
 
             $settingsContent .= sprintf('
                 <div class="tool-card searchable-tool-card" data-search-title="%s">
@@ -314,17 +314,17 @@ function renderCategory($config, $categoryId, $envValues, $installedTools)
                         <span class="slider"></span>
                     </label>
                 ', $installed ? 'checked' : '');
-                $actions .= sprintf('<button class="btn-install" formaction="%s">Save</button>', addTimestamp('/action/' . $tool['id'] . '/save'));
+                $actions .= sprintf('<button class="btn-install" formaction="%s">Save</button>', addTimestamp(vibeUrl('/action/' . $tool['id'] . '/save')));
             } elseif ($isVersioned) {
                 $actions .= renderVersionDropdown($tool, $installed, $installedVersion);
-                $actions .= sprintf('<button class="btn-install" formaction="%s">%s</button>', addTimestamp('/action/' . $tool['id'] . '/install'), $installed ? 'Switch/Update' : 'Install');
+                $actions .= sprintf('<button class="btn-install" formaction="%s">%s</button>', addTimestamp(vibeUrl('/action/' . $tool['id'] . '/install')), $installed ? 'Switch/Update' : 'Install');
                 if ($installed) {
-                    $actions .= sprintf('<button class="btn-uninstall" formaction="%s">Uninstall</button>', addTimestamp('/action/' . $tool['id'] . '/uninstall'));
+                    $actions .= sprintf('<button class="btn-uninstall" formaction="%s">Uninstall</button>', addTimestamp(vibeUrl('/action/' . $tool['id'] . '/uninstall')));
                 }
             } else {
-                $actions .= sprintf('<button class="btn-install" formaction="%s">%s</button>', addTimestamp('/action/' . $tool['id'] . '/install'), $installed ? 'Update' : 'Install');
+                $actions .= sprintf('<button class="btn-install" formaction="%s">%s</button>', addTimestamp(vibeUrl('/action/' . $tool['id'] . '/install')), $installed ? 'Update' : 'Install');
                 if ($installed) {
-                    $actions .= sprintf('<button class="btn-uninstall" formaction="%s">Uninstall</button>', addTimestamp('/action/' . $tool['id'] . '/uninstall'));
+                    $actions .= sprintf('<button class="btn-uninstall" formaction="%s">Uninstall</button>', addTimestamp(vibeUrl('/action/' . $tool['id'] . '/uninstall')));
                 }
             }
 
@@ -339,7 +339,7 @@ function renderCategory($config, $categoryId, $envValues, $installedTools)
                 $deps = [];
                 foreach ($tool['dependencies'] as $dep) {
                     if ($dep === 'node') {
-                        $deps[] = '<a href="' . addTimestamp('/category/system') . '" style="color: var(--primary); text-decoration: none;">node</a>';
+                        $deps[] = '<a href="' . addTimestamp(vibeUrl('/category/system')) . '" style="color: var(--primary); text-decoration: none;">node</a>';
                     } else {
                         $deps[] = htmlspecialchars($dep);
                     }

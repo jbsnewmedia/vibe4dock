@@ -101,6 +101,67 @@ final class ProjectGeneratorTest extends TestCase
         self::assertTrue(is_executable($script), 'Generated shell scripts must be executable.');
     }
 
+    public function testGeneratesPathsModeComposeWithProxy(): void
+    {
+        $config = SetupConfig::fromOptions([
+            'project-name' => 'demo',
+            'output-dir' => $this->outputDir,
+            'routing' => 'paths',
+        ]);
+
+        (new ProjectGenerator($this->skeletonDir()))->generate($config);
+
+        $compose = (string) file_get_contents($this->outputDir . DIRECTORY_SEPARATOR . 'docker-compose.yml');
+
+        self::assertStringContainsString('image: nginx:alpine', $compose);
+        self::assertStringContainsString('VIBE4DOCK_ROUTING=paths', $compose);
+        self::assertStringContainsString('VIBE4DOCK_BASE_PATH_DASHBOARD=/vibe-dashboard', $compose);
+        self::assertStringContainsString('VIBE4DOCK_BASE_PATH_ROOT_SHELL=/vibe-shell-root', $compose);
+        self::assertStringContainsString('VIBE4DOCK_BASE_PATH_APP_SHELL=/vibe-shell-app', $compose);
+        self::assertStringNotContainsString('"8090:8090"', $compose, 'Tools UI must not be published to the host in paths mode.');
+        self::assertStringNotContainsString('"7681:7681"', $compose);
+        self::assertStringNotContainsString('"7682:7682"', $compose);
+    }
+
+    public function testGeneratesManagedMarkersInProxyConfig(): void
+    {
+        $config = SetupConfig::fromOptions([
+            'project-name' => 'demo',
+            'output-dir' => $this->outputDir,
+            'routing' => 'paths',
+        ]);
+
+        (new ProjectGenerator($this->skeletonDir()))->generate($config);
+
+        $proxyConf = (string) file_get_contents(
+            $this->outputDir . DIRECTORY_SEPARATOR . 'docker' . DIRECTORY_SEPARATOR . 'proxy' . DIRECTORY_SEPARATOR . 'default.conf'
+        );
+
+        self::assertStringContainsString('VIBE4DOCK_MANAGED_LOCATIONS_START', $proxyConf);
+        self::assertStringContainsString('VIBE4DOCK_MANAGED_LOCATIONS_END', $proxyConf);
+        self::assertStringContainsString('location /vibe-dashboard/', $proxyConf);
+        self::assertStringContainsString('location /vibe-shell-root/', $proxyConf);
+    }
+
+    public function testWritesProjectManifest(): void
+    {
+        $config = SetupConfig::fromOptions([
+            'project-name' => 'demo',
+            'output-dir' => $this->outputDir,
+            'routing' => 'paths',
+        ]);
+
+        (new ProjectGenerator($this->skeletonDir()))->generate($config);
+
+        $manifestPath = $this->outputDir . DIRECTORY_SEPARATOR . 'vibe4dock.project.json';
+        self::assertFileExists($manifestPath);
+
+        $decoded = json_decode((string) file_get_contents($manifestPath), true);
+        self::assertIsArray($decoded);
+        self::assertSame('demo', $decoded['project_name']);
+        self::assertSame('paths', $decoded['routing']);
+    }
+
     private function skeletonDir(): string
     {
         return dirname(__DIR__) . DIRECTORY_SEPARATOR . 'skeleton';

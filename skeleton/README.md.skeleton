@@ -11,10 +11,28 @@ docker compose up -d --build
 
 ## Endpoints
 
-- App: `http://localhost:{{VIBE4DOCK_WEB_HOST_PORT}}`
-- Tools: `http://localhost:{{VIBE4DOCK_TOOLS_HOST_PORT}}` (`TOOLS_USERNAME` + `TOOLS_PASSWORD`, if both set in `.env.local`)
-- Root shell: `http://localhost:{{VIBE4DOCK_ROOT_SHELL_HOST_PORT}}` (`ROOT_SHELL_USERNAME` + `ROOT_SHELL_PASSWORD`, if both set in `.env.local`)
-- App shell: `http://localhost:{{VIBE4DOCK_APP_SHELL_HOST_PORT}}` (`APP_SHELL_USERNAME` + `APP_SHELL_PASSWORD`, if both set in `.env.local`)
+This project uses the **{{VIBE4DOCK_ROUTING}}** routing mode.
+
+{{!PORTS_ONLY}}### Ports routing mode
+{{!PORTS_ONLY}}
+{{!PORTS_ONLY}}Each endpoint is published on its own host port:
+{{!PORTS_ONLY}}
+{{!PORTS_ONLY}}- App: `http://localhost:{{VIBE4DOCK_WEB_HOST_PORT}}`
+{{!PORTS_ONLY}}- Tools: `http://localhost:{{VIBE4DOCK_TOOLS_HOST_PORT}}` (`TOOLS_USERNAME` + `TOOLS_PASSWORD`, if both set in `.env.local`)
+{{!PORTS_ONLY}}- Root shell: `http://localhost:{{VIBE4DOCK_ROOT_SHELL_HOST_PORT}}` (`ROOT_SHELL_USERNAME` + `ROOT_SHELL_PASSWORD`, if both set in `.env.local`)
+{{!PORTS_ONLY}}- App shell: `http://localhost:{{VIBE4DOCK_APP_SHELL_HOST_PORT}}` (`APP_SHELL_USERNAME` + `APP_SHELL_PASSWORD`, if both set in `.env.local`)
+{{!PORTS_ONLY}}
+{{!PATHS_ONLY}}### Paths routing mode
+{{!PATHS_ONLY}}
+{{!PATHS_ONLY}}A single HTTP port serves everything through a built-in nginx proxy. All endpoints live under reserved `{{VIBE4DOCK_BASE_PATH_PREFIX}}-*` paths:
+{{!PATHS_ONLY}}
+{{!PATHS_ONLY}}- App: `http://localhost:{{VIBE4DOCK_WEB_HOST_PORT}}/`
+{{!PATHS_ONLY}}- Tools: `http://localhost:{{VIBE4DOCK_WEB_HOST_PORT}}{{VIBE4DOCK_BASE_PATH_DASHBOARD}}` (`TOOLS_USERNAME` + `TOOLS_PASSWORD`, if both set in `.env.local`)
+{{!PATHS_ONLY}}- Root shell: `http://localhost:{{VIBE4DOCK_WEB_HOST_PORT}}{{VIBE4DOCK_BASE_PATH_ROOT_SHELL}}` (`ROOT_SHELL_USERNAME` + `ROOT_SHELL_PASSWORD`, if both set in `.env.local`)
+{{!PATHS_ONLY}}- App shell: `http://localhost:{{VIBE4DOCK_WEB_HOST_PORT}}{{VIBE4DOCK_BASE_PATH_APP_SHELL}}` (`APP_SHELL_USERNAME` + `APP_SHELL_PASSWORD`, if both set in `.env.local`)
+{{!PATHS_ONLY}}
+{{!PATHS_ONLY}}Browser-capable addons (code-server, Adminer, Mailpit, Lazygit Shell, ...) are served automatically under `/{{VIBE4DOCK_BASE_PATH_PREFIX}}-<name>` paths. Addons without path support (for example OneDev) keep their own host ports. The `{{VIBE4DOCK_BASE_PATH_PREFIX}}-` namespace is reserved - do not use URLs starting with `/{{VIBE4DOCK_BASE_PATH_PREFIX}}-` in the web project itself.
+{{!PATHS_ONLY}}
 
 Use `docker/bash.sh` or `docker/root.sh` to enter the container.
 

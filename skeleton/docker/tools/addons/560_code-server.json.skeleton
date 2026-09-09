@@ -72,6 +72,11 @@
                 "port_field": "port",
                 "password_field": "password",
                 "button_label": "Open IDE",
+                "routing": {
+                    "path": "code-server",
+                    "service": "code-server",
+                    "container_port": 8080
+                },
                 "help_title": "Configure code-server",
                 "help_text": "Open the Addons section, configure the code-server addon, rebuild the stack, and then log in with the configured password.",
                 "help_command": "./docker/rebuild.sh"

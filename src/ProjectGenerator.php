@@ -48,8 +48,10 @@ final class ProjectGenerator
             }
 
             $destination = $outputDir . str_replace('/', DIRECTORY_SEPARATOR, $outputRelativePath);
-            $this->writeRendered($source, $destination, $replacements);
+            $this->writeRendered($source, $destination, $replacements, $config->routing());
         }
+
+        $this->writeManifest($outputDir, $config);
     }
 
     /**
@@ -65,7 +67,7 @@ final class ProjectGenerator
     /**
      * @param array<string, string> $replacements
      */
-    private function writeRendered(string $source, string $destination, array $replacements): void
+    private function writeRendered(string $source, string $destination, array $replacements, string $routing): void
     {
         $content = file_get_contents($source);
         if ($content === false) {
@@ -73,6 +75,7 @@ final class ProjectGenerator
         }
 
         if (TemplatePath::isSkeletonFile($source)) {
+            $content = $this->filterConditionalLines($content, $routing);
             $content = strtr($content, $replacements);
         }
 
@@ -84,6 +87,49 @@ final class ProjectGenerator
 
         if (str_ends_with($destination, '.sh')) {
             chmod($destination, 0755);
+        }
+    }
+
+    /**
+     * Filters mode-conditional lines out of a skeleton template.
+     *
+     * Lines starting with "{{!PORTS_ONLY}}" or "{{!PATHS_ONLY}}" (after optional
+     * whitespace) are removed entirely when the other routing mode is selected;
+     * when kept, the marker itself is stripped so only the original content
+     * (including its leading indentation) remains.
+     */
+    private function filterConditionalLines(string $content, string $routing): string
+    {
+        $lines = explode("\n", $content);
+        $keepPorts = $routing === SetupConfig::ROUTING_PORTS;
+        $filtered = [];
+
+        foreach ($lines as $line) {
+            if (preg_match('/^([ \t]*)\{\{!(PORTS_ONLY|PATHS_ONLY)\}\}/', $line, $matches) === 1) {
+                $markerRelevant = ($matches[2] === 'PORTS_ONLY') === $keepPorts;
+                if (! $markerRelevant) {
+                    continue;
+                }
+
+                $line = $matches[1] . substr($line, strlen($matches[0]));
+            }
+
+            $filtered[] = $line;
+        }
+
+        return implode("\n", $filtered);
+    }
+
+    private function writeManifest(string $outputDir, SetupConfig $config): void
+    {
+        $manifestPath = $outputDir . 'vibe4dock.project.json';
+        $encoded = json_encode($config->manifest(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($encoded === false) {
+            throw new Vibe4DockException('Unable to encode project manifest.');
+        }
+
+        if (file_put_contents($manifestPath, $encoded . PHP_EOL) === false) {
+            throw new Vibe4DockException('Unable to write file: ' . $manifestPath);
         }
     }
 
