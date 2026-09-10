@@ -32,11 +32,13 @@
 {{!PATHS_ONLY}}    # Tools UI (dashboard) - full path is forwarded, the UI strips its base path
 {{!PATHS_ONLY}}    location = {{VIBE4DOCK_BASE_PATH_DASHBOARD}} {
 {{!PATHS_ONLY}}        proxy_set_header X-Forwarded-Prefix {{VIBE4DOCK_BASE_PATH_DASHBOARD}};
-{{!PATHS_ONLY}}        proxy_pass http://tools:{{VIBE4DOCK_TOOLS_CONTAINER_PORT}};
+{{!PATHS_ONLY}}        set $vibe4dock_upstream_tools "tools";
+{{!PATHS_ONLY}}        proxy_pass http://$vibe4dock_upstream_tools:{{VIBE4DOCK_TOOLS_CONTAINER_PORT}};
 {{!PATHS_ONLY}}    }
 {{!PATHS_ONLY}}    location {{VIBE4DOCK_BASE_PATH_DASHBOARD}}/ {
 {{!PATHS_ONLY}}        proxy_set_header X-Forwarded-Prefix {{VIBE4DOCK_BASE_PATH_DASHBOARD}};
-{{!PATHS_ONLY}}        proxy_pass http://tools:{{VIBE4DOCK_TOOLS_CONTAINER_PORT}};
+{{!PATHS_ONLY}}        set $vibe4dock_upstream_tools "tools";
+{{!PATHS_ONLY}}        proxy_pass http://$vibe4dock_upstream_tools:{{VIBE4DOCK_TOOLS_CONTAINER_PORT}};
 {{!PATHS_ONLY}}    }
 {{!PATHS_ONLY}}
 {{!PATHS_ONLY}}    # Root shell (ttyd, requires --base-path)
@@ -51,7 +53,8 @@
 {{!PATHS_ONLY}}        sub_filter_types text/html;
 {{!PATHS_ONLY}}        sub_filter_once on;
 {{!PATHS_ONLY}}        sub_filter '</head>' '<style>*{scrollbar-width:thin;scrollbar-color:#2b3340 transparent}::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2b3340;border-radius:5px}::-webkit-scrollbar-thumb:hover{background:#3d4757}</style><script>var t="Root Shell - Vibe4Dock";(function(){var d=Object.getOwnPropertyDescriptor(Document.prototype,"title");if(d&&d.set)d.set.call(document,t)})();Object.defineProperty(document,"title",{get:function(){return t},set:function(){}})</script></head>';
-{{!PATHS_ONLY}}        proxy_pass http://web:{{VIBE4DOCK_ROOT_SHELL_CONTAINER_PORT}};
+{{!PATHS_ONLY}}        set $vibe4dock_upstream_web "web";
+{{!PATHS_ONLY}}        proxy_pass http://$vibe4dock_upstream_web:{{VIBE4DOCK_ROOT_SHELL_CONTAINER_PORT}};
 {{!PATHS_ONLY}}    }
 {{!PATHS_ONLY}}    location {{VIBE4DOCK_BASE_PATH_ROOT_SHELL}}/ {
 {{!PATHS_ONLY}}        proxy_set_header Host $host;
@@ -64,7 +67,8 @@
 {{!PATHS_ONLY}}        sub_filter_types text/html;
 {{!PATHS_ONLY}}        sub_filter_once on;
 {{!PATHS_ONLY}}        sub_filter '</head>' '<style>*{scrollbar-width:thin;scrollbar-color:#2b3340 transparent}::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2b3340;border-radius:5px}::-webkit-scrollbar-thumb:hover{background:#3d4757}</style><script>var t="Root Shell - Vibe4Dock";(function(){var d=Object.getOwnPropertyDescriptor(Document.prototype,"title");if(d&&d.set)d.set.call(document,t)})();Object.defineProperty(document,"title",{get:function(){return t},set:function(){}})</script></head>';
-{{!PATHS_ONLY}}        proxy_pass http://web:{{VIBE4DOCK_ROOT_SHELL_CONTAINER_PORT}};
+{{!PATHS_ONLY}}        set $vibe4dock_upstream_web "web";
+{{!PATHS_ONLY}}        proxy_pass http://$vibe4dock_upstream_web:{{VIBE4DOCK_ROOT_SHELL_CONTAINER_PORT}};
 {{!PATHS_ONLY}}    }
 {{!PATHS_ONLY}}
 {{!PATHS_ONLY}}    # Application shell (ttyd, requires --base-path)
@@ -79,7 +83,8 @@
 {{!PATHS_ONLY}}        sub_filter_types text/html;
 {{!PATHS_ONLY}}        sub_filter_once on;
 {{!PATHS_ONLY}}        sub_filter '</head>' '<style>*{scrollbar-width:thin;scrollbar-color:#2b3340 transparent}::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2b3340;border-radius:5px}::-webkit-scrollbar-thumb:hover{background:#3d4757}</style><script>var t="Application Shell - Vibe4Dock";(function(){var d=Object.getOwnPropertyDescriptor(Document.prototype,"title");if(d&&d.set)d.set.call(document,t)})();Object.defineProperty(document,"title",{get:function(){return t},set:function(){}})</script></head>';
-{{!PATHS_ONLY}}        proxy_pass http://web:{{VIBE4DOCK_APP_SHELL_CONTAINER_PORT}};
+{{!PATHS_ONLY}}        set $vibe4dock_upstream_web "web";
+{{!PATHS_ONLY}}        proxy_pass http://$vibe4dock_upstream_web:{{VIBE4DOCK_APP_SHELL_CONTAINER_PORT}};
 {{!PATHS_ONLY}}    }
 {{!PATHS_ONLY}}    location {{VIBE4DOCK_BASE_PATH_APP_SHELL}}/ {
 {{!PATHS_ONLY}}        proxy_set_header Host $host;
@@ -92,12 +97,14 @@
 {{!PATHS_ONLY}}        sub_filter_types text/html;
 {{!PATHS_ONLY}}        sub_filter_once on;
 {{!PATHS_ONLY}}        sub_filter '</head>' '<style>*{scrollbar-width:thin;scrollbar-color:#2b3340 transparent}::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2b3340;border-radius:5px}::-webkit-scrollbar-thumb:hover{background:#3d4757}</style><script>var t="Application Shell - Vibe4Dock";(function(){var d=Object.getOwnPropertyDescriptor(Document.prototype,"title");if(d&&d.set)d.set.call(document,t)})();Object.defineProperty(document,"title",{get:function(){return t},set:function(){}})</script></head>';
-{{!PATHS_ONLY}}        proxy_pass http://web:{{VIBE4DOCK_APP_SHELL_CONTAINER_PORT}};
+{{!PATHS_ONLY}}        set $vibe4dock_upstream_web "web";
+{{!PATHS_ONLY}}        proxy_pass http://$vibe4dock_upstream_web:{{VIBE4DOCK_APP_SHELL_CONTAINER_PORT}};
 {{!PATHS_ONLY}}    }
 {{!PATHS_ONLY}}
 {{!PATHS_ONLY}}    # Web project (catch-all)
 {{!PATHS_ONLY}}    location / {
-{{!PATHS_ONLY}}        proxy_pass http://web:{{VIBE4DOCK_WEB_CONTAINER_PORT}};
+{{!PATHS_ONLY}}        set $vibe4dock_upstream_web "web";
+{{!PATHS_ONLY}}        proxy_pass http://$vibe4dock_upstream_web:{{VIBE4DOCK_WEB_CONTAINER_PORT}};
 {{!PATHS_ONLY}}    }
 {{!PATHS_ONLY}}
 {{!PATHS_ONLY}}    # VIBE4DOCK_MANAGED_LOCATIONS_START
