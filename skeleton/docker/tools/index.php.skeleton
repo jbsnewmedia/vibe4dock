@@ -2125,7 +2125,7 @@ function collectRebuildProgressData()
     );
 }
 
-function renderRebuildStatusPage($triggeredAt, $triggeredAtIso, $hintMtime, $writeOk)
+function renderRebuildStatusPage($triggeredAt, $triggeredAtIso, $hintMtime, $writeOk, $alreadyHandled = false)
 {
     $initial = collectRebuildProgressData();
     $initialJson = json_encode($initial, JSON_UNESCAPED_SLASHES);
@@ -2133,8 +2133,9 @@ function renderRebuildStatusPage($triggeredAt, $triggeredAtIso, $hintMtime, $wri
 
     $safeTriggered = htmlspecialchars($triggeredAtIso);
     $safeHintMtime = (int) $hintMtime;
-    $stateBadge = $writeOk ? 'status-installed' : 'status-missing';
-    $stateLabel = $writeOk ? 'Triggered' : 'Write failed';
+    $pageTitle = $alreadyHandled ? 'Rebuild already triggered' : 'Rebuild triggered';
+    $stateBadge = $alreadyHandled || $writeOk === false ? 'status-missing' : 'status-installed';
+    $stateLabel = $alreadyHandled ? 'Already triggered' : ($writeOk ? 'Triggered' : 'Write failed');
     $dashboardUrl = vibeUrl('/dashboard');
     $rebuildProgressUrl = vibeUrl('/api/rebuild-progress');
 
@@ -2143,7 +2144,7 @@ function renderRebuildStatusPage($triggeredAt, $triggeredAtIso, $hintMtime, $wri
             <a href="$dashboardUrl" class="back">← back</a>
             <div class="tool-header" style="margin-bottom: 0;">
                 <div>
-                    <h1 style="margin: 0 0 6px 0;" id="rebuild-title">Rebuild triggered</h1>
+                    <h1 style="margin: 0 0 6px 0;" id="rebuild-title">$pageTitle</h1>
                     <div style="color: var(--text-dim); line-height: 1.5; font-size: 0.9em;">
                         Requested at <strong id="rebuild-triggered-at">$safeTriggered</strong> &middot;
                         hint mtime <code id="rebuild-hint-mtime">$safeHintMtime</code>
@@ -2446,7 +2447,7 @@ function renderRebuildStatusPage($triggeredAt, $triggeredAtIso, $hintMtime, $wri
         </script>
 HTML;
 
-    echo renderLayout('Rebuild triggered', $content, 'dashboard');
+    echo renderLayout($pageTitle, $content, 'dashboard');
 }
 
 function addTimestamp($url)
@@ -2747,11 +2748,15 @@ function renderLayout($title, $content, $currentCategoryId = null)
     $restartIndicator = '';
     if ($restartRequired) {
         $rebuildActionUrl = vibeLink('/action/system/rebuild');
+        $rebuildHintFile = '/app/docker/web/settings/rebuild_required.hint';
+        clearstatcache(true, $rebuildHintFile);
+        $rebuildHintMtime = file_exists($rebuildHintFile) ? (int) filemtime($rebuildHintFile) : 0;
         $restartIndicator = '
         <div id="rebuild-banner" class="rebuild-banner">
             <span style="color: #ffaa00; font-size: 0.9em; font-weight: bold;">Manual Rebuild Required</span>
             <form method="post" action="' . $rebuildActionUrl . '" style="display: inline; margin: 0;">
                 <input type="hidden" name="csrf" value="rebuild">
+                <input type="hidden" name="hint_mtime" value="' . $rebuildHintMtime . '">
                 <button type="submit" name="action" value="rebuild" class="btn-install" style="background: #ffaa00; color: #000; padding: 5px 12px; font-size: 0.85em; font-weight: bold;">Rebuild now</button>
             </form>
             <button type="button" class="btn-install" style="background: #ffaa00; color: #000; padding: 5px 10px; font-size: 0.85em;" onclick="showRebuildInstructions()">Instructions</button>
@@ -3282,13 +3287,22 @@ if ($method === 'POST' && $requestPath === '/action/system/restart') {
 
 if ($method === 'POST' && $requestPath === '/action/system/rebuild') {
     $hintFile = '/app/docker/web/settings/rebuild_required.hint';
+    clearstatcache(true, $hintFile);
+
+    $currentMtime = file_exists($hintFile) ? (int) filemtime($hintFile) : 0;
+    $submittedMtime = isset($_POST['hint_mtime']) ? (int) $_POST['hint_mtime'] : -1;
+
+    if ($submittedMtime !== $currentMtime) {
+        renderRebuildStatusPage($currentMtime, date('Y-m-d H:i:s', $currentMtime > 0 ? $currentMtime : time()), $currentMtime, true, true);
+        exit;
+    }
+
     $triggeredAt = time();
     $triggeredAtIso = date('Y-m-d H:i:s', $triggeredAt);
 
-    $existingMtime = file_exists($hintFile) ? (int) filemtime($hintFile) : 0;
     $now = $triggeredAt;
-    if ($existingMtime >= $now) {
-        $now = $existingMtime + 1;
+    if ($currentMtime >= $now) {
+        $now = $currentMtime + 1;
     }
     $payload = json_encode(array(
         'requested_at' => $now,
@@ -3302,7 +3316,130 @@ if ($method === 'POST' && $requestPath === '/action/system/rebuild') {
     clearstatcache(true, $hintFile);
     $hintMtime = (int) filemtime($hintFile);
 
-    renderRebuildStatusPage($triggeredAt, $triggeredAtIso, $hintMtime, $writeResult !== false);
+    header('Location: ' . vibeLink('/rebuild-status?requested=' . $hintMtime), true, 303);
+    exit;
+}
+
+if ($requestPath === '/rebuild-status') {
+    $hintFile = '/app/docker/web/settings/rebuild_required.hint';
+    clearstatcache(true, $hintFile);
+    $currentMtime = file_exists($hintFile) ? (int) filemtime($hintFile) : 0;
+    $requestedMtime = isset($_GET['requested']) ? (int) $_GET['requested'] : 0;
+    $hintMtime = $requestedMtime > 0 ? $requestedMtime : $currentMtime;
+    renderRebuildStatusPage($hintMtime, date('Y-m-d H:i:s', $hintMtime > 0 ? $hintMtime : time()), $hintMtime, true);
+    exit;
+}
+
+if ($method === 'POST' && $requestPath === '/api/upload') {
+    header('Content-Type: application/json');
+    $incomingDir = '/app/incoming';
+    if (!is_dir($incomingDir)) {
+        @mkdir($incomingDir, 0777, true);
+    }
+    if (!is_dir($incomingDir) || !is_writable($incomingDir)) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Cannot create or write ' . $incomingDir]);
+        exit;
+    }
+
+    $files = [];
+    $uploads = [];
+    if (isset($_FILES['file'])) {
+        $info = $_FILES['file'];
+        $count = is_array($info['name']) ? count($info['name']) : 1;
+        for ($i = 0; $i < $count; $i++) {
+            $uploads[] = [
+                'name' => is_array($info['name']) ? $info['name'][$i] : $info['name'],
+                'tmp' => is_array($info['tmp_name']) ? $info['tmp_name'][$i] : $info['tmp_name'],
+                'error' => is_array($info['error']) ? $info['error'][$i] : $info['error'],
+            ];
+        }
+    }
+    foreach ($uploads as $upload) {
+        $originalName = (string) $upload['name'];
+        $tmp = (string) $upload['tmp'];
+        $err = (int) $upload['error'];
+        if ($err !== UPLOAD_ERR_OK || $tmp === '' || !is_uploaded_file($tmp)) {
+            $files[] = ['ok' => false, 'name' => $originalName === '' ? '' : (string) $upload['name'], 'error' => 'upload error ' . $upload['error']];
+            continue;
+        }
+        $base = pathinfo((string) $originalName, PATHINFO_FILENAME);
+        $ext = pathinfo((string) $originalName, PATHINFO_EXTENSION);
+        $base = trim(preg_replace('/[^A-Za-z0-9._-]+/', '_', $base), '_');
+        $base = preg_replace('/\\.{2,}/', '_', $base);
+        $base = trim($base, '._');
+        if ($base === '' || $base === '_') {
+            $base = 'image_' . date('Ymd_His');
+            $ext = $ext !== '' ? $ext : 'png';
+        }
+        $base = substr($base, 0, 64);
+        $ext = preg_replace('/[^A-Za-z0-9]/', '', (string) $ext);
+        $ext = $ext !== '' ? '.' . strtolower(substr($ext, 0, 12)) : '';
+        $candidate = $base . $ext;
+        $n = 2;
+        while (file_exists($incomingDir . '/' . $candidate)) {
+            $candidate = $base . '-' . $n . $ext;
+            $n++;
+            if ($n > 999) {
+                $candidate = $base . '-' . time() . $ext;
+                break;
+            }
+        }
+        $target = $incomingDir . '/' . $candidate;
+        $realIncoming = realpath($incomingDir);
+        $realTarget = realpath(dirname($target)) === false ? $incomingDir : dirname($target);
+        if (strpos($candidate, '..') !== false || strpos($candidate, '/') !== false || strpos($candidate, chr(0)) !== false) {
+            $files[] = ['ok' => false, 'name' => (string) $originalName, 'error' => 'invalid file name'];
+            continue;
+        }
+        if (!move_uploaded_file($tmp, $target)) {
+            $files[] = ['ok' => false, 'name' => (string) $originalName, 'error' => 'could not move file'];
+            continue;
+        }
+        $realFile = realpath($target);
+        if ($realFile === false || strpos($realFile, realpath($incomingDir) . DIRECTORY_SEPARATOR) !== 0) {
+            @unlink($target);
+            $files[] = ['ok' => false, 'name' => (string) $originalName, 'error' => 'invalid target path'];
+            continue;
+        }
+        @chmod($target, 0666);
+        $files[] = [
+            'ok' => true,
+            'name' => $candidate,
+            'path' => 'incoming/' . $candidate,
+            'size' => (int) filesize($target),
+        ];
+    }
+
+    echo json_encode(['ok' => true, 'files' => $files]);
+    exit;
+}
+
+if ($method === 'GET' && $requestPath === '/api/upload/list') {
+    header('Content-Type: application/json');
+    $incomingDir = '/app/incoming';
+    $items = [];
+    if (is_dir($incomingDir)) {
+        foreach (scandir($incomingDir) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+            $path = $incomingDir . '/' . $entry;
+            if (!is_file($path)) {
+                continue;
+            }
+            $items[] = [
+                'name' => $entry,
+                'path' => 'incoming/' . $entry,
+                'size' => (int) filesize($path),
+                'mtime' => (int) filemtime($path),
+            ];
+        }
+        usort($items, static function ($a, $b) {
+            return $b['mtime'] <=> $a['mtime'];
+        });
+    }
+    echo json_encode(['ok' => true, 'files' => $items]);
     exit;
 }
 
