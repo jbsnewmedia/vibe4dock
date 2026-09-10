@@ -1584,7 +1584,7 @@ function detectProjectPhpVersion()
         }
     }
 
-    return '8.4';
+    return '8.5';
 }
 
 function getPackageOperations($tool)

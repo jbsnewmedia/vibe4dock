@@ -94,7 +94,7 @@ Ohne Optionen läuft das Setup interaktiv und fragt nacheinander Projektname, PH
 ```bash
 ./vibe4dock \
   --project-name=my-vibe4dock \
-  --php-version=8.4 \
+  --php-version=8.5 \
   --web-port=80 \
   --tools-port=8090 \
   --root-shell-port=7681 \
@@ -107,7 +107,7 @@ Pfad-basiertes Routing (ein einziger Host-Port, alle Endpoints unter `/vibe-*`-P
 ```bash
 ./vibe4dock \
   --project-name=my-vibe4dock \
-  --php-version=8.4 \
+  --php-version=8.5 \
   --routing=paths \
   --web-port=8080 \
   --output-dir=./build/my-vibe4dock
@@ -179,7 +179,7 @@ Im `paths`-Routing-Modus (siehe [Routing-Modi](#routing-modi)) kommt ein dritter
 
 ### Service `web`
 
-Der Web-Service basiert auf `webdevops/php-apache-dev:8.4` und erweitert dieses Image um:
+Der Web-Service basiert auf `webdevops/php-apache-dev:8.5` und erweitert dieses Image um:
 
 - `ttyd` für browserbasierte Terminals,
 - `tmux`,
@@ -203,7 +203,7 @@ Damit entsteht eine Umgebung, die nicht nur lokal am Rechner funktioniert, sonde
 
 ### Service `tools`
 
-Der Tools-Service ist ein eigenständiger PHP-Container auf Basis von `php:8.4-cli-bookworm`. Er stellt die Verwaltungsoberfläche bereit und hat Zugriff auf:
+Der Tools-Service ist ein eigenständiger PHP-Container auf Basis von `php:8.5-cli-bookworm`. Er stellt die Verwaltungsoberfläche bereit und hat Zugriff auf:
 
 - das Projektverzeichnis via Bind-Mount,
 - den Docker-Socket,

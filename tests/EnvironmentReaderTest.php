@@ -68,13 +68,13 @@ final class EnvironmentReaderTest extends TestCase
         $manifest = (string) json_encode([
             'version' => '1.0.3',
             'project_name' => 'demo',
-            'php_version' => '8.4',
+            'php_version' => '8.5',
             'routing' => 'paths',
             'base_path_prefix' => 'vibe',
         ]);
 
         self::assertSame('demo', EnvironmentReader::manifestValue($manifest, 'project_name'));
-        self::assertSame('8.4', EnvironmentReader::manifestValue($manifest, 'php_version'));
+        self::assertSame('8.5', EnvironmentReader::manifestValue($manifest, 'php_version'));
         self::assertSame('vibe', EnvironmentReader::manifestValue($manifest, 'base_path_prefix'));
         self::assertSame('paths', EnvironmentReader::manifestRouting($manifest));
     }
