@@ -14,7 +14,8 @@
             "label": "OpenCode CLI",
             "mounts": [
                 "./docker/web/settings/opencode:/home/application/.config/opencode",
-                "./docker/web/settings/opencode-share:/home/application/.local/share/opencode"
+                "./docker/web/settings/opencode-share:/home/application/.local/share/opencode",
+                "./docker/web/settings/opencode-state:/home/application/.local/state/opencode"
             ],
             "description": "Open source AI coding agent for the terminal, desktop, and IDE.",
             "usage": "",
