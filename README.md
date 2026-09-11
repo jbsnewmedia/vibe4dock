@@ -6,7 +6,7 @@
 
 For the German version, see [README.de.md](readme/README.de.md).
 
-This documentation describes **Vibe4Dock 1.0.3**.
+This documentation describes **Vibe4Dock 1.0.4**.
 
 Vibe4Dock is a Docker-based development environment with a web interface for CLI tools, browser shells, and project-specific runtime extensions. The main reason this project exists is simple: it gives you direct web access to AI CLI tools so you can keep working on your project anytime - on your desktop, phone, tablet, while traveling, or basically from anywhere.
 
@@ -40,7 +40,7 @@ The CLI itself only requires PHP CLI version 8 or newer. No additional dependenc
 Latest stable tag:
 
 ```bash
-git clone --branch 1.0.3 --depth 1 https://github.com/jbsnewmedia/vibe4dock.git
+git clone --branch 1.0.4 --depth 1 https://github.com/jbsnewmedia/vibe4dock.git
 cd vibe4dock
 chmod +x vibe4dock
 ```
@@ -316,7 +316,7 @@ The real work stays inside the container and therefore inside one consistent env
 
 ## Tool and addon packs
 
-Bundled definitions for **Vibe4Dock 1.0.3** are loaded from:
+Bundled definitions for **Vibe4Dock 1.0.4** are loaded from:
 
 ```text
 docker/tools/category/
@@ -530,7 +530,7 @@ Each file:
 - can define categories and tools,
 - is merged with all other files.
 
-Bundled tool files are already part of the repository in version 1.0.3, and additional team-specific or project-specific packs can be layered on top through the same merge mechanism.
+Bundled tool files are already part of the repository in version 1.0.4, and additional team-specific or project-specific packs can be layered on top through the same merge mechanism.
 
 ### Addon definitions
 
@@ -647,7 +647,7 @@ Examples of bundled browser endpoints:
 - **OneDev**: separate addon service with a web UI on port `6610`, Git SSH on port `6611`, and an auto-bootstrap job for the current workspace
 - **Mailpit**: separate addon service with a web UI on port `8025` for viewing caught emails and an SMTP server on port `1025` for local mail testing
 - **opencode**: separate addon service that runs the opencode AI coding agent with a browser-based web UI on port `4096` and the project mounted as workspace
-- **Chat**: separate addon service with a ChatGPT-like web UI in front of a headless `opencode serve` agent working on the project; shell activity appears in a collapsible thinking panel and agent questions or permission requests show up as interactive bubbles
+- **Chat**: separate addon service with a ChatGPT-like web UI in front of a headless `opencode serve` agent working on the project; shell activity appears in a collapsible thinking panel and agent questions or permission requests show up as interactive bubbles. Requires the bundled `opencode-cli` tool and supports no other agent backend
 
 ## Settings
 
