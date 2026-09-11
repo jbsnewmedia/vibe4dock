@@ -258,6 +258,8 @@ function updateDockerOverride()
     $overrideFile = '/app/docker-compose.override.yml';
 
     $mounts = array();
+    $mountToolIds = array();
+    $serviceDependencies = array();
     $composeServices = array();
 
     foreach ($config['tools'] as $tool) {
@@ -286,6 +288,16 @@ function updateDockerOverride()
             foreach ($tool['mounts'] as $p) {
                 $mounts[] = $p;
             }
+            $mountToolIds[$tool['id']] = $tool['mounts'];
+        }
+
+        $toolDependencies = array();
+        if (isset($tool['dependencies']) && is_array($tool['dependencies'])) {
+            foreach ($tool['dependencies'] as $dependencyId) {
+                if (is_string($dependencyId) && trim($dependencyId) !== '') {
+                    $toolDependencies[] = trim($dependencyId);
+                }
+            }
         }
 
         foreach (getComposeServiceConfigs($installedDefinition) as $serviceConfig) {
@@ -307,6 +319,13 @@ function updateDockerOverride()
                 isset($composeServices[$serviceName]) ? $composeServices[$serviceName] : array(),
                 $resolvedDefinition
             );
+
+            if (!empty($toolDependencies)) {
+                $serviceDependencies[$serviceName] = array_values(array_unique(array_merge(
+                    isset($serviceDependencies[$serviceName]) ? $serviceDependencies[$serviceName] : array(),
+                    $toolDependencies
+                )));
+            }
         }
     }
 
@@ -324,6 +343,31 @@ function updateDockerOverride()
                 'volumes' => array_values(array_unique($mounts)),
             )
         );
+
+        // Propagate the mounts of a tool to addon services that declare it as a
+        // dependency (e.g. the chat addon needs the OpenCode CLI state mounts).
+        foreach ($serviceDependencies as $serviceName => $dependencies) {
+            if ($serviceName === 'web' || !isset($composeServices[$serviceName])) {
+                continue;
+            }
+            $serviceMounts = array();
+            foreach ($dependencies as $dependencyId) {
+                if (isset($mountToolIds[$dependencyId]) && is_array($mountToolIds[$dependencyId])) {
+                    foreach ($mountToolIds[$dependencyId] as $mount) {
+                        $serviceMounts[] = $mount;
+                    }
+                }
+            }
+            if (empty($serviceMounts)) {
+                continue;
+            }
+            $composeServices[$serviceName] = mergeComposeDefinitions(
+                $composeServices[$serviceName],
+                array(
+                    'volumes' => array_values(array_unique($serviceMounts)),
+                )
+            );
+        }
     }
 
     $yaml = "services:\n";
