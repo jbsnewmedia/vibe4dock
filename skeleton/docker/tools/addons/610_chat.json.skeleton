@@ -41,7 +41,7 @@
                         "required": false,
                         "label": "Username",
                         "default": "",
-                        "help_text": "HTTP Basic Auth username for the chat UI. Without username and password the chat answers 403 for every request (fail closed).",
+                        "help_text": "HTTP Basic Auth username for the chat UI. Without username and password the chat UI is accessible without authentication (like the shells).",
                         "sources": [
                             {
                                 "type": "docker_yaml",

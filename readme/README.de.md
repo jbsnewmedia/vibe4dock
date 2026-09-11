@@ -600,6 +600,7 @@ Beispiele für mitgelieferte Browser-Endpunkte:
 - **OneDev**: separater Addon-Service mit Web-UI auf Port `6610`, Git-SSH auf Port `6611` und Auto-Bootstrap für das aktuelle Workspace-Projekt
 - **Mailpit**: separater Addon-Service mit Web-UI auf Port `8025` zum Anzeigen abgefangener E-Mails und SMTP-Server auf Port `1025` für lokales Mail-Testing
 - **opencode**: separater Addon-Service, der den opencode AI-Coding-Agenten mit Browser-Web-UI auf Port `4096` und dem Projekt als Workspace bereitstellt
+- **Chat**: separater Addon-Service mit ChatGPT-ähnlicher Web-UI vor einem headless `opencode serve`-Agenten, der am Projekt arbeitet; Shell-Aktivität erscheint in einem einklappbaren Thinking-Panel, Agentenfragen und Berechtigungsanfragen als interaktive Blasen
 
 ## Einstellungen
 
@@ -625,6 +626,8 @@ APP_SHELL_PASSWORD="durch-ein-starkes-passwort-ersetzen"
 ROOT_SHELL_USERNAME="root"
 ROOT_SHELL_PASSWORD="durch-ein-starkes-passwort-ersetzen"
 ```
+
+Das Chat-Addon nutzt nicht die `.env.local`. Sein optionaler HTTP-Basic-Auth-Schutz wird über die Addons-Sektion der Tools-UI konfiguriert (`CHAT_USERNAME` / `CHAT_PASSWORD`); beide Werte landen in der `chat`-Service-Umgebung der generierten `docker-compose.override.yml`. Ohne Zugangsdaten ist die Chat-UI wie die Shells ohne Authentifizierung erreichbar.
 
 ## Persistenz
 

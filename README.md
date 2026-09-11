@@ -647,6 +647,7 @@ Examples of bundled browser endpoints:
 - **OneDev**: separate addon service with a web UI on port `6610`, Git SSH on port `6611`, and an auto-bootstrap job for the current workspace
 - **Mailpit**: separate addon service with a web UI on port `8025` for viewing caught emails and an SMTP server on port `1025` for local mail testing
 - **opencode**: separate addon service that runs the opencode AI coding agent with a browser-based web UI on port `4096` and the project mounted as workspace
+- **Chat**: separate addon service with a ChatGPT-like web UI in front of a headless `opencode serve` agent working on the project; shell activity appears in a collapsible thinking panel and agent questions or permission requests show up as interactive bubbles
 
 ## Settings
 
@@ -672,6 +673,8 @@ APP_SHELL_PASSWORD="replace-with-a-strong-password"
 ROOT_SHELL_USERNAME="root"
 ROOT_SHELL_PASSWORD="replace-with-a-strong-password"
 ```
+
+The Chat addon does not use `.env.local`. Its optional HTTP Basic Auth is configured through the Addons section of the tools UI (`CHAT_USERNAME` / `CHAT_PASSWORD`); both values are stored in the `chat` service environment of the generated `docker-compose.override.yml`. Without credentials the chat UI is accessible without authentication, like the shells.
 
 ## Persistence
 
