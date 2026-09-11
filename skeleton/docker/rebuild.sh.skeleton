@@ -51,6 +51,14 @@ docker compose build --no-cache web || {
     exit 1
 }
 
+# Cached build for every other service (e.g. addons) so changed images are
+# picked up too; unchanged layers stay cached, so this is cheap.
+echo "Rebuilding remaining service images (cached)..."
+docker compose build || {
+    echo "Build failed. Leaving the rebuild hint in place so the watcher can retry." >&2
+    exit 1
+}
+
 echo "Starting containers..."
 docker compose up -d --force-recreate --remove-orphans || {
     echo "docker compose up failed. Leaving the rebuild hint in place so the watcher can retry." >&2

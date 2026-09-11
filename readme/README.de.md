@@ -94,7 +94,7 @@ Ohne Optionen läuft das Setup interaktiv und fragt nacheinander Projektname, PH
 ```bash
 ./vibe4dock \
   --project-name=my-vibe4dock \
-  --php-version=8.4 \
+  --php-version=8.5 \
   --web-port=80 \
   --tools-port=8090 \
   --root-shell-port=7681 \
@@ -107,7 +107,7 @@ Pfad-basiertes Routing (ein einziger Host-Port, alle Endpoints unter `/vibe-*`-P
 ```bash
 ./vibe4dock \
   --project-name=my-vibe4dock \
-  --php-version=8.4 \
+  --php-version=8.5 \
   --routing=paths \
   --web-port=8080 \
   --output-dir=./build/my-vibe4dock
@@ -179,7 +179,7 @@ Im `paths`-Routing-Modus (siehe [Routing-Modi](#routing-modi)) kommt ein dritter
 
 ### Service `web`
 
-Der Web-Service basiert auf `webdevops/php-apache-dev:8.4` und erweitert dieses Image um:
+Der Web-Service basiert auf `webdevops/php-apache-dev:8.5` und erweitert dieses Image um:
 
 - `ttyd` für browserbasierte Terminals,
 - `tmux`,
@@ -203,7 +203,7 @@ Damit entsteht eine Umgebung, die nicht nur lokal am Rechner funktioniert, sonde
 
 ### Service `tools`
 
-Der Tools-Service ist ein eigenständiger PHP-Container auf Basis von `php:8.4-cli-bookworm`. Er stellt die Verwaltungsoberfläche bereit und hat Zugriff auf:
+Der Tools-Service ist ein eigenständiger PHP-Container auf Basis von `php:8.5-cli-bookworm`. Er stellt die Verwaltungsoberfläche bereit und hat Zugriff auf:
 
 - das Projektverzeichnis via Bind-Mount,
 - den Docker-Socket,
@@ -600,6 +600,7 @@ Beispiele für mitgelieferte Browser-Endpunkte:
 - **OneDev**: separater Addon-Service mit Web-UI auf Port `6610`, Git-SSH auf Port `6611` und Auto-Bootstrap für das aktuelle Workspace-Projekt
 - **Mailpit**: separater Addon-Service mit Web-UI auf Port `8025` zum Anzeigen abgefangener E-Mails und SMTP-Server auf Port `1025` für lokales Mail-Testing
 - **opencode**: separater Addon-Service, der den opencode AI-Coding-Agenten mit Browser-Web-UI auf Port `4096` und dem Projekt als Workspace bereitstellt
+- **Chat**: separater Addon-Service mit ChatGPT-ähnlicher Web-UI vor einem headless `opencode serve`-Agenten, der am Projekt arbeitet; Shell-Aktivität erscheint in einem einklappbaren Thinking-Panel, Agentenfragen und Berechtigungsanfragen als interaktive Blasen
 
 ## Einstellungen
 
@@ -625,6 +626,8 @@ APP_SHELL_PASSWORD="durch-ein-starkes-passwort-ersetzen"
 ROOT_SHELL_USERNAME="root"
 ROOT_SHELL_PASSWORD="durch-ein-starkes-passwort-ersetzen"
 ```
+
+Das Chat-Addon nutzt nicht die `.env.local`. Sein optionaler HTTP-Basic-Auth-Schutz wird über die Addons-Sektion der Tools-UI konfiguriert (`CHAT_USERNAME` / `CHAT_PASSWORD`); beide Werte landen in der `chat`-Service-Umgebung der generierten `docker-compose.override.yml`. Ohne Zugangsdaten ist die Chat-UI wie die Shells ohne Authentifizierung erreichbar.
 
 ## Persistenz
 

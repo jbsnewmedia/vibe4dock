@@ -42,6 +42,8 @@ Add tool and addon packs by placing JSON definitions under `docker/tools/categor
 
 Configure usernames and passwords only in `.env.local`. Commented or empty values stay inactive; uncommented, non-empty credentials are used automatically.
 
+Addon services manage their own credentials through the Addons section of the tools UI (for example `CHAT_USERNAME` / `CHAT_PASSWORD` for the Chat addon). These values live in the service environment of `docker-compose.override.yml`, not in `.env.local`.
+
 ## Security features
 
 The example includes optional HTTP Basic Auth protection for:
@@ -50,7 +52,7 @@ The example includes optional HTTP Basic Auth protection for:
 - Application shell
 - Root shell
 
-Protection is controlled only through `.env.local`.
+Protection is controlled only through `.env.local`. Addon-provided endpoints (such as the Chat UI) are configured through their addon settings and stay open without credentials until both username and password are set there.
 
 Example:
 

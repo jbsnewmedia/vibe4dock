@@ -11,7 +11,7 @@ use Vibe4Dock\Exception\InvalidConfigException;
  */
 final class SetupConfig
 {
-    public const DEFAULT_PHP_VERSION = '8.4';
+    public const DEFAULT_PHP_VERSION = '8.5';
 
     public const DEFAULT_WEB_PORT = 80;
 
