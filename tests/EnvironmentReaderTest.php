@@ -66,7 +66,7 @@ final class EnvironmentReaderTest extends TestCase
     public function testReadsProjectManifest(): void
     {
         $manifest = (string) json_encode([
-            'version' => '1.0.3',
+            'version' => '1.0.4',
             'project_name' => 'demo',
             'php_version' => '8.5',
             'routing' => 'paths',

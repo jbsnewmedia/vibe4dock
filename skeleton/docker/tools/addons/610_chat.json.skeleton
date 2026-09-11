@@ -18,6 +18,9 @@
             "check": "false",
             "install": "true",
             "uninstall": "true",
+            "dependencies": [
+                "opencode-cli"
+            ],
             "config_schema": {
                 "fields": [
                     {
@@ -2286,6 +2289,11 @@
                             "",
                             "The chat addon exposes a ChatGPT-like web UI in front of a headless `opencode serve`",
                             "instance that works directly on the mounted project directory (`/app`).",
+                            "",
+                            "## Dependency",
+                            "",
+                            "- The chat addon requires the bundled `opencode-cli` tool (AI CLI category).",
+                            "- Install the OpenCode CLI first; the chat cannot be installed without it and no other agent backend is supported.",
                             "",
                             "## Access",
                             "",
