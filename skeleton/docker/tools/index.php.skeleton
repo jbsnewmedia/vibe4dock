@@ -559,15 +559,28 @@ function updateProxyConfig()
         }
 
         $label = isset($tool['label']) ? (string) $tool['label'] : (string) ($tool['id'] ?? 'Addon');
+        $authLines = array();
+        if (isset($routing['auth']) && $routing['auth'] === 'cookie') {
+            // Cookie-based form login (vibe-auth) instead of HTTP basic auth.
+            // The matching infrastructure locations live in the proxy base config.
+            $slug = preg_replace('/[^a-z0-9]/', '', strtolower(substr($basePath, 5)));
+            $slug = $slug === '' || $slug === false ? 'addon' : $slug;
+            $authLines = array(
+                '        auth_request /_vibe_' . $slug . '_auth;',
+                '        error_page 401 = @vibe_' . $slug . '_login;',
+            );
+        }
         $managedLines[] = '    # ' . $label . ' (' . $basePath . ')';
         $managedLines[] = '    location = ' . $basePath . ' {';
+        $managedLines = array_merge($managedLines, $authLines);
         $managedLines[] = '        set $vibe4dock_upstream "' . $serviceName . '";';
         $managedLines[] = '        proxy_pass http://$vibe4dock_upstream:' . $containerPort . ';';
         $managedLines[] = '    }';
         $managedLines[] = '    location ' . $basePath . '/ {';
+        $managedLines = array_merge($managedLines, $authLines);
         $managedLines[] = '        set $vibe4dock_upstream "' . $serviceName . '";';
         $managedLines[] = '        proxy_pass http://$vibe4dock_upstream:' . $containerPort . ';';
-        $managedLines[] = '    }';
+        $managedLines[] = '    }';;
     }
 
     $managedBlock = '';
@@ -804,7 +817,7 @@ function enforceToolsAuthentication($envValues)
     $password = isset($_SERVER['PHP_AUTH_PW']) ? (string) $_SERVER['PHP_AUTH_PW'] : '';
 
     if ($user !== $expectedUser || !hash_equals($expectedPassword, $password)) {
-        sendBasicAuthChallenge('Vibe4Dock Login');
+        sendBasicAuthChallenge('Vibe4Dock Login 2026-09');
     }
 }
 
@@ -3309,7 +3322,12 @@ if ($routerBasePath !== '') {
 }
 
 if (php_sapi_name() !== 'cli') {
-    enforceToolsAuthentication(getEnvLocalValues());
+    // Chat upload endpoints are reached only through the cookie-protected chat
+    // route of the vibe4dock proxy - no separate basic auth for them.
+    $authExemptPath = (string) strtok($requestUri, '?');
+    if (!str_starts_with($authExemptPath, '/api/upload')) {
+        enforceToolsAuthentication(getEnvLocalValues());
+    }
 }
 
 // Global container check

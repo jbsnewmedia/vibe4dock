@@ -1,0 +1,207 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Vibe4Dock addon form-login (session-cookie based, HMAC-signed token).
+ *
+ * Replaces HTTP basic auth for cookie-authenticated addons (see the addon
+ * routing flag "auth: cookie") at the proxy layer. The auth_request location
+ * in the proxy configuration calls this script with action=check&service=<slug>.
+ *
+ * Credentials source (per service slug, e.g. "chat"):
+ *  1. docker/web/settings/addon_configs.json  -> { "<slug>": { username, password } }
+ *  2. .env.local                              -> <SLUG>_USERNAME / <SLUG>_PASSWORD
+ */
+
+const COOKIE_PREFIX = 'vibe_';
+const TOKEN_TTL     = 2592000; // 30 days
+
+function serviceSlug(): string
+{
+    $slug = isset($_GET['service']) ? (string) $_GET['service'] : 'chat';
+    $slug = strtolower(preg_replace('/[^a-z0-9-]/', '', $slug) ?? '');
+
+    return $slug === '' ? 'chat' : $slug;
+}
+
+function cookieName(string $slug): string
+{
+    return COOKIE_PREFIX . $slug . '_auth';
+}
+
+function addonConfigValue(string $slug, string $key): string
+{
+    static $configs = null;
+    if ($configs === null) {
+        $configs = [];
+        $file = '/app/docker/web/settings/addon_configs.json';
+        if (is_readable($file)) {
+            $decoded = json_decode((string) file_get_contents($file), true);
+            if (is_array($decoded)) {
+                $configs = $decoded;
+            }
+        }
+    }
+
+    $value = $configs[$slug][$key] ?? null;
+
+    return is_string($value) ? trim($value) : '';
+}
+
+function envLocalValue(string $key): string
+{
+    static $values = null;
+    if ($values === null) {
+        $values = [];
+        $file = '/app/.env.local';
+        if (is_readable($file)) {
+            foreach (file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+                $line = trim($line);
+                if ($line === '' || !str_contains($line, '=') || str_starts_with($line, '#')) {
+                    continue;
+                }
+                [$lineKey, $lineValue] = explode('=', $line, 2);
+                $lineValue = trim($lineValue);
+                if (strlen($lineValue) >= 2 && ($lineValue[0] === '"' && $lineValue[-1] === '"' || $lineValue[0] === "'" && $lineValue[-1] === "'")) {
+                    $lineValue = substr($lineValue, 1, -1);
+                }
+                $values[trim($lineKey)] = $lineValue;
+            }
+        }
+    }
+
+    return trim($values[$key] ?? '');
+}
+
+function serviceCredentials(string $slug): array
+{
+    $envPrefix = strtoupper(str_replace('-', '_', $slug));
+    $username = addonConfigValue($slug, 'username');
+    if ($username === '') {
+        $username = envLocalValue($envPrefix . '_USERNAME');
+    }
+    $password = addonConfigValue($slug, 'password');
+    if ($password === '') {
+        $password = envLocalValue($envPrefix . '_PASSWORD');
+    }
+
+    return [$username, $password];
+}
+
+function signToken(string $user, int $exp, string $key): string
+{
+    $mac = hash_hmac('sha256', $user . '|' . $exp, $key);
+
+    return 'v1.' . $mac . '.' . $exp . '.' . $user;
+}
+
+function verifyToken(?string $token, string $key, string $user): bool
+{
+    if ($token === null || $token === '') {
+        return false;
+    }
+    $parts = explode('.', $token);
+    if (count($parts) !== 4 || $parts[0] !== 'v1') {
+        return false;
+    }
+    [, $mac, $exp, $tokenUser] = $parts;
+    if (!ctype_digit($exp) || (int) $exp < time()) {
+        return false;
+    }
+    if (!hash_equals($user, $tokenUser)) {
+        return false;
+    }
+
+    return hash_equals(hash_hmac('sha256', $tokenUser . '|' . $exp, $key), $mac);
+}
+
+function safeBack(): string
+{
+    $back = $_GET['back'] ?? $_POST['back'] ?? '';
+    if (!is_string($back) || $back === '' || $back[0] !== '/' || $back[1] === '/') {
+        return '';
+    }
+
+    return $back;
+}
+
+function html(string $title, string $body): void
+{
+    header('Content-Type: text/html; charset=utf-8');
+    echo '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        . '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        . '<title>' . htmlspecialchars($title) . '</title><style>'
+        . 'body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;'
+        . 'background:radial-gradient(circle at top,#172033 0%,#0f1115 55%);font-family:Segoe UI,system-ui,sans-serif;color:#e0e0e0}'
+        . '.card{background:#181c23;border:1px solid #2b3340;border-radius:14px;padding:34px 38px;width:320px;'
+        . 'box-shadow:0 12px 48px rgba(0,0,0,.5)}'
+        . 'h1{margin:0 0 6px;font-size:1.25em;color:#8ef}p.sub{margin:0 0 22px;color:#aaa;font-size:.85em}'
+        . 'label{display:block;font-size:.75em;text-transform:uppercase;letter-spacing:1px;color:#888;margin:14px 0 6px}'
+        . 'input{width:100%;box-sizing:border-box;background:#0b0d12;color:#fff;border:1px solid #2b3340;'
+        . 'border-radius:8px;padding:11px 12px;font:inherit}'
+        . 'input:focus{outline:2px solid rgba(136,238,255,.45)}'
+        . 'button{width:100%;margin-top:22px;border:none;border-radius:8px;padding:12px;font:inherit;font-weight:bold;'
+        . 'background:#8ef;color:#123;cursor:pointer}'
+        . 'button:hover{opacity:.9}.err{background:rgba(205,23,25,.15);border:1px solid rgba(205,23,25,.4);'
+        . 'color:#ff8a8b;border-radius:8px;padding:9px 12px;font-size:.85em;margin-bottom:14px}'
+        . '</style></head><body><div class="card">' . $body . '</div></body></html>';
+}
+
+$slug = serviceSlug();
+$label = ucfirst($slug);
+[$username, $password] = serviceCredentials($slug);
+
+// Service ohne konfigurierte Credentials = ungeschuetzt
+if ($username === '' || $password === '') {
+    http_response_code(200);
+    header('Content-Type: text/plain');
+    echo 'service unprotected';
+    exit;
+}
+
+$action = $_GET['action'] ?? '';
+
+if ($action === 'check') {
+    header('Content-Type: text/plain');
+    if (verifyToken($_COOKIE[cookieName($slug)] ?? null, $password, $username)) {
+        http_response_code(200);
+        echo 'ok';
+    } else {
+        http_response_code(401);
+        echo 'denied';
+    }
+    exit;
+}
+
+if ($action === 'logout') {
+    setcookie(cookieName($slug), '', ['expires' => time() - 3600, 'path' => '/']);
+    $back = safeBack();
+    header('Location: /vibe-auth/?service=' . rawurlencode($slug) . ($back === '' ? '' : '&back=' . rawurlencode($back)));
+    exit;
+}
+
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+    $user = trim($_POST['username'] ?? '');
+    $pass = $_POST['password'] ?? '';
+    $back = safeBack();
+    if (hash_equals($username, $user) && hash_equals($password, $pass)) {
+        $exp = time() + TOKEN_TTL;
+        setcookie(cookieName($slug), signToken($user, $exp, $password), [
+            'expires' => $exp, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax',
+        ]);
+        header('Location: ' . ($back !== '' ? $back : '/vibe-' . $slug . '/'));
+        exit;
+    }
+    $error = 'Invalid username or password.';
+}
+
+$body = '<h1>Vibe4Dock ' . htmlspecialchars($label) . '</h1><p class="sub">Please sign in to continue.</p>';
+if (!empty($error)) {
+    $body .= '<div class="err">' . htmlspecialchars($error) . '</div>';
+}
+$body .= '<form method="post" action="">'
+    . '<input type="hidden" name="back" value="' . htmlspecialchars(safeBack()) . '">'
+    . '<label>Username</label><input name="username" autocomplete="off" autofocus>'
+    . '<label>Password</label><input name="password" type="password">'
+    . '<button>Sign in</button></form>';
+html($label . ' Login - Vibe4Dock', $body);

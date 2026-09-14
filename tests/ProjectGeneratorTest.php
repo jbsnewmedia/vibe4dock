@@ -143,6 +143,86 @@ final class ProjectGeneratorTest extends TestCase
         self::assertStringContainsString('location /vibe-shell-root/', $proxyConf);
     }
 
+    public function testGeneratesCookieAuthInfrastructureInPathsMode(): void
+    {
+        $config = SetupConfig::fromOptions([
+            'project-name' => 'demo',
+            'output-dir' => $this->outputDir,
+            'routing' => 'paths',
+        ]);
+
+        (new ProjectGenerator($this->skeletonDir()))->generate($config);
+
+        $proxyConf = (string) file_get_contents(
+            $this->outputDir . DIRECTORY_SEPARATOR . 'docker' . DIRECTORY_SEPARATOR . 'proxy' . DIRECTORY_SEPARATOR . 'default.conf'
+        );
+
+        self::assertStringContainsString('location = /_vibe_chat_auth', $proxyConf);
+        self::assertStringContainsString('location @vibe_chat_login', $proxyConf);
+        self::assertStringContainsString('location = /_vibe_shell_root_auth', $proxyConf);
+        self::assertStringContainsString('location @vibe_shell_root_login', $proxyConf);
+        self::assertStringContainsString('location = /_vibe_shell_app_auth', $proxyConf);
+        self::assertStringContainsString('location @vibe_shell_app_login', $proxyConf);
+        self::assertStringContainsString('location /vibe-auth/', $proxyConf);
+        self::assertStringContainsString('auth_request /_vibe_shell_root_auth;', $proxyConf);
+        self::assertStringContainsString('auth_request /_vibe_shell_app_auth;', $proxyConf);
+        self::assertStringContainsString('service=root-shell', $proxyConf);
+        self::assertStringContainsString('service=app-shell', $proxyConf);
+
+        $authApp = (string) file_get_contents(
+            $this->outputDir . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'vibe-auth' . DIRECTORY_SEPARATOR . 'index.php'
+        );
+        self::assertStringContainsString('str_replace(\'-\', \'_\', $slug)', $authApp);
+        self::assertStringContainsString('$lineKey', $authApp, 'envLocalValue must not shadow its $key parameter.');
+    }
+
+    public function testGeneratesPortsModeShellBasicAuth(): void
+    {
+        $config = SetupConfig::fromOptions([
+            'project-name' => 'demo',
+            'output-dir' => $this->outputDir,
+            'routing' => 'ports',
+        ]);
+
+        (new ProjectGenerator($this->skeletonDir()))->generate($config);
+
+        $entrypoint = (string) file_get_contents(
+            $this->outputDir . DIRECTORY_SEPARATOR . 'docker' . DIRECTORY_SEPARATOR . 'web' . DIRECTORY_SEPARATOR . 'entrypoint-dev.sh'
+        );
+
+        self::assertStringContainsString('VIBE4DOCK_ROUTING', $entrypoint);
+        self::assertStringContainsString('--credential "${root_shell_username}:${ROOT_SHELL_PASSWORD}"', $entrypoint);
+    }
+
+    public function testChatAddonDeclaresCookieAuth(): void
+    {
+        $config = SetupConfig::fromOptions([
+            'project-name' => 'demo',
+            'output-dir' => $this->outputDir,
+            'routing' => 'paths',
+        ]);
+
+        (new ProjectGenerator($this->skeletonDir()))->generate($config);
+
+        $addon = json_decode(
+            (string) file_get_contents(
+                $this->outputDir . DIRECTORY_SEPARATOR . 'docker' . DIRECTORY_SEPARATOR . 'tools' . DIRECTORY_SEPARATOR . 'addons' . DIRECTORY_SEPARATOR . '610_chat.json'
+            ),
+            true
+        );
+        self::assertIsArray($addon);
+
+        $tools = $addon['tools'] ?? null;
+        self::assertIsArray($tools);
+        $tool = $tools[0] ?? null;
+        self::assertIsArray($tool);
+        $shell = $tool['dashboard_shell'] ?? null;
+        self::assertIsArray($shell);
+        $routing = $shell['routing'] ?? null;
+        self::assertIsArray($routing);
+        self::assertSame('cookie', $routing['auth'] ?? null);
+    }
+
     public function testWritesProjectManifest(): void
     {
         $config = SetupConfig::fromOptions([
