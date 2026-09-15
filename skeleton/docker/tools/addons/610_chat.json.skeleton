@@ -205,7 +205,7 @@
                             "if [ -n \"${CHAT_USERNAME:-}\" ] && [ -n \"${CHAT_PASSWORD:-}\" ]; then",
                             "    HASH=\"$(openssl passwd -apr1 \"$CHAT_PASSWORD\")\"",
                             "    printf '%s:%s\\n' \"$CHAT_USERNAME\" \"$HASH\" > /etc/nginx/chat.htpasswd",
-                            "    printf '    auth_basic \"Vibe4Dock Chat\";\\n    auth_basic_user_file /etc/nginx/chat.htpasswd;\\n' > /etc/nginx/chat-auth.inc",
+                            "    printf '    auth_basic \"Vibe4Dock Chat 2026-09\";\\n    auth_basic_user_file /etc/nginx/chat.htpasswd;\\n' > /etc/nginx/chat-auth.inc",
                             "else",
                             "    echo \"CHAT_USERNAME/CHAT_PASSWORD not set - chat UI is accessible without authentication.\" >&2",
                             "    : > /etc/nginx/chat-auth.inc",
@@ -666,6 +666,7 @@
                             "                    var m = models[mid] || {};",
                             "                    known[p.id + '/' + (m.id || mid)] = {",
                             "                        label: (m.name || m.id || mid),",
+                            "                        prov: (p.name || p.id),",
                             "                        def: defaults[p.id] === (m.id || mid),",
                             "                        zen: p.id === 'opencode'",
                             "                    };",
@@ -683,7 +684,7 @@
                             "                    var info = known[key];",
                             "                    var opt = document.createElement('option');",
                             "                    opt.value = key;",
-                            "                    opt.textContent = info.label + (info.def ? ' (default)' : '');",
+                            "                    opt.textContent = info.label + ' (' + info.prov + (info.def ? ', default' : '') + ')';",
                             "                    group.appendChild(opt);",
                             "                });",
                             "                if (group.children.length) { el.modelSelect.appendChild(group); }",
@@ -2367,8 +2368,9 @@
                             "## Models",
                             "",
                             "- A model selector next to the agent selector lists every model of the configured",
-                            "  providers (same list as `opencode models` / the TUI `/models` dialog). The provider",
-                            "  default is marked with `(default)`.",
+                            "  providers (same list as `opencode models` / the TUI `/models` dialog). Each label",
+                            "  shows the provider/contract in parentheses; the provider default is marked with",
+                            "  `(default)`.",
                             "- The selected model (`provider/model`) is sent with every prompt and slash command",
                             "  and remembered per browser (localStorage).",
                             "",
@@ -2416,7 +2418,8 @@
                     "container_port": 4580,
                     "environment": {
                         "CHAT_BASE_PATH": "{{path}}"
-                    }
+                    },
+                    "auth": "cookie"
                 },
                 "port_field": "port",
                 "username_field": "username",

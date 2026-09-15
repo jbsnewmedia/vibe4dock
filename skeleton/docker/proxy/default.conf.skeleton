@@ -43,6 +43,8 @@
 {{!PATHS_ONLY}}
 {{!PATHS_ONLY}}    # Root shell (ttyd, requires --base-path)
 {{!PATHS_ONLY}}    location = {{VIBE4DOCK_BASE_PATH_ROOT_SHELL}} {
+{{!PATHS_ONLY}}        auth_request /_vibe_shell_root_auth;
+{{!PATHS_ONLY}}        error_page 401 = @vibe_shell_root_login;
 {{!PATHS_ONLY}}        proxy_set_header Host $host;
 {{!PATHS_ONLY}}        proxy_set_header X-Real-IP $remote_addr;
 {{!PATHS_ONLY}}        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -57,6 +59,8 @@
 {{!PATHS_ONLY}}        proxy_pass http://$vibe4dock_upstream_web:{{VIBE4DOCK_ROOT_SHELL_CONTAINER_PORT}};
 {{!PATHS_ONLY}}    }
 {{!PATHS_ONLY}}    location {{VIBE4DOCK_BASE_PATH_ROOT_SHELL}}/ {
+{{!PATHS_ONLY}}        auth_request /_vibe_shell_root_auth;
+{{!PATHS_ONLY}}        error_page 401 = @vibe_shell_root_login;
 {{!PATHS_ONLY}}        proxy_set_header Host $host;
 {{!PATHS_ONLY}}        proxy_set_header X-Real-IP $remote_addr;
 {{!PATHS_ONLY}}        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -73,6 +77,8 @@
 {{!PATHS_ONLY}}
 {{!PATHS_ONLY}}    # Application shell (ttyd, requires --base-path)
 {{!PATHS_ONLY}}    location = {{VIBE4DOCK_BASE_PATH_APP_SHELL}} {
+{{!PATHS_ONLY}}        auth_request /_vibe_shell_app_auth;
+{{!PATHS_ONLY}}        error_page 401 = @vibe_shell_app_login;
 {{!PATHS_ONLY}}        proxy_set_header Host $host;
 {{!PATHS_ONLY}}        proxy_set_header X-Real-IP $remote_addr;
 {{!PATHS_ONLY}}        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -87,6 +93,8 @@
 {{!PATHS_ONLY}}        proxy_pass http://$vibe4dock_upstream_web:{{VIBE4DOCK_APP_SHELL_CONTAINER_PORT}};
 {{!PATHS_ONLY}}    }
 {{!PATHS_ONLY}}    location {{VIBE4DOCK_BASE_PATH_APP_SHELL}}/ {
+{{!PATHS_ONLY}}        auth_request /_vibe_shell_app_auth;
+{{!PATHS_ONLY}}        error_page 401 = @vibe_shell_app_login;
 {{!PATHS_ONLY}}        proxy_set_header Host $host;
 {{!PATHS_ONLY}}        proxy_set_header X-Real-IP $remote_addr;
 {{!PATHS_ONLY}}        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -105,6 +113,44 @@
 {{!PATHS_ONLY}}    location / {
 {{!PATHS_ONLY}}        set $vibe4dock_upstream_web "web";
 {{!PATHS_ONLY}}        proxy_pass http://$vibe4dock_upstream_web:{{VIBE4DOCK_WEB_CONTAINER_PORT}};
+{{!PATHS_ONLY}}    }
+{{!PATHS_ONLY}}
+{{!PATHS_ONLY}}    # Addon form-login infrastructure (cookie auth, login served by web)
+{{!PATHS_ONLY}}    # Addons with routing flag "auth": "cookie" reference these via
+{{!PATHS_ONLY}}    # auth_request /_vibe_<slug>_auth and error_page 401 = @vibe_<slug>_login.
+{{!PATHS_ONLY}}    location = /_vibe_chat_auth {
+{{!PATHS_ONLY}}        internal;
+{{!PATHS_ONLY}}        set $vibe4dock_upstream_webauth "web";
+{{!PATHS_ONLY}}        proxy_pass http://$vibe4dock_upstream_webauth:{{VIBE4DOCK_WEB_CONTAINER_PORT}}/vibe-auth/index.php?action=check&service=chat;
+{{!PATHS_ONLY}}        proxy_pass_request_body off;
+{{!PATHS_ONLY}}        proxy_set_header Content-Length "";
+{{!PATHS_ONLY}}    }
+{{!PATHS_ONLY}}    location @vibe_chat_login {
+{{!PATHS_ONLY}}        return 302 /vibe-auth/?service=chat&back=%2Fvibe-chat%2F;
+{{!PATHS_ONLY}}    }
+{{!PATHS_ONLY}}    location /vibe-auth/ {
+{{!PATHS_ONLY}}        set $vibe4dock_upstream_webauth "web";
+{{!PATHS_ONLY}}        proxy_pass http://$vibe4dock_upstream_webauth:{{VIBE4DOCK_WEB_CONTAINER_PORT}};
+{{!PATHS_ONLY}}    }
+{{!PATHS_ONLY}}    location = /_vibe_shell_root_auth {
+{{!PATHS_ONLY}}        internal;
+{{!PATHS_ONLY}}        set $vibe4dock_upstream_webauth "web";
+{{!PATHS_ONLY}}        proxy_pass http://$vibe4dock_upstream_webauth:{{VIBE4DOCK_WEB_CONTAINER_PORT}}/vibe-auth/index.php?action=check&service=root-shell;
+{{!PATHS_ONLY}}        proxy_pass_request_body off;
+{{!PATHS_ONLY}}        proxy_set_header Content-Length "";
+{{!PATHS_ONLY}}    }
+{{!PATHS_ONLY}}    location @vibe_shell_root_login {
+{{!PATHS_ONLY}}        return 302 /vibe-auth/?service=root-shell&back={{VIBE4DOCK_BASE_PATH_ROOT_SHELL}}%2F;
+{{!PATHS_ONLY}}    }
+{{!PATHS_ONLY}}    location = /_vibe_shell_app_auth {
+{{!PATHS_ONLY}}        internal;
+{{!PATHS_ONLY}}        set $vibe4dock_upstream_webauth "web";
+{{!PATHS_ONLY}}        proxy_pass http://$vibe4dock_upstream_webauth:{{VIBE4DOCK_WEB_CONTAINER_PORT}}/vibe-auth/index.php?action=check&service=app-shell;
+{{!PATHS_ONLY}}        proxy_pass_request_body off;
+{{!PATHS_ONLY}}        proxy_set_header Content-Length "";
+{{!PATHS_ONLY}}    }
+{{!PATHS_ONLY}}    location @vibe_shell_app_login {
+{{!PATHS_ONLY}}        return 302 /vibe-auth/?service=app-shell&back={{VIBE4DOCK_BASE_PATH_APP_SHELL}}%2F;
 {{!PATHS_ONLY}}    }
 {{!PATHS_ONLY}}
 {{!PATHS_ONLY}}    # VIBE4DOCK_MANAGED_LOCATIONS_START

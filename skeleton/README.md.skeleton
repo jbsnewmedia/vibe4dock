@@ -46,13 +46,16 @@ Addon services manage their own credentials through the Addons section of the to
 
 ## Security features
 
-The example includes optional HTTP Basic Auth protection for:
+The example includes optional login protection for:
 
-- Tools UI
-- Application shell
-- Root shell
+- Tools UI (HTTP Basic Auth)
+- Application shell (paths routing: form login with a signed session cookie served through the proxy; ports routing: HTTP Basic Auth provided by `ttyd`)
+- Root shell (same behavior as the Application shell)
+- Chat (paths routing: form login with a signed session cookie served through the proxy; the chat service itself stays credential-free)
 
-Protection is controlled only through `.env.local`. Addon-provided endpoints (such as the Chat UI) are configured through their addon settings and stay open without credentials until both username and password are set there.
+All credentials are controlled only through `.env.local`. Addon-provided endpoints (such as the Chat UI) read their credentials from the addon settings (`addon_configs.json`, editable in the Tools UI) with a fallback to `.env.local`.
+
+Protection is active only when both username and password are present and non-empty; commented lines are ignored. The Tools UI only reads and displays the protection status; it does not manage these credentials.
 
 Example:
 
@@ -65,6 +68,9 @@ APP_SHELL_PASSWORD="change-me-application"
 
 ROOT_SHELL_USERNAME="root"
 ROOT_SHELL_PASSWORD="change-me-root"
+
+CHAT_USERNAME="chat"
+CHAT_PASSWORD="change-me-chat"
 ```
 
 Rules:
@@ -77,11 +83,13 @@ Restart requirements:
 
 - after changing `TOOLS_*`, run `docker compose restart tools`
 - after changing `APP_SHELL_*` or `ROOT_SHELL_*`, run `docker compose restart web`
+- after changing `CHAT_*`, run `docker compose restart tools web` (the chat form login is served by the web container)
 
 Notes:
 
 - the Tools UI login title is `Vibe4Dock Login`
-- the browser login dialog for the shells is provided by `ttyd` and uses its own default title
+- in paths routing mode the shells and the chat show a form login page (realm-free, browser cache friendly); each service keeps its own session cookie for 30 days
+- in ports routing mode the browser login dialog for the shells is provided by `ttyd` and uses its own default title
 
 ## Rebuild watcher (host daemon)
 

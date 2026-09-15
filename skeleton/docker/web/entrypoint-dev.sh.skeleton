@@ -100,13 +100,16 @@ if [ "${VIBE4DOCK_ROUTING:-ports}" = "paths" ] && [ -n "${VIBE4DOCK_BASE_PATH_AP
   app_base_path_args=(--base-path "${VIBE4DOCK_BASE_PATH_APP_SHELL}")
 fi
 
+# In paths routing mode the vibe4dock proxy protects the shells with the
+# cookie-based form login (vibe-auth) - ttyd itself runs without credentials.
+# In ports routing mode ttyd keeps its own basic auth credentials.
 root_ttyd_auth_args=()
-if [ -n "$root_shell_username" ] && [ -n "${ROOT_SHELL_PASSWORD:-}" ]; then
+if [ "${VIBE4DOCK_ROUTING:-}" != "paths" ] && [ -n "$root_shell_username" ] && [ -n "${ROOT_SHELL_PASSWORD:-}" ]; then
   root_ttyd_auth_args=(--credential "${root_shell_username}:${ROOT_SHELL_PASSWORD}")
 fi
 
 app_ttyd_auth_args=()
-if [ -n "$app_shell_username" ] && [ -n "${APP_SHELL_PASSWORD:-}" ]; then
+if [ "${VIBE4DOCK_ROUTING:-}" != "paths" ] && [ -n "$app_shell_username" ] && [ -n "${APP_SHELL_PASSWORD:-}" ]; then
   app_ttyd_auth_args=(--credential "${app_shell_username}:${APP_SHELL_PASSWORD}")
 fi
 
