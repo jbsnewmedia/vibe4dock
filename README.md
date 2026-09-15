@@ -648,6 +648,7 @@ Examples of bundled browser endpoints:
 - **Mailpit**: separate addon service with a web UI on port `8025` for viewing caught emails and an SMTP server on port `1025` for local mail testing
 - **opencode**: separate addon service that runs the opencode AI coding agent with a browser-based web UI on port `4096` and the project mounted as workspace
 - **Chat**: separate addon service with a ChatGPT-like web UI in front of a headless `opencode serve` agent working on the project; shell activity appears in a collapsible thinking panel and agent questions or permission requests show up as interactive bubbles. Requires the bundled `opencode-cli` tool and supports no other agent backend
+- **Veronica**: separate addon service (port `4581`) with a WhatsApp-like end-customer chat in front of a headless `opencode serve` agent working on the project; end customers log in with a 2–3 character alias and PIN, their chats are tagged `[alias]` in opencode and initially belong to the user only, and no thinking or tool output is shown - just `Veronica schreibt`. Requires the bundled `opencode-cli` tool and supports no other agent backend
 
 ## Settings
 
@@ -675,6 +676,8 @@ ROOT_SHELL_PASSWORD="replace-with-a-strong-password"
 ```
 
 The Chat addon does not use `.env.local`. Its optional HTTP Basic Auth is configured through the Addons section of the tools UI (`CHAT_USERNAME` / `CHAT_PASSWORD`); both values are stored in the `chat` service environment of the generated `docker-compose.override.yml`. Without credentials the chat UI is accessible without authentication, like the shells.
+
+The Veronica addon works the same way (`VERONICA_USERNAME` / `VERONICA_PASSWORD` for optional HTTP Basic Auth in front of the end-customer login). Veronica end customers log in inside the app with a 2–3 character alias and PIN; every chat they start is tagged `[alias]` in the opencode session title and the Veronica UI only lists the sessions of the logged-in alias. Provider access for Veronica is shared with the OpenCode CLI via the mounted opencode settings, or can be pinned with the `api_key` addon setting.
 
 ## Persistence
 
