@@ -157,8 +157,6 @@ final class ProjectGeneratorTest extends TestCase
             $this->outputDir . DIRECTORY_SEPARATOR . 'docker' . DIRECTORY_SEPARATOR . 'proxy' . DIRECTORY_SEPARATOR . 'default.conf'
         );
 
-        self::assertStringContainsString('location = /_vibe_chat_auth', $proxyConf);
-        self::assertStringContainsString('location @vibe_chat_login', $proxyConf);
         self::assertStringContainsString('location = /_vibe_shell_root_auth', $proxyConf);
         self::assertStringContainsString('location @vibe_shell_root_login', $proxyConf);
         self::assertStringContainsString('location = /_vibe_shell_app_auth', $proxyConf);
@@ -168,6 +166,16 @@ final class ProjectGeneratorTest extends TestCase
         self::assertStringContainsString('auth_request /_vibe_shell_app_auth;', $proxyConf);
         self::assertStringContainsString('service=root-shell', $proxyConf);
         self::assertStringContainsString('service=app-shell', $proxyConf);
+
+        // Per-addon cookie-auth infrastructure (/_vibe_<slug>_auth,
+        // @vibe_<slug>_login) is generated at runtime by the Tools UI
+        // (docker/tools/index.php) and must NOT be part of the static base
+        // config - otherwise re-generated addons would create duplicates.
+        $toolsUi = (string) file_get_contents(
+            $this->outputDir . DIRECTORY_SEPARATOR . 'docker' . DIRECTORY_SEPARATOR . 'tools' . DIRECTORY_SEPARATOR . 'index.php'
+        );
+        self::assertStringContainsString('location = /_vibe_\' . $slug . \'_auth {', $toolsUi);
+        self::assertStringContainsString('location @vibe_\' . $slug . \'_login {', $toolsUi);
 
         $authApp = (string) file_get_contents(
             $this->outputDir . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'vibe-auth' . DIRECTORY_SEPARATOR . 'index.php'
