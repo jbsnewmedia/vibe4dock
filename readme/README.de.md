@@ -732,6 +732,14 @@ Neue Kategorien brauchen:
 
 Neue Settings werden als zusätzlicher Eintrag unter `docker/tools/settings/*.json` angelegt.
 
+## Chat- und Veronica-Addon
+
+Beide Chat-Addons (Chat für das Team, Veronica für Endkunden) laufen als eigene Services vor einem `opencode serve`-Agent im Projektverzeichnis.
+
+Veronica: Endkunden melden sich mit einem 1–3 Zeichen langen Alias und einer PIN an (Konten liegen pro Browser im localStorage). Jeder Chat wird als `[alias]` im OpenCode-Session-Titel getaggt; die Session-Liste zeigt die eigenen Chats plus Gruppen-Chats, in denen der eigene Alias als Mitglied getaggt ist. Mitglieder werden über das Chat-Menü hinzugefügt/entfernt - der `[alias]`-Tag im Session-Titel steuert die Sichtbarkeit. Konten lassen sich pro Browser über Umgebungsvariablen vorbefüllen: `VERONICA_BOOTSTRAP_ADMIN` + `VERONICA_BOOTSTRAP_ADMIN_PIN_HASH` sowie `VERONICA_BOOTSTRAP_USERS` (kommaseparierte `alias:pinHash`-Liste mit SHA-256-Hashes von `veronica:<alias>:<pin>`; der erste Eintrag wird Admin). Das Modell lässt sich über das CPU-Icon im Topbar wechseln (Favoriten → Recent → Empfehlungen aus dem gemeinsamen OpenCode-State; das aktive Modell wird fett markiert und die Auswahl pro Browser gespeichert).
+
+Optionaler Login-Schutz: `VERONICA_USERNAME` / `VERONICA_PASSWORD` (HTTP Basic Auth vor dem Endkunden-Login) sowie `CHAT_USERNAME` / `CHAT_PASSWORD` im Chat-Addon - beide ohne Wirkung, wenn leer. Der Provider-Zugriff teilt sich Veronica mit der OpenCode-CLI über die gemounteten OpenCode-Settings oder wird über die `api_key`-Addoneinstellung gepinnt.
+
 ## Hinweise zur aktuellen Implementierung
 
 - Die Tools-Oberfläche arbeitet serverseitig mit einfachem PHP ohne Framework.
