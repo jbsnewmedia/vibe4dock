@@ -4,7 +4,7 @@
 
 # Vibe4Dock
 
-Diese Dokumentation beschreibt **Vibe4Dock 1.0.6**.
+Diese Dokumentation beschreibt **Vibe4Dock 1.0.7**.
 
 Vibe4Dock ist eine Docker-basierte Entwicklungsumgebung mit Weboberfläche für CLI-Tools, Shell-Zugänge und projektbezogene Runtime-Erweiterungen. Der Hauptgrund für das Projekt ist, dass man über das Web direkt in AI-CLI-Tools kommt und jederzeit am Projekt arbeiten kann: am Desktop, auf dem Handy, auf dem Tablet, unterwegs oder quasi von überall.
 
@@ -38,7 +38,7 @@ Für die CLI selbst wird nur PHP CLI ab Version 8 benötigt. Weitere Abhängigke
 Letzter stabiler Tag:
 
 ```bash
-git clone --branch 1.0.6 --depth 1 https://github.com/jbsnewmedia/vibe4dock.git
+git clone --branch 1.0.7 --depth 1 https://github.com/jbsnewmedia/vibe4dock.git
 cd vibe4dock
 chmod +x vibe4dock
 ```
@@ -276,7 +276,7 @@ Die eigentliche Arbeit bleibt im Container und damit in einer konsistenten Umgeb
 
 ## Tool- und Addon-Packs
 
-Die mitgelieferten Definitionen für **Vibe4Dock 1.0.6** werden aus folgenden Pfaden geladen:
+Die mitgelieferten Definitionen für **Vibe4Dock 1.0.7** werden aus folgenden Pfaden geladen:
 
 ```text
 docker/tools/category/
@@ -483,7 +483,7 @@ Jede Datei:
 - kann Kategorien und Tools definieren,
 - wird mit allen anderen Dateien zusammengeführt.
 
-Die mitgelieferten Tool-Dateien sind in Version 1.0.6 bereits Teil des Repositories, und zusätzliche team- oder projektspezifische Packs können über denselben Merge-Mechanismus darübergelegt werden.
+Die mitgelieferten Tool-Dateien sind in Version 1.0.7 bereits Teil des Repositories, und zusätzliche team- oder projektspezifische Packs können über denselben Merge-Mechanismus darübergelegt werden.
 
 ### Addon-Definitionen
 
@@ -731,6 +731,14 @@ Neue Kategorien brauchen:
 ### Neues Setting anlegen
 
 Neue Settings werden als zusätzlicher Eintrag unter `docker/tools/settings/*.json` angelegt.
+
+## Chat- und Veronica-Addon
+
+Beide Chat-Addons (Chat für das Team, Veronica für Endkunden) laufen als eigene Services vor einem `opencode serve`-Agent im Projektverzeichnis.
+
+Veronica: Endkunden melden sich mit einem 1–3 Zeichen langen Alias und einer PIN an (Konten liegen pro Browser im localStorage). Jeder Chat wird als `[alias]` im OpenCode-Session-Titel getaggt; die Session-Liste zeigt die eigenen Chats plus Gruppen-Chats, in denen der eigene Alias als Mitglied getaggt ist. Mitglieder werden über das Chat-Menü hinzugefügt/entfernt - der `[alias]`-Tag im Session-Titel steuert die Sichtbarkeit. Konten lassen sich pro Browser über Umgebungsvariablen vorbefüllen: `VERONICA_BOOTSTRAP_ADMIN` + `VERONICA_BOOTSTRAP_ADMIN_PIN_HASH` sowie `VERONICA_BOOTSTRAP_USERS` (kommaseparierte `alias:pinHash`-Liste mit SHA-256-Hashes von `veronica:<alias>:<pin>`; der erste Eintrag wird Admin). Das Modell lässt sich über das CPU-Icon im Topbar wechseln (Favoriten → Recent → Empfehlungen aus dem gemeinsamen OpenCode-State; das aktive Modell wird fett markiert und die Auswahl pro Browser gespeichert).
+
+Optionaler Login-Schutz: `VERONICA_USERNAME` / `VERONICA_PASSWORD` (HTTP Basic Auth vor dem Endkunden-Login) sowie `CHAT_USERNAME` / `CHAT_PASSWORD` im Chat-Addon - beide ohne Wirkung, wenn leer. Der Provider-Zugriff teilt sich Veronica mit der OpenCode-CLI über die gemounteten OpenCode-Settings oder wird über die `api_key`-Addoneinstellung gepinnt.
 
 ## Hinweise zur aktuellen Implementierung
 

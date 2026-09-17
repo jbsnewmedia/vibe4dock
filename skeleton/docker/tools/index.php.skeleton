@@ -560,14 +560,29 @@ function updateProxyConfig()
 
         $label = isset($tool['label']) ? (string) $tool['label'] : (string) ($tool['id'] ?? 'Addon');
         $authLines = array();
+        $authInfraLines = array();
         if (isset($routing['auth']) && $routing['auth'] === 'cookie') {
             // Cookie-based form login (vibe-auth) instead of HTTP basic auth.
-            // The matching infrastructure locations live in the proxy base config.
+            // The matching infrastructure locations (auth_request endpoint and
+            // login redirect) are generated per addon right here, so every
+            // cookie-auth addon works without manual proxy base config edits.
             $slug = preg_replace('/[^a-z0-9]/', '', strtolower(substr($basePath, 5)));
             $slug = $slug === '' || $slug === false ? 'addon' : $slug;
             $authLines = array(
                 '        auth_request /_vibe_' . $slug . '_auth;',
                 '        error_page 401 = @vibe_' . $slug . '_login;',
+            );
+            $authInfraLines = array(
+                '    location = /_vibe_' . $slug . '_auth {',
+                '        internal;',
+                '        set $vibe4dock_upstream_webauth "web";',
+                '        proxy_pass http://$vibe4dock_upstream_webauth:80/vibe-auth/index.php?action=check&service=' . $slug . ';',
+                '        proxy_pass_request_body off;',
+                '        proxy_set_header Content-Length "";',
+                '    }',
+                '    location @vibe_' . $slug . '_login {',
+                '        return 302 /vibe-auth/?service=' . $slug . '&back=' . rawurlencode($basePath . '/') . ';',
+                '    }',
             );
         }
         $managedLines[] = '    # ' . $label . ' (' . $basePath . ')';
@@ -580,7 +595,8 @@ function updateProxyConfig()
         $managedLines = array_merge($managedLines, $authLines);
         $managedLines[] = '        set $vibe4dock_upstream "' . $serviceName . '";';
         $managedLines[] = '        proxy_pass http://$vibe4dock_upstream:' . $containerPort . ';';
-        $managedLines[] = '    }';;
+        $managedLines[] = '    }';
+        $managedLines = array_merge($managedLines, $authInfraLines);;
     }
 
     $managedBlock = '';
@@ -3502,6 +3518,52 @@ if ($method === 'GET' && $requestPath === '/api/upload/list') {
         });
     }
     echo json_encode(['ok' => true, 'files' => $items]);
+    exit;
+}
+
+if ($method === 'GET' && $requestPath === '/api/upload/file') {
+    $name = basename((string) ($_GET['name'] ?? ''));
+    if ($name === '' || $name === '.' || $name === '..') {
+        http_response_code(400);
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => false, 'error' => 'Invalid file name.']);
+        exit;
+    }
+    $path = '/app/incoming/' . $name;
+    if (!is_file($path) || !is_readable($path)) {
+        http_response_code(404);
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => false, 'error' => 'File not found.']);
+        exit;
+    }
+    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+    $mimeTypes = [
+        'pdf' => 'application/pdf',
+        'png' => 'image/png',
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'gif' => 'image/gif',
+        'webp' => 'image/webp',
+        'avif' => 'image/avif',
+        'bmp' => 'image/bmp',
+        'txt' => 'text/plain',
+        'md' => 'text/plain',
+        'csv' => 'text/csv',
+        'mp4' => 'video/mp4',
+        'webm' => 'video/webm',
+        'mp3' => 'audio/mpeg',
+        'wav' => 'audio/wav',
+        'ogg' => 'audio/ogg',
+        'm4a' => 'audio/mp4',
+        'zip' => 'application/zip',
+    ];
+    $inlineTypes = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp', 'txt', 'md', 'csv', 'mp4', 'webm', 'mp3', 'wav', 'ogg', 'm4a'];
+    $mime = $mimeTypes[$ext] ?? 'application/octet-stream';
+    header('Content-Type: ' . $mime);
+    header('Content-Length: ' . (string) filesize($path));
+    header('X-Content-Type-Options: nosniff');
+    header('Content-Disposition: ' . (in_array($ext, $inlineTypes, true) ? 'inline' : 'attachment') . '; filename="' . rawurlencode($name) . '"');
+    readfile($path);
     exit;
 }
 
