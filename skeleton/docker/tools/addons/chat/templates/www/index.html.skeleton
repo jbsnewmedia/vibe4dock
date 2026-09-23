@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<!--i18n: docTitle, newChatBtn, sidebarTitle, emptyState, workingText, qmTitle, closeTitle, attachTitle, attachFileOption, attachGalleryOption, promptPh, sendBtn, dropHtml -->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title data-i18n="docTitle">Chat - Vibe4Dock</title>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json" crossorigin="use-credentials">
+<link rel="icon" type="image/svg+xml" href="icons/logo.svg">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="theme-color" content="#16181d">
+</head>
+<body>
+<div id="app">
+    <aside id="sidebar">
+        <div id="brand">
+            <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 40.97 40.97">
+                <defs>
+                    <style>.c-none{fill:none;}.clip-group{clip-path:url(#clip-path-h);}.c-brand{fill:var(--primary);}.c-gray{fill:var(--bg-body);}</style>
+                    <clipPath id="clip-path-h" transform="translate(-277.5 -400.47)"><rect class="c-none" x="277.5" y="400.47" width="40.97" height="40.97"/></clipPath>
+                </defs>
+                <g class="clip-group">
+                    <path class="c-brand" d="M284.76,400.47a7.26,7.26,0,0,0-7.26,7.26v26.46a7.25,7.25,0,0,0,7.26,7.25h26.46a7.25,7.25,0,0,0,7.25-7.25V407.73a7.26,7.26,0,0,0-7.25-7.26H284.76" transform="translate(-277.5 -400.47)"/>
+                    <path class="c-gray" d="M283.81,408l8.86,8.86a2.88,2.88,0,0,0-.21,1.13v.32h-9v-8.68a3.45,3.45,0,0,1,.37-1.63m-.37,15.59h9v.32a3.16,3.16,0,0,0,.24,1.1l-8.86,8.86a4,4,0,0,1-.4-1.6Zm11.91-5.28h5.27v5.28h-5.27Zm-1.45,8a2.81,2.81,0,0,0,1.13.21h.32v9h-8.69a3.32,3.32,0,0,1-1.62-.37Zm6.72.21H301a3.2,3.2,0,0,0,1.1-.24l8.86,8.86a4.07,4.07,0,0,1-1.6.39h-8.69Zm11.54,7.42-8.86-8.86a2.71,2.71,0,0,0,.22-1.13v-.32h9v8.68a3.33,3.33,0,0,1-.37,1.63m.37-15.59h-9V418a3.16,3.16,0,0,0-.24-1.1l8.85-8.86a4,4,0,0,1,.4,1.6Zm-10.45-2.68a2.88,2.88,0,0,0-1.13-.21h-.33v-9h8.69a3.36,3.36,0,0,1,1.63.37Zm-6.73-.21H295a3.23,3.23,0,0,0-1.11.24l-8.85-8.86a4,4,0,0,1,1.59-.39h8.69ZM281.19,409v9.32h-1.94v5.28h1.94v9.32s0,4.84,4.83,4.84h9.33v1.94h5.27v-1.94H310s4.83,0,4.83-4.84V423.6h1.94v-5.28h-1.94V409s0-4.84-4.83-4.84h-9.33v-1.94h-5.27v1.94H286s-4.83,0-4.83,4.84" transform="translate(-277.5 -400.47)"/>
+                </g>
+            </svg>
+            <span class="brand-name"><a href="https://github.com/jbsnewmedia/vibe4dock-arcvd" target="_blank" rel="noopener noreferrer">Vibe4Dock</a></span>
+        </div>
+        <button id="new-chat" class="btn btn-primary" data-i18n="newChatBtn">+ New chat</button>
+        <ul id="session-list"></ul>
+    </aside>
+    <main id="chat">
+        <header id="topbar">
+            <button id="toggle-sidebar" class="btn btn-icon" title="Toggle sidebar" data-i18n-title="sidebarTitle">&#9776;</button>
+            <span id="session-title">Chat</span>
+            <span class="lang-switch header-lang" role="group" aria-label="Language"><button type="button" data-lang="de">DE</button><button type="button" data-lang="en">EN</button></span>
+            <button id="stop-btn" class="btn btn-danger" hidden>&#9632; Stop</button>
+        </header>
+        <div id="messages">
+            <div class="empty-state" data-i18n="emptyState">Ask anything &ndash; the agent works directly in the project directory.</div>
+        </div>
+        <div id="working" hidden>
+            <span class="spinner"></span>
+            <span id="working-text" data-i18n="workingText">The agent is working &hellip;</span>
+        </div>
+        <div id="pending"></div>
+        <div id="stuck"></div>
+        <div id="question-modal" hidden>
+            <div id="question-modal-card">
+                <header id="question-modal-header">
+                    <h2 data-i18n="qmTitle">Agent questions</h2>
+                    <span id="question-modal-count" class="status">0</span>
+                    <button id="question-modal-close" class="btn btn-icon" title="Close" data-i18n-title="closeTitle">&times;</button>
+                </header>
+                <div id="question-modal-body"></div>
+            </div>
+        </div>
+        <div id="agent-bar">
+            <label for="agent-select">Agent</label>
+            <select id="agent-select" title="opencode agent / persona" data-i18n-title="agentSelectTitle"></select>
+            <label for="model-select">Model</label>
+            <select id="model-select" title="opencode model (provider/model)" data-i18n-title="modelSelectTitle"></select>
+        </div>
+        <div id="upload-status" hidden></div>
+        <form id="composer">
+            <button type="button" id="attach-btn" class="btn btn-icon" title="Attach files (&#64;)" data-i18n-title="attachTitle">&#128206;</button>
+            <textarea id="prompt" rows="1" placeholder="Prompt &hellip;" data-i18n-placeholder="promptPh"></textarea>
+            <button type="submit" id="send-btn" class="btn btn-primary" data-i18n="sendBtn">Send</button>
+            <input type="file" id="file-input" multiple hidden>
+            <input type="file" id="file-input-gallery" accept="image/*,video/*" multiple hidden>
+        </form>
+        <div id="attach-menu" hidden></div>
+        <div id="at-popup" hidden></div>
+        <div id="cmd-popup" hidden></div>
+        <div id="drop-overlay" hidden>
+            <div class="drop-inner" data-i18n-html="dropHtml">Drop files to upload them to <strong>incoming/</strong></div>
+        </div>
+    <footer id="footer">
+        <div class="footer-inner">
+            <div class="footer-logo">
+                <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 40.97 40.97">
+                    <defs>
+                        <style>.fc-none{fill:none;}.fclip-group{clip-path:url(#clip-path-f);}.c-red{fill:#cd1719;}.c-white{fill:#fff;}</style>
+                        <clipPath id="clip-path-f" transform="translate(-277.5 -400.47)"><rect class="fc-none" x="277.5" y="400.47" width="40.97" height="40.97"/></clipPath>
+                    </defs>
+                    <g class="fclip-group">
+                        <path class="c-red" d="M284.76,400.47a7.26,7.26,0,0,0-7.26,7.26v26.46a7.25,7.25,0,0,0,7.26,7.25h26.46a7.25,7.25,0,0,0,7.25-7.25V407.73a7.26,7.26,0,0,0-7.25-7.26H284.76" transform="translate(-277.5 -400.47)"/>
+                        <path class="c-white" d="M283.81,408l8.86,8.86a2.88,2.88,0,0,0-.21,1.13v.32h-9v-8.68a3.45,3.45,0,0,1,.37-1.63m-.37,15.59h9v.32a3.16,3.16,0,0,0,.24,1.1l-8.86,8.86a4,4,0,0,1-.4-1.6Zm11.91-5.28h5.27v5.28h-5.27Zm-1.45,8a2.81,2.81,0,0,0,1.13.21h.32v9h-8.69a3.32,3.32,0,0,1-1.62-.37Zm6.72.21H301a3.2,3.2,0,0,0,1.1-.24l8.86,8.86a4.07,4.07,0,0,1-1.6.39h-8.69Zm11.54,7.42-8.86-8.86a2.71,2.71,0,0,0,.22-1.13v-.32h9v8.68a3.33,3.33,0,0,1-.37,1.63m.37-15.59h-9V418a3.16,3.16,0,0,0-.24-1.1l8.85-8.86a4,4,0,0,1,.4,1.6Zm-10.45-2.68a2.88,2.88,0,0,0-1.13-.21h-.33v-9h8.69a3.36,3.36,0,0,1,1.63.37Zm-6.73-.21H295a3.23,3.23,0,0,0-1.11.24l-8.85-8.86a4,4,0,0,1,1.59-.39h8.69ZM281.19,409v9.32h-1.94v5.28h1.94v9.32s0,4.84,4.83,4.84h9.33v1.94h5.27v-1.94H310s4.83,0,4.83-4.84V423.6h1.94v-5.28h-1.94V409s0-4.84-4.83-4.84h-9.33v-1.94h-5.27v1.94H286s-4.83,0-4.83,4.84" transform="translate(-277.5 -400.47)"/>
+                    </g>
+                </svg>
+            </div>
+            <span>
+                Part of <a href="https://github.com/jbsnewmedia/vibe4dock-arcvd" target="_blank" rel="noopener noreferrer"><strong>Vibe4Dock</strong></a> &middot; &copy; 2026+ <a href="https://jbs-newmedia.com" target="_blank" rel="noopener noreferrer">JBS New Media GmbH</a> &middot; Juergen Schwind &middot; <a href="https://github.com/jbsnewmedia/vibe4dock" target="_blank" rel="noopener noreferrer">vibe4dock</a> &middot; MIT License
+            </span>
+        </div>
+    </footer>
+    </main>
+</div>
+<script src="config.js"></script>
+<script src="i18n.js"></script>
+<script src="md.js"></script>
+<script src="app.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+        var base = location.origin + location.pathname.replace(/[^/]*$/, '');
+        navigator.serviceWorker.register(new URL('sw.js', base).href).catch(function () {});
+    });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title data-i18n="docTitle">Veronica</title>
+    <link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json" crossorigin="use-credentials">
+<link rel="icon" type="image/svg+xml" href="icons/logo.svg">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="theme-color" content="#54656f">
+</head>
+<body>
+
+<div id="login-screen">
+    <form id="login-card" autocomplete="off">
+        <div class="login-logo" aria-hidden="true">V</div>
+        <h1>Veronica</h1>
+        <p class="login-sub" id="login-sub">Melde dich mit deinem Alias an.</p>
+
+        <div class="login-field">
+            <label for="login-alias">Alias</label>
+            <input id="login-alias" type="text" maxlength="3" inputmode="text"
+                   placeholder="2–3 Zeichen, z. B. ab" autocapitalize="none" spellcheck="false" data-i18n-placeholder="loginAliasPh">
+        </div>
+        <div class="login-field">
+            <label for="login-pin">PIN</label>
+            <input id="login-pin" type="password" autocomplete="current-password" placeholder="mind. 4 Zeichen" data-i18n-placeholder="loginPinPh">
+        </div>
+        <div class="login-field" id="login-pin2-wrap" hidden>
+            <label for="login-pin2" data-i18n="loginPin2Label">PIN wiederholen</label>
+            <input id="login-pin2" type="password" autocomplete="new-password" placeholder="PIN wiederholen" data-i18n-placeholder="loginPin2Label">
+        </div>
+
+        <label class="login-remember" id="login-remember-wrap">
+            <input id="login-remember" type="checkbox">
+            <span data-i18n="rememberLogin">Angemeldet bleiben</span>
+        </label>
+
+        <div id="login-error" hidden></div>
+
+        <button type="submit" id="login-submit">Anmelden</button>
+        <button type="button" id="login-toggle">Neu hier? Account erstellen</button>
+
+        <div class="lang-switch" role="group" aria-label="Language">
+            <button type="button" data-lang="de">DE</button><button type="button" data-lang="en">EN</button>
+        </div>
+
+        <div class="login-brand">
+            Part of <a href="https://github.com/jbsnewmedia/vibe4dock-arcvd" target="_blank" rel="noopener noreferrer"><strong>Vibe4Dock</strong></a> &middot; &copy; 2026+ <a href="https://jbs-newmedia.com" target="_blank" rel="noopener noreferrer">JBS New Media GmbH</a>
+        </div>
+    </form>
+</div>
+
+<div id="app" hidden>
+    <div id="sidebar-backdrop"></div>
+    <aside id="sidebar">
+        <header id="sidebar-header">
+            <h2 id="brand">Chat</h2>
+            <button id="admin-users-btn" class="header-icon" title="Nutzer verwalten" data-i18n-title="adminUsersTitle" hidden>
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+            </button>
+            <button id="sidebar-collapse" class="header-icon" title="Seitenmenü ausblenden" data-i18n-title="sidebarHideTitle">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M9 3v18"/>
+                    <path d="m16 15-3-3 3-3"/>
+                </svg>
+            </button>
+        </header>
+        <div id="search-wrap">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.35-4.35"/>
+            </svg>
+            <input id="search-input" type="text" placeholder="Chat suchen oder neuen starten" data-i18n-placeholder="searchPh">
+        </div>
+        <ul id="session-list"></ul>
+
+        <button id="new-chat" class="new-chat-fab" title="Neuer Chat" data-i18n-title="sessionNew">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+            </svg>
+        </button>
+
+        <footer id="sidebar-footer">
+            <div id="me-avatar" class="avatar">–</div>
+            <div class="me-meta">
+                <span class="me-label" data-i18n="meLabel">Angemeldet als</span>
+                <b id="me-alias">–</b>
+                <span id="me-admin-badge" hidden>Admin</span>
+            </div>
+            <button id="logout" class="header-icon" title="Abmelden" data-i18n-title="logoutTitle">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <polyline points="16 17 21 12 16 7"/>
+                    <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+            </button>
+        </footer>
+    </aside>
+
+    <main id="chat">
+        <header id="topbar">
+            <button id="toggle-sidebar" class="header-icon" title="Seitenmenü einblenden" data-i18n-title="sidebarShowTitle">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M9 3v18"/>
+                    <path d="m14 9 3 3-3 3"/>
+                </svg>
+            </button>
+            <span class="avatar" id="topbar-avatar">V</span>
+            <div class="meta">
+                <span class="name" id="session-title">Veronica</span>
+                <span class="status" id="status-text">online</span>
+            </div>
+            <div id="model-actions">
+                <button id="plan-mode-btn" class="plan-toggle" title="Plan mode" data-i18n-title="planModeTitle" aria-pressed="false">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>
+                    <span data-i18n="planMode">Plan</span>
+                </button>
+                <span id="lang-switch-app" class="lang-switch header-lang" role="group" aria-label="Language">
+                    <button type="button" data-lang="de">DE</button><button type="button" data-lang="en">EN</button>
+                </span>
+                <button id="model-menu-btn" class="header-icon model-menu-btn" title="Modell wählen" data-i18n-title="modelTitle">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="4" y="4" width="16" height="16" rx="2"/>
+                        <rect x="9" y="9" width="6" height="6"/>
+                        <path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/>
+                    </svg>
+                    <span id="model-badge" class="model-badge" hidden></span>
+                </button>
+                <div id="model-menu" hidden>
+                    <div id="model-menu-items"></div>
+                </div>
+            </div>
+            <div id="chat-actions">
+                <button id="chat-menu-btn" class="header-icon" title="Chat-Aktionen" data-i18n-title="chatActionsTitle">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+                </button>
+                <div id="chat-menu" hidden>
+                    <button type="button" id="chat-add-btn" class="chat-menu-item" data-i18n="menuAdd">Person hinzufügen</button>
+                    <button type="button" id="chat-remove-btn" class="chat-menu-item" data-i18n="menuRemove">Person entfernen</button>
+                    <button type="button" id="chat-export-btn" class="chat-menu-item" data-i18n="menuExport">Chat exportieren</button>
+                    <button type="button" id="chat-delete-btn" class="chat-menu-item danger" data-i18n="menuDelete">Chat löschen</button>
+                    <div id="lang-switch-menu" class="chat-menu-item lang-menu-row">
+                        <span class="lang-switch" role="group" aria-label="Language">
+                            <button type="button" data-lang="de">DE</button><button type="button" data-lang="en">EN</button>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <button id="toggle-sidebar-right" class="header-icon" title="Seitenmenü einblenden" data-i18n-title="sidebarShowTitle">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M9 3v18"/>
+                    <path d="m14 9 3 3-3 3"/>
+                </svg>
+            </button>
+        </header>
+
+        <div id="messages"></div>
+
+        <div id="typing-indicator" hidden>
+            <div class="typing-bubble">
+                <span class="typing-label" data-i18n="typingLabel">Veronica schreibt</span>
+                <span class="typing-dots"><span></span><span></span><span></span></span>
+            </div>
+        </div>
+
+        <div id="pending"></div>
+        <div id="stuck"></div>
+
+        <div id="question-modal" hidden>
+            <div id="question-modal-card">
+                <header id="question-modal-header">
+                    <h2 data-i18n="qmTitle">Freigabe erforderlich</h2>
+                    <span id="question-modal-count" class="status">0</span>
+                    <button id="question-modal-close" class="btn btn-icon" title="Schließen" data-i18n-title="closeTitle">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M6 18L18 6"/></svg>
+                    </button>
+                </header>
+                <div id="question-modal-body"></div>
+            </div>
+        </div>
+
+        <div id="admin-modal" hidden>
+            <div id="admin-modal-card">
+                <header id="admin-modal-header">
+                    <h2 data-i18n="adminUsersTitle">Nutzer verwalten</h2>
+                    <button id="admin-modal-close" class="btn btn-icon" title="Schließen" data-i18n-title="closeTitle">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M6 18L18 6"/></svg>
+                    </button>
+                </header>
+                <div id="admin-user-list"></div>
+                <div id="admin-reg-row">
+                    <label class="admin-reg-label"><input type="checkbox" id="admin-allow-reg"><span data-i18n="regLabel"> Selbst-Registrierung erlauben</span></label>
+                    <div class="admin-reg-hint" data-i18n="regHint">Steuert, ob sich Besucher selbst einen Account erstellen d&uuml;rfen. Deaktiviert: Nur Admins legen Accounts an.</div>
+                </div>
+                <form id="admin-add-form" autocomplete="off">
+                    <div class="admin-add-row">
+                        <input id="admin-new-alias" type="text" maxlength="3" placeholder="Alias (2–3 Zeichen)" autocapitalize="none" spellcheck="false" data-i18n-placeholder="adminAliasPh">
+                        <input id="admin-new-pin" type="password" placeholder="PIN (mind. 4 Zeichen)" data-i18n-placeholder="adminPinPh">
+                    </div>
+                    <label class="admin-reg-label"><input type="checkbox" id="admin-new-admin"><span data-i18n="makeAdmin"> Als Admin anlegen</span></label>
+                    <button type="submit" id="admin-add-submit" data-i18n="adminAdd">Nutzer anlegen</button>
+                </form>
+            </div>
+        </div>
+
+        <div id="app-dialog" hidden>
+            <div id="app-dialog-card">
+                <header id="app-dialog-header">
+                    <h2 id="app-dialog-title">Bestätigen</h2>
+                </header>
+                <div id="app-dialog-body"></div>
+                <input id="app-dialog-input" type="password" hidden>
+                <select id="app-dialog-select" hidden></select>
+                <footer id="app-dialog-footer">
+                    <button type="button" id="app-dialog-cancel" class="app-dialog-btn" data-i18n="dialogCancel">Abbrechen</button>
+                    <button type="button" id="app-dialog-ok" class="app-dialog-btn primary">OK</button>
+                </footer>
+            </div>
+        </div>
+
+        <div id="composer-wrap">
+            <form id="composer" autocomplete="off">
+                <button type="button" id="attach-btn" class="composer-btn" title="Datei anhängen" data-i18n-title="attachTitle">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                </button>
+                <textarea id="prompt" rows="1" placeholder="Nachricht eingeben…" data-i18n-placeholder="promptPh"></textarea>
+                <button type="button" id="mic-btn" class="composer-btn" title="Sprachnachricht" data-i18n-title="micTitle">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>
+                </button>
+                <button type="submit" id="send-btn" class="composer-btn" title="Senden" data-i18n-title="sendTitle" hidden>
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M2.97 11.34l17.5-8.43a1 1 0 0 1 1.38 1.18l-3.2 17.4a1 1 0 0 1-1.7.55l-5.5-5.6-2.7 4.95a1 1 0 0 1-1.85-.4l-1.6-7.4a1 1 0 0 1 .45-1.05l11.1-6.5-13.7 6.4a1 1 0 0 1-1.18-1.5z"/></svg>
+                </button>
+                <button type="button" id="stop-btn" class="composer-btn" title="Stop" data-i18n-title="stopTitle" hidden>
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>
+                </button>
+                <input type="file" id="file-input" multiple hidden>
+                <input type="file" id="file-input-gallery" accept="image/*,video/*" multiple hidden>
+            </form>
+
+            <div id="attach-menu" hidden></div>
+
+            <div id="recording-bar" hidden>
+                <span class="rec-dot"></span>
+                <div class="wave">
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span>
+                </div>
+                <span class="timer">00:00</span>
+                <button class="rec-btn cancel-rec" title="Abbrechen" data-i18n-title="recCancel">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M6 18L18 6"/></svg>
+                </button>
+                <button class="rec-btn send-rec" title="Senden" data-i18n-title="sendTitle">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M2.97 11.34l17.5-8.43a1 1 0 0 1 1.38 1.18l-3.2 17.4a1 1 0 0 1-1.7.55l-5.5-5.6-2.7 4.95a1 1 0 0 1-1.85-.4l-1.6-7.4a1 1 0 0 1 .45-1.05l11.1-6.5-13.7 6.4a1 1 0 0 1-1.18-1.5z"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <div id="upload-status" hidden></div>
+        <div id="at-popup" hidden></div>
+        <div id="cmd-popup" hidden></div>
+
+        <div id="drop-overlay" hidden>
+            <div class="drop-inner">
+                <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:12px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <div data-i18n="dropText">Dateien hier ablegen zum Hochladen</div>
+            </div>
+        </div>
+
+        <footer id="vibe-footer">
+            Part of <a href="https://github.com/jbsnewmedia/vibe4dock-arcvd" target="_blank" rel="noopener noreferrer"><strong>Vibe4Dock</strong></a> &middot; &copy; 2026+ <a href="https://jbs-newmedia.com" target="_blank" rel="noopener noreferrer">JBS New Media GmbH</a> &middot; Juergen Schwind &middot; <a href="https://github.com/jbsnewmedia/vibe4dock" target="_blank" rel="noopener noreferrer">vibe4dock</a> &middot; MIT License
+        </footer>
+    </main>
+</div>
+
+<script src="config.js"></script>
+<script src="i18n.js"></script>
+<script src="md.js"></script>
+<script src="app.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+        var base = location.origin + location.pathname.replace(/[^/]*$/, '');
+        navigator.serviceWorker.register(new URL('sw.js', base).href).catch(function () {});
+    });
+}
+</script>
+</body>
+</html>
