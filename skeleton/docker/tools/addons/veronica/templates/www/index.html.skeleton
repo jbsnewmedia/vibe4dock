@@ -47,7 +47,7 @@
         </div>
 
         <div class="login-brand">
-            Part of <a href="https://github.com/jbsnewmedia/vibe4dock-arcvd" target="_blank" rel="noopener noreferrer"><strong>Vibe4Dock</strong></a> &middot; &copy; 2026+ <a href="https://jbs-newmedia.com" target="_blank" rel="noopener noreferrer">JBS New Media GmbH</a>
+            Part of <a href="https://github.com/jbsnewmedia/vibe4dock" target="_blank" rel="noopener noreferrer"><strong>Vibe4Dock</strong></a> &middot; &copy; 2026+ <a href="https://jbs-newmedia.com" target="_blank" rel="noopener noreferrer">JBS New Media GmbH</a>
         </div>
     </form>
 </div>
@@ -277,7 +277,7 @@
         </div>
 
         <footer id="vibe-footer">
-            Part of <a href="https://github.com/jbsnewmedia/vibe4dock-arcvd" target="_blank" rel="noopener noreferrer"><strong>Vibe4Dock</strong></a> &middot; &copy; 2026+ <a href="https://jbs-newmedia.com" target="_blank" rel="noopener noreferrer">JBS New Media GmbH</a> &middot; Juergen Schwind &middot; <a href="https://github.com/jbsnewmedia/vibe4dock" target="_blank" rel="noopener noreferrer">vibe4dock</a> &middot; MIT License
+            Part of <a href="https://github.com/jbsnewmedia/vibe4dock" target="_blank" rel="noopener noreferrer"><strong>Vibe4Dock</strong></a> &middot; &copy; 2026+ <a href="https://jbs-newmedia.com" target="_blank" rel="noopener noreferrer">JBS New Media GmbH</a> &middot; Juergen Schwind &middot; <a href="https://github.com/jbsnewmedia/vibe4dock" target="_blank" rel="noopener noreferrer">vibe4dock</a> &middot; MIT License
         </footer>
     </main>
 </div>

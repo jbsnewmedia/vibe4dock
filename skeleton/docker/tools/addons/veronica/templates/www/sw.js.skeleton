@@ -1,4 +1,4 @@
-var CACHE = "arcvd-v1";
+var CACHE = "vibe4dock-v1";
 
 self.addEventListener("install", function(e) {
     self.skipWaiting();

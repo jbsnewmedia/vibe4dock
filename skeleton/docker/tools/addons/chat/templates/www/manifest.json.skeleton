@@ -1,8 +1,8 @@
 {
     "id": "/vibe-chat/",
-    "name": "arcvd",
-    "short_name": "arcvd",
-    "description": "arcvd - chat",
+    "name": "Vibe4Dock",
+    "short_name": "Vibe4Dock",
+    "description": "Vibe4Dock - Chat",
     "start_url": "./",
     "scope": "./",
     "display": "standalone",
