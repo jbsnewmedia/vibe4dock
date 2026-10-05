@@ -598,15 +598,16 @@ details.thinking .thinking-body { padding: 0 12px 10px; color: var(--text-dim); 
     white-space: nowrap;
 }
 
-#session-list .session-meta {
-    position: absolute;
-    right: 40px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 10px;
+#topbar #session-meta {
+    font-size: 11px;
     color: var(--text-dim, #9aa0a6);
     white-space: nowrap;
-    pointer-events: none;
+    margin-left: -4px;
+}
+
+#topbar .btn-icon svg {
+    display: inline-block;
+    vertical-align: -2px;
 }
 
 .pending-box .q-meta {
@@ -615,6 +616,107 @@ details.thinking .thinking-body { padding: 0 12px 10px; color: var(--text-dim); 
     margin-top: 3px;
     overflow-wrap: anywhere;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* ============================================================
+   DIFF MODAL (same look as the question modal)
+   ============================================================ */
+#diff-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+#diff-modal[hidden] { display: none; }
+
+#diff-modal-card {
+    background: var(--bg-card);
+    border: 1px solid var(--primary-status-border);
+    border-radius: 14px;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6), 0 0 0 3px var(--primary-dim);
+    width: min(860px, 94vw);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#diff-modal-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+}
+
+#diff-modal-header h2 {
+    margin: 0;
+    font-size: 16px;
+    flex: 1;
+}
+
+#diff-modal-body {
+    overflow: auto;
+    padding: 14px 18px;
+}
+
+#diff-modal-body .diff-empty {
+    color: var(--text-dim, #9aa0a6);
+    padding: 10px 0;
+}
+
+#diff-modal-body .diff-hint {
+    color: var(--text-dim, #9aa0a6);
+    opacity: 0.85;
+    padding: 0 0 8px;
+    font-size: 0.9em;
+}
+
+#diff-modal-body .diff-file {
+    margin-bottom: 16px;
+}
+
+#diff-modal-body .diff-file-cap {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    margin-bottom: 4px;
+    overflow-wrap: anywhere;
+}
+
+#diff-modal-body .diff-add { color: #4caf7d; }
+
+#diff-modal-body .diff-del { color: #e57373; }
+
+#diff-modal-body .diff-status { opacity: 0.6; font-style: italic; }
+
+#diff-modal-body .diff-file pre {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid var(--border);
+    padding: 10px;
+    border-radius: 8px;
+    overflow: auto;
+    font-size: 11px;
+    line-height: 1.45;
+    margin: 0;
+    max-height: 320px;
+}
+
+#diff-modal-body .diff-section {
+    font-weight: 600;
+    padding: 14px 0 8px;
+    border-top: 1px solid var(--border);
+    margin-top: 6px;
+}
+
+#diff-modal-body .diff-muted {
+    color: var(--text-dim, #9aa0a6);
+    font-size: 0.9em;
+    padding: 8px 0;
 }
 
 #session-list .session-delete {

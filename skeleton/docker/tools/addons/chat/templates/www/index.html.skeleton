@@ -34,8 +34,10 @@
         <header id="topbar">
             <button id="toggle-sidebar" class="btn btn-icon" title="Toggle sidebar" data-i18n-title="sidebarTitle">&#9776;</button>
             <span id="session-title">Chat</span>
-            <button id="diff-btn" class="btn btn-icon" title="Änderungen dieser Sitzung anzeigen (Diff)" hidden>&#9866; Diff</button>
-            <button id="compact-btn" class="btn btn-icon" title="Sitzung komprimieren (Kontext zusammenfassen)">&#8608;</button>
+            <span id="session-meta" data-i18n-title="metaTitle" title="Cost / tokens of this session" hidden></span>
+            <button id="fork-btn" class="btn btn-icon" data-i18n-title="forkTitle" title="Fork this session as a variant" hidden><svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Zm-6 0a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm8.25-.75a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5ZM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/></svg></button>
+            <button id="diff-btn" class="btn btn-icon" data-i18n-title="diffBtnTitle" title="Show file changes of this session (diff)" hidden><svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M13.25 8a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0V9.81l-1.72 1.72a.75.75 0 0 1-1.06-1.06l2.72-2.72h-2.19a.75.75 0 0 1 0-1.5h2.5ZM2.5 4.25c0-.968.784-1.75 1.75-1.75h5.5c.966 0 1.75.784 1.75 1.75v1.5a.75.75 0 0 1-1.5 0v-1.5a.25.25 0 0 0-.25-.25h-5.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h3.5a.75.75 0 0 1 0 1.5h-3.5A1.75 1.75 0 0 1 2.5 11.75Z"/></svg></button>
+            <button id="compact-btn" class="btn btn-icon" data-i18n-title="compactTitle" title="Compact this session (summarize context)">&#8608;</button>
             <span class="lang-switch header-lang" role="group" aria-label="Language"><button type="button" data-lang="de">DE</button><button type="button" data-lang="en">EN</button></span>
             <button id="stop-btn" class="btn btn-danger" hidden>&#9632; Stop</button>
         </header>
@@ -56,6 +58,15 @@
                     <button id="question-modal-close" class="btn btn-icon" title="Close" data-i18n-title="closeTitle">&times;</button>
                 </header>
                 <div id="question-modal-body"></div>
+            </div>
+        </div>
+        <div id="diff-modal" hidden>
+            <div id="diff-modal-card">
+                <header id="diff-modal-header">
+                    <h2 data-i18n="diffTitle">Changes in this session</h2>
+                    <button id="diff-modal-close" class="btn btn-icon" title="Close" data-i18n-title="closeTitle">&times;</button>
+                </header>
+                <div id="diff-modal-body"></div>
             </div>
         </div>
         <div id="agent-bar">

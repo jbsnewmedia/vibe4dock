@@ -42,6 +42,11 @@
         questionModalClose: document.getElementById("question-modal-close"),
         diffBtn: document.getElementById("diff-btn"),
         compactBtn: document.getElementById("compact-btn"),
+        forkBtn: document.getElementById("fork-btn"),
+        sessionMeta: document.getElementById("session-meta"),
+        diffModal: document.getElementById("diff-modal"),
+        diffModalBody: document.getElementById("diff-modal-body"),
+        diffModalClose: document.getElementById("diff-modal-close"),
         working: document.getElementById("working"),
         attachBtn: document.getElementById("attach-btn"),
         fileInput: document.getElementById("file-input"),
@@ -1143,42 +1148,6 @@
                     label.style.color = "#b3261e";
                 }
                 li.appendChild(label);
-                if (typeof s.cost === "number" && s.cost > 0 || s.tokens && (s.tokens.input || s.tokens.output)) {
-                    var meta = document.createElement("span");
-                    meta.className = "session-meta";
-                    var bits = [];
-                    if (typeof s.cost === "number" && s.cost > 0) {
-                        bits.push("$" + (s.cost >= 0.01 ? s.cost.toFixed(2) : s.cost.toFixed(4)));
-                    }
-                    if (s.tokens) {
-                        var tok = (s.tokens.input || 0) + (s.tokens.output || 0);
-                        if (tok > 0) {
-                            bits.push(tok >= 1000 ? (tok / 1000).toFixed(1) + "k" : String(tok));
-                        }
-                    }
-                    meta.textContent = bits.join(" · ");
-                    meta.title = "Kosten / Tokens";
-                    li.appendChild(meta);
-                }
-                var fork = document.createElement("button");
-                fork.className = "session-delete";
-                fork.textContent = "⎘";
-                fork.title = "Diese Sitzung als Variante forken";
-                fork.addEventListener("click", function(e) {
-                    e.stopPropagation();
-                    fork.disabled = true;
-                    api("POST", "/session/" + encodeURIComponent(s.id) + "/fork", {}).then(function(res) {
-                        var ns = unwrap(res);
-                        return loadSessions().then(function() {
-                            if (ns && ns.id) {
-                                selectSession(ns.id);
-                            }
-                        });
-                    }).catch(function() {
-                        fork.disabled = false;
-                    });
-                });
-                li.appendChild(fork);
                 var del = document.createElement("button");
                 del.className = "session-delete";
                 del.textContent = "×";
@@ -1270,10 +1239,42 @@
         if (el.diffBtn) {
             el.diffBtn.hidden = !state.sessionId;
         }
+        updateHeaderMeta();
         // v2-Steer: Senden bleibt waehrend der Generierung moeglich
         el.sendBtn.disabled = false;
         if (el.working) {
             el.working.hidden = !state.generating;
+        }
+    }
+    // Kosten/Tokens + Fork des aktiven Sessions im Header (statt in den
+    // Listen-Items, wo sie an schmalen Rndern ueberlagert wurden).
+    function updateHeaderMeta() {
+        var s = null;
+        for (var i = 0; i < state.sessions.length; i++) {
+            if (state.sessions[i].id === state.sessionId) {
+                s = state.sessions[i];
+                break;
+            }
+        }
+        var bits = [];
+        if (s) {
+            if (typeof s.cost === "number" && s.cost > 0) {
+                bits.push("$" + (s.cost >= 0.01 ? s.cost.toFixed(2) : s.cost.toFixed(4)));
+            }
+            if (s.tokens) {
+                var tok = (s.tokens.input || 0) + (s.tokens.output || 0);
+                if (tok > 0) {
+                    bits.push(tok >= 1000 ? (tok / 1000).toFixed(1) + "k" : String(tok));
+                }
+            }
+        }
+        if (el.sessionMeta) {
+            el.sessionMeta.hidden = !bits.length;
+            el.sessionMeta.textContent = bits.join(" · ");
+        }
+        if (el.forkBtn) {
+            el.forkBtn.hidden = !state.sessionId;
+            el.forkBtn.disabled = false;
         }
     }
     function selectSession(id) {
@@ -1772,69 +1773,101 @@
         });
     });
     // ---- v2: Diff der Sitzung anzeigen ----------------------------------------
-    function closeDiffOverlay() {
-        var ov = document.getElementById("diff-overlay");
-        if (ov) {
-            ov.remove();
-        }
+    function diffFileBlock(f) {
+        var wrap = document.createElement("div");
+        wrap.className = "diff-file";
+        var cap = document.createElement("div");
+        cap.className = "diff-file-cap";
+        cap.innerHTML = esc(f.file) + ' <span class="diff-add">+' + f.additions + "</span> <span" + ' class="diff-del">-' + f.deletions + "</span> <em" + ' class="diff-status">(' + esc(f.status) + ")</em>";
+        wrap.appendChild(cap);
+        var pre = document.createElement("pre");
+        pre.textContent = f.patch || "";
+        wrap.appendChild(pre);
+        return wrap;
     }
-    function openDiffOverlay(files) {
-        closeDiffOverlay();
-        var ov = document.createElement("div");
-        ov.id = "diff-overlay";
-        ov.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:80;display:flex;align-items:center;justify-content:center;padding:24px;";
-        var box = document.createElement("div");
-        box.style.cssText = "background:var(--bg-white,#fff);color:var(--text,#111);border-radius:12px;max-width:900px;width:100%;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;";
-        var head = document.createElement("div");
-        head.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(0,0,0,.08);font-weight:600;";
-        head.textContent = "Änderungen dieser Sitzung";
-        var close = document.createElement("button");
-        close.className = "btn";
-        close.textContent = "×";
-        close.style.cssText = "margin-left:12px;";
-        close.addEventListener("click", closeDiffOverlay);
-        head.appendChild(close);
-        var body = document.createElement("div");
-        body.style.cssText = "overflow:auto;padding:12px 16px;";
-        if (!files.length) {
-            var empty = document.createElement("div");
-            empty.style.cssText = "color:#666;padding:12px 0;";
-            empty.textContent = "Keine Dateiänderungen in dieser Sitzung.";
-            body.appendChild(empty);
+    function openDiffModal(sessionFiles, projectFiles) {
+        if (!el.diffModal) {
+            return;
         }
-        files.forEach(function(f) {
-            var wrap = document.createElement("div");
-            wrap.style.cssText = "margin-bottom:16px;";
-            var cap = document.createElement("div");
-            cap.style.cssText = "font-family:monospace;font-size:12px;margin-bottom:4px;";
-            cap.innerHTML = esc(f.file) + ' <span style="color:#1a7f37">+' + f.additions + "</span> <span" + ' style="color:#cf222e">-' + f.deletions + "</span> <em>(" + esc(f.status) + ")</em>";
-            wrap.appendChild(cap);
-            var pre = document.createElement("pre");
-            pre.style.cssText = "background:rgba(0,0,0,.04);padding:10px;border-radius:8px;overflow:auto;font-size:11px;line-height:1.45;margin:0;max-height:320px;";
-            pre.textContent = f.patch || "";
-            wrap.appendChild(pre);
-            body.appendChild(wrap);
-        });
-        box.appendChild(head);
-        box.appendChild(body);
-        ov.appendChild(box);
-        ov.addEventListener("click", function(e) {
-            if (e.target === ov) {
-                closeDiffOverlay();
+        var body = el.diffModalBody;
+        body.innerHTML = "";
+        if (!sessionFiles.length) {
+            var empty = document.createElement("div");
+            empty.className = "diff-empty";
+            empty.textContent = t("diffEmpty");
+            body.appendChild(empty);
+            if (!projectFiles.length) {
+                var hint = document.createElement("div");
+                hint.className = "diff-hint";
+                hint.textContent = t("diffHint");
+                body.appendChild(hint);
             }
+        }
+        sessionFiles.slice(0, 40).forEach(function(f) {
+            body.appendChild(diffFileBlock(f));
         });
-        document.body.appendChild(ov);
+        if (sessionFiles.length > 40) {
+            var more = document.createElement("div");
+            more.className = "diff-muted";
+            more.textContent = t("diffMoreFiles", { n: sessionFiles.length - 40 });
+            body.appendChild(more);
+        }
+        if (projectFiles.length) {
+            var ph = document.createElement("div");
+            ph.className = "diff-section";
+            ph.textContent = t("diffProject", { n: projectFiles.length });
+            body.appendChild(ph);
+            projectFiles.slice(0, 20).forEach(function(f) {
+                body.appendChild(diffFileBlock(f));
+            });
+            if (projectFiles.length > 20) {
+                var pmore = document.createElement("div");
+                pmore.className = "diff-muted";
+                pmore.textContent = t("diffMoreProj", { n: projectFiles.length - 20 });
+                body.appendChild(pmore);
+            }
+        }
+        el.diffModal.hidden = false;
+    }
+    function closeDiffModal() {
+        if (el.diffModal) {
+            el.diffModal.hidden = true;
+        }
     }
     el.diffBtn.addEventListener("click", function() {
-        if (!state.sessionId) {
+        if (!state.sessionId || el.diffBtn.disabled) {
             return;
         }
         el.diffBtn.disabled = true;
-        api("GET", "/session/" + state.sessionId + "/diff").then(function(res) {
+        Promise.all([
+            api("GET", "/session/" + state.sessionId + "/diff"),
+            api("GET", "/vcs/diff?mode=working&limit=25").catch(function() {
+                return null;
+            })
+        ]).then(function(results) {
             el.diffBtn.disabled = false;
-            openDiffOverlay(unwrap(res) || []);
+            var sessionFiles = unwrap(results[0]) || [];
+            var projectFiles = results[1] ? (unwrap(results[1]) || []) : [];
+            openDiffModal(sessionFiles, projectFiles);
         }).catch(function() {
             el.diffBtn.disabled = false;
+        });
+    });
+    el.forkBtn.addEventListener("click", function() {
+        if (!state.sessionId || el.forkBtn.disabled) {
+            return;
+        }
+        el.forkBtn.disabled = true;
+        api("POST", "/session/" + state.sessionId + "/fork", {}).then(function(res) {
+            var ns = unwrap(res);
+            return loadSessions().then(function() {
+                if (ns && ns.id) {
+                    selectSession(ns.id);
+                }
+                el.forkBtn.disabled = false;
+            });
+        }).catch(function() {
+            el.forkBtn.disabled = false;
         });
     });
     el.newChat.addEventListener("click", newChat);
@@ -1848,6 +1881,16 @@
         el.questionModal.addEventListener("click", function(e) {
             if (e.target === el.questionModal) {
                 hideQuestionModal();
+            }
+        });
+    }
+    if (el.diffModalClose) {
+        el.diffModalClose.addEventListener("click", closeDiffModal);
+    }
+    if (el.diffModal) {
+        el.diffModal.addEventListener("click", function(e) {
+            if (e.target === el.diffModal) {
+                closeDiffModal();
             }
         });
     }
