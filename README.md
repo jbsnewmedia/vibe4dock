@@ -6,7 +6,7 @@
 
 For the German version, see [README.de.md](readme/README.de.md).
 
-This documentation describes **Vibe4Dock 1.0.8**.
+This documentation describes **Vibe4Dock 2.0.0**.
 
 Vibe4Dock is a Docker-based development environment with a web interface for CLI tools, browser shells, and project-specific runtime extensions. The main reason this project exists is simple: it gives you direct web access to AI CLI tools so you can keep working on your project anytime - on your desktop, phone, tablet, while traveling, or basically from anywhere.
 
@@ -40,7 +40,7 @@ The CLI itself only requires PHP CLI version 8 or newer. No additional dependenc
 Latest stable tag:
 
 ```bash
-git clone --branch 1.0.8 --depth 1 https://github.com/jbsnewmedia/vibe4dock.git
+git clone --branch 2.0.0 --depth 1 https://github.com/jbsnewmedia/vibe4dock.git
 cd vibe4dock
 chmod +x vibe4dock
 ```
@@ -316,7 +316,7 @@ The real work stays inside the container and therefore inside one consistent env
 
 ## Tool and addon packs
 
-Bundled definitions for **Vibe4Dock 1.0.8** are loaded from:
+Bundled definitions for **Vibe4Dock 2.0.0** are loaded from:
 
 ```text
 docker/tools/category/
@@ -530,7 +530,7 @@ Each file:
 - can define categories and tools,
 - is merged with all other files.
 
-Bundled tool files are already part of the repository in version 1.0.8, and additional team-specific or project-specific packs can be layered on top through the same merge mechanism.
+Bundled tool files are already part of the repository in version 2.0.0, and additional team-specific or project-specific packs can be layered on top through the same merge mechanism.
 
 ### Addon definitions
 
@@ -646,9 +646,15 @@ Examples of bundled browser endpoints:
 - **code-server**: separate addon service with its own port and password-protected browser IDE
 - **OneDev**: separate addon service with a web UI on port `6610`, Git SSH on port `6611`, and an auto-bootstrap job for the current workspace
 - **Mailpit**: separate addon service with a web UI on port `8025` for viewing caught emails and an SMTP server on port `1025` for local mail testing
-- **opencode**: separate addon service that runs the opencode AI coding agent with a browser-based web UI on port `4096` and the project mounted as workspace
-- **Chat**: separate addon service with a ChatGPT-like web UI in front of a headless `opencode serve` agent working on the project; shell activity appears in a collapsible thinking panel and agent questions or permission requests show up as interactive bubbles. Requires the bundled `opencode-cli` tool and supports no other agent backend
-- **Veronica**: separate addon service (port `4581`) with a WhatsApp-like end-customer chat in front of a headless `opencode serve` agent working on the project; end customers log in with a 1–3 character alias and PIN against a server-side JSON user database, their chats are tagged `[alias]` in opencode and initially belong to the user only, and no thinking or tool output is shown - just `Veronica schreibt`. Ships i18n (DE/EN), plan mode, a model selection menu and visible provider errors. Requires the bundled `opencode-cli` tool and supports no other agent backend
+- **opencode**: separate addon service that runs the opencode **v2** AI coding agent with a browser-based web UI on port `4096` and the project mounted as workspace. v2 protects its API with a per-start password: the web UI asks for it once - it is printed to the container log and written to `.opencode-password` in the project
+- **Chat**: separate addon service with a ChatGPT-like web UI in front of a headless `opencode serve` agent (v2) working on the project; shell activity appears in a collapsible thinking panel and agent questions or permission requests show up as interactive bubbles (permissions now name the exact command/path). Live server events stream updates in near-realtime, messages sent while the agent runs steer the current run, and each session offers fork, compact and a per-session diff viewer with cost/token counters. Requires the bundled `opencode-cli` tool and supports no other agent backend
+- **Veronica**: separate addon service (port `4581`) with a WhatsApp-like end-customer chat in front of a headless `opencode serve` agent (v2) working on the project; end customers log in with a 1–3 character alias and PIN against a server-side JSON user database, their chats are tagged `[alias]` in opencode and initially belong to the user only, and no thinking or tool output is shown - just `Veronica schreibt`. Ships i18n (DE/EN), plan mode, a model selection menu with reasoning-mode variants, structured multi-choice form answers, message steering while generating, per-session cost/token display, an "undo last change" action and visible provider errors. Requires the bundled `opencode-cli` tool and supports no other agent backend
+
+#### OpenCode v2 in the AI addons
+
+All three AI addons run **OpenCode v2** (installed from `opencode.ai/v2/install`). v2 protects its server API with HTTP Basic auth using a password generated on every start. The addons handle this transparently: the start scripts extract the password from the server log and inject it as an `Authorization` header into the local reverse proxy, so the browser UIs work unchanged. Only the standalone **opencode** addon (which exposes the v2 web UI directly) asks once for that password in the browser - see the addon README.
+
+New v2-powered capabilities in the Chat and Veronica UIs: live event streaming (`/api/event`) instead of fixed-interval polling, message steering while the agent is generating, structured form answers for agent questions, per-session cost/token display and outcome icons, session fork/compact/diff (Chat), reasoning-mode variants in the model menu, permission requests that name the exact command or path, and an undo (revert) action in the Veronica chat menu.
 
 ## Settings
 

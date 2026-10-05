@@ -598,6 +598,25 @@ details.thinking .thinking-body { padding: 0 12px 10px; color: var(--text-dim); 
     white-space: nowrap;
 }
 
+#session-list .session-meta {
+    position: absolute;
+    right: 40px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    color: var(--text-dim, #9aa0a6);
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.pending-box .q-meta {
+    font-size: 0.82em;
+    opacity: 0.75;
+    margin-top: 3px;
+    overflow-wrap: anywhere;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
 #session-list .session-delete {
     position: absolute;
     right: 6px;
