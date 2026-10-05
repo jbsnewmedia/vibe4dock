@@ -147,6 +147,7 @@
                     <button type="button" id="chat-add-btn" class="chat-menu-item" data-i18n="menuAdd">Person hinzufügen</button>
                     <button type="button" id="chat-remove-btn" class="chat-menu-item" data-i18n="menuRemove">Person entfernen</button>
                     <button type="button" id="chat-export-btn" class="chat-menu-item" data-i18n="menuExport">Chat exportieren</button>
+                    <button type="button" id="chat-revert-btn" class="chat-menu-item" data-i18n="menuRevert">Letzte Änderung zurücknehmen</button>
                     <button type="button" id="chat-delete-btn" class="chat-menu-item danger" data-i18n="menuDelete">Chat löschen</button>
                     <div id="lang-switch-menu" class="chat-menu-item lang-menu-row">
                         <span class="lang-switch" role="group" aria-label="Language">

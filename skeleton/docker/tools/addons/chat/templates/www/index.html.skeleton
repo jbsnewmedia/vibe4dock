@@ -34,6 +34,8 @@
         <header id="topbar">
             <button id="toggle-sidebar" class="btn btn-icon" title="Toggle sidebar" data-i18n-title="sidebarTitle">&#9776;</button>
             <span id="session-title">Chat</span>
+            <button id="diff-btn" class="btn btn-icon" title="Änderungen dieser Sitzung anzeigen (Diff)" hidden>&#9866; Diff</button>
+            <button id="compact-btn" class="btn btn-icon" title="Sitzung komprimieren (Kontext zusammenfassen)">&#8608;</button>
             <span class="lang-switch header-lang" role="group" aria-label="Language"><button type="button" data-lang="de">DE</button><button type="button" data-lang="en">EN</button></span>
             <button id="stop-btn" class="btn btn-danger" hidden>&#9632; Stop</button>
         </header>

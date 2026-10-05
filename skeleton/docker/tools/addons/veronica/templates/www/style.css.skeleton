@@ -343,6 +343,36 @@ a:hover { text-decoration: underline; }
     justify-content: space-between;
     gap: 8px;
 }
+#session-list li .name-row .session-meta {
+    font-size: 10px;
+    color: rgba(0, 0, 0, 0.4);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.model-variant-row {
+    padding: 6px 10px 10px;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+.model-variant-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.model-variant-chips .variant-chip {
+    border: 1px solid rgba(18, 140, 126, 0.4);
+    border-radius: 14px;
+    padding: 5px 12px;
+    font-size: 0.8em;
+    font-weight: 600;
+    color: #128c7e;
+    background: #ffffff;
+    cursor: pointer;
+}
+.model-variant-chips .variant-chip.active {
+    background: #25d366;
+    border-color: #25d366;
+    color: #ffffff;
+}
 #session-list li .title {
     font-weight: 600;
     font-size: 16px;
@@ -2178,6 +2208,34 @@ a.file-mention:hover { text-decoration: underline; }
     background: #25d366;
     border-color: #25d366;
     color: #ffffff;
+}
+.question-opt.selected {
+    background: #25d366;
+    border-color: #25d366;
+    color: #ffffff;
+}
+.question-opt-done {
+    background: #25d366;
+    border-color: #25d366;
+    color: #ffffff;
+    border-radius: 18px;
+}
+.question-opt-done:hover {
+    filter: brightness(1.05);
+    background: #25d366;
+    color: #ffffff;
+}
+.pending-box .q-meta {
+    font-size: 0.82em;
+    opacity: 0.75;
+    margin-top: 3px;
+    overflow-wrap: anywhere;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.session-meta {
+    font-size: 0.7em;
+    color: rgba(0, 0, 0, 0.45);
+    white-space: nowrap;
 }
 .question-input-row {
     margin-top: 10px;

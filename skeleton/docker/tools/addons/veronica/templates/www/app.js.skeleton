@@ -10,6 +10,7 @@
     var SESSIONS_KEY = "vibe4dock.veronica.sessions.";
     var MEMBERS_KEY = "vibe4dock.veronica.members.";
     var MODEL_KEY = "vibe4dock.veronica.model";
+    var MODEL_VARIANT_KEY = "vibe4dock.veronica.variant";
     var PLAN_KEY = "vibe4dock.veronica.planmode";
     var UPLOADS_KEY = "vibe4dock.veronica.uploads.";
     var STUCK_MINUTES = (window.CHAT_CONFIG && window.CHAT_CONFIG.stuckMinutes) || 10;
@@ -80,6 +81,7 @@
         chatMenu: document.getElementById("chat-menu"),
         chatExportBtn: document.getElementById("chat-export-btn"),
         chatDeleteBtn: document.getElementById("chat-delete-btn"),
+        chatRevertBtn: document.getElementById("chat-revert-btn"),
         chatRemoveBtn: document.getElementById("chat-remove-btn"),
         modelMenuBtn: document.getElementById("model-menu-btn"),
         modelBadge: document.getElementById("model-badge"),
@@ -775,6 +777,244 @@
             throw err;
         });
     }
+    // ---- OpenCode v2 API-Adapter ------------------------------------------------
+    // v2 listet Responses unter { data: [...] } und liefert flache, getypte
+    // Messages (user: text-Feld, assistant: content[] statt parts[]). Die
+    // Renderer bleiben auf der gewohnten [{info, parts}]-Form.
+    function unwrap(res) {
+        return res && typeof res === "object" && res.data !== undefined ? res.data : res;
+    }
+    function toolOutputV2(st) {
+        if (!st) {
+            return "";
+        }
+        var out = "";
+        (st.content || []).forEach(function(c) {
+            if (c && typeof c.text === "string") {
+                out += (out ? "\n" : "") + c.text;
+            }
+        });
+        if (!out && st.metadata && typeof st.metadata.output === "string") {
+            out = st.metadata.output;
+        }
+        return out;
+    }
+    function mapContentV2(c) {
+        var st = c.state || {};
+        var status = st.status === "completed" || st.status === "error" ? st.status : "pending";
+        return {
+            type: "tool",
+            tool: c.name || "tool",
+            callID: c.id,
+            state: {
+                status: status,
+                input: st.input || {},
+                output: toolOutputV2(st),
+                metadata: st.metadata || {}
+            }
+        };
+    }
+    function v2Messages(list) {
+        var out = [];
+        (list || []).forEach(function(m) {
+            if (!m || typeof m !== "object") {
+                return;
+            }
+            var created = m.time && m.time.created || 0;
+            if (m.type === "user") {
+                out.push({
+                    info: {
+                        id: m.id,
+                        role: "user",
+                        sessionID: m.sessionID,
+                        time: {
+                            created: created
+                        }
+                    },
+                    parts: [ {
+                        type: "text",
+                        text: m.text || ""
+                    } ]
+                });
+            } else if (m.type === "assistant") {
+                var parts = [];
+                (m.content || []).forEach(function(c) {
+                    if (!c) {
+                        return;
+                    }
+                    if (c.type === "text" || c.type === "reasoning") {
+                        parts.push({
+                            type: c.type,
+                            text: c.text || ""
+                        });
+                    } else if (c.type === "tool") {
+                        parts.push(mapContentV2(c));
+                    } else if (c.type === "subtask" && c.prompt) {
+                        parts.push(c);
+                    }
+                });
+                out.push({
+                    info: {
+                        id: m.id,
+                        role: "assistant",
+                        agent: m.agent,
+                        sessionID: m.sessionID,
+                        time: {
+                            created: created,
+                            completed: m.time && m.time.completed
+                        },
+                        error: m.error || null
+                    },
+                    parts: parts
+                });
+            }
+            // uebrige v2-Typen (idle, agent-switched, model-switched, ...) ausblenden
+        });
+        out.sort(function(a, b) {
+            return ((a.info.time || {}).created || 0) - ((b.info.time || {}).created || 0);
+        });
+        return out;
+    }
+    function fetchAllMessagesV2(sessionId) {
+        var collected = [];
+        var seen = {};
+        function page(cursor, depth) {
+            // v2: Cursor-Seiten ohne "order" kombinieren (API: "Do not combine")
+            var url = "/session/" + encodeURIComponent(sessionId) + "/message?limit=200" + (cursor ? "&cursor=" + encodeURIComponent(cursor) : "&order=asc");
+            return api("GET", url).then(function(res) {
+                var list = (res && res.data) || [];
+                list.forEach(function(m) {
+                    if (m && m.id && !seen[m.id]) {
+                        seen[m.id] = 1;
+                        collected.push(m);
+                    }
+                });
+                var next = res && res.cursor && res.cursor.next;
+                if (next && list.length && collected.length < 2000 && depth < 40) {
+                    return page(next, depth + 1).catch(function() {
+                        return collected;
+                    });
+                }
+                return collected;
+            });
+        }
+        return page(null, 0).then(v2Messages);
+    }
+    function currentAgentId() {
+        if (state.planMode) {
+            return "veronica-plan";
+        }
+        return window.CHAT_CONFIG && window.CHAT_CONFIG.agent ? window.CHAT_CONFIG.agent : "veronica";
+    }
+    // Model/Agent-Auswahl gilt in v2 pro Session (vor dem Prompt setzen).
+    function applySessionPrefs(sid, agentOverride) {
+        var jobs = [];
+        var pref = preferredModel();
+        if (pref && pref.providerID && pref.modelID) {
+            var ref = {
+                providerID: pref.providerID,
+                id: pref.modelID
+            };
+            var variant = modelVariantFor(pref);
+            if (variant) {
+                ref.variant = variant;
+            }
+            jobs.push(api("POST", "/session/" + sid + "/model", {
+                model: ref
+            }).catch(function() {}));
+        }
+        var agent = agentOverride || currentAgentId();
+        if (agent) {
+            jobs.push(api("POST", "/session/" + sid + "/agent", {
+                agent: agent
+            }).catch(function() {}));
+        }
+        return Promise.all(jobs).catch(function() {});
+    }
+    // Permission.Request (v2) in lesbare Anzeige aufschluesseln: action,
+    // resources, message, metadata oder der referenzierte Tool-Call
+    // (source.messageID + source.id) aus den gepolten Messages.
+    function permInfo(p) {
+        var act = p.action || "";
+        var input = null;
+        var md = p.metadata;
+        if (md && typeof md === "object") {
+            input = md.input || md.tool_input || null;
+            if (!input && (md.command || md.file_path || md.path || md.url || md.pattern)) {
+                input = md;
+            }
+        }
+        if (!input && p.source && p.source.type === "tool" && p.source.messageID && p.source.id) {
+            var msgs = state.lastMsgs || [];
+            for (var i = 0; i < msgs.length; i++) {
+                var m = msgs[i];
+                var mid = m.info && m.info.id || m.id;
+                if (mid !== p.source.messageID) {
+                    continue;
+                }
+                var parts = m.parts || [];
+                for (var j = 0; j < parts.length; j++) {
+                    var pt = parts[j];
+                    if (pt.type === "tool" && (pt.callID === p.source.id || pt.id === p.source.id)) {
+                        input = pt.state && pt.state.input || null;
+                    }
+                }
+            }
+        }
+        var what = "";
+        if (input && typeof input === "object") {
+            what = input.command || input.cmd || input.file_path || input.filePath || input.path || input.url || input.pattern || input.query || "";
+        } else if (typeof input === "string") {
+            what = input;
+        }
+        var res = (p.resources || []).join(", ");
+        var label = (p.message || "").trim();
+        if (!label && what) {
+            label = act ? act + ": " + what : what;
+        }
+        if (!label && res) {
+            label = act ? act + ": " + res : res;
+        }
+        if (!label) {
+            label = act || "aktion";
+        }
+        var meta = [];
+        if (res && (what || "").indexOf(res) === -1 && label.indexOf(res) === -1) {
+            meta.push(res);
+        }
+        if (input && typeof input === "object" && input.description && label.indexOf(input.description) === -1) {
+            meta.push(input.description);
+        }
+        return {
+            title: label,
+            meta: meta
+        };
+    }
+    // Form.Info (v2) -> Frage-Request in der gewohnten Form.
+    function formToReqV2(f) {
+        return {
+            id: f.id,
+            sessionID: f.sessionID,
+            form: true,
+            questions: (f.fields || []).filter(function(fd) {
+                return fd && !fd.hidden && fd.type !== "external";
+            }).map(function(fd) {
+                return {
+                    key: fd.key,
+                    type: fd.type,
+                    header: f.title || "",
+                    question: fd.title || fd.description || t("question"),
+                    options: (fd.options || []).map(function(o) {
+                        return typeof o === "string" ? o : {
+                            label: o.label || o.value || "",
+                            value: o.value || o.label || "",
+                            description: o.description
+                        };
+                    })
+                };
+            })
+        };
+    }
     function detectBackend(attempt) {
         if (location.protocol === "file:") {
             state.backend = "mock";
@@ -891,7 +1131,27 @@
     }
     function loadSessions() {
         if (state.backend === "api") {
-            return api("GET", "/session").then(function(list) {
+            var collected = [];
+            var seen = {};
+            function page(cursor, depth) {
+                // v2: Cursor-Seiten ohne "order" kombinieren (API: "Do not combine")
+                var url = "/session?limit=200" + (cursor ? "&cursor=" + encodeURIComponent(cursor) : "&order=asc");
+                return api("GET", url).then(function(res) {
+                    var list = (res && res.data) || [];
+                    list.forEach(function(s) {
+                        if (s && s.id && !seen[s.id]) {
+                            seen[s.id] = 1;
+                            collected.push(s);
+                        }
+                    });
+                    var next = res && res.cursor && res.cursor.next;
+                    if (next && list.length && collected.length < 1000 && depth < 20) {
+                        return page(next, depth + 1);
+                    }
+                    return collected;
+                });
+            }
+            return page(null, 0).then(function(list) {
                 state.sessions = (list || []).filter(function(s) {
                     return s && !s.parentID && (isOwnSession(s) || isMemberOfSession(s)) && !isSessionDeleted(s.id);
                 }).map(adoptSession).sort(function(a, b) {
@@ -910,8 +1170,8 @@
         if (state.backend === "api") {
             return api("POST", "/session", {
                 title: taggedTitle(displayTitle)
-            }).then(function(info) {
-                var s = adoptSession(info);
+            }).then(function(res) {
+                var s = adoptSession(unwrap(res));
                 state.sessions.unshift(s);
                 state.sessionId = s.id;
                 rememberSession();
@@ -967,7 +1227,7 @@
             renderMessages(state.lastMsgs);
         };
         if (state.backend === "api") {
-            api("DELETE", "/session/" + encodeURIComponent(id), {}).then(after).catch(after);
+            api("DELETE", "/session/" + encodeURIComponent(id)).then(after).catch(after);
         } else {
             after();
         }
@@ -1186,14 +1446,15 @@
         if (!err) {
             return t("errPrefix") + "API";
         }
-        var data = err.data || {};
-        var raw = [ data.message, err.message, data.responseBody, err.name ].map(function(v) {
+        // v2: { type, message, status?, response: { body } } - aelteres Format mitlesen
+        var data = err.data || err.response || {};
+        var raw = [ err.message, data.message, err.type, data.response && data.response.body, data.responseBody, err.name ].map(function(v) {
             return v == null ? "" : String(v);
         }).join(" ");
         if (/FreeTierError|free tier/i.test(raw)) {
             return t("errPrefix") + t("freeTierHint");
         }
-        var msg = data.message && String(data.message) || err.message && String(err.message) || data.responseBody && String(data.responseBody) || err.name || "API";
+        var msg = err.message && String(err.message) || data.message && String(data.message) || data.response && data.response.body && String(data.response.body) || data.responseBody && String(data.responseBody) || err.type || err.name || "API";
         return t("errPrefix") + msg;
     }
     function renderMessage(m) {
@@ -1609,12 +1870,29 @@
             nameRow.className = "name-row";
             var titleEl = document.createElement("div");
             titleEl.className = "title";
-            titleEl.textContent = title;
+            var outcomeIcon = s.raw && s.raw.outcome === "succeeded" ? "✓ " : s.raw && s.raw.outcome === "failed" ? "✗ " : s.raw && s.raw.outcome === "interrupted" ? "⏸ " : "";
+            titleEl.textContent = outcomeIcon + title;
             var time = document.createElement("span");
             time.className = "time";
             time.textContent = formatTimeShort(s.updatedAt || s.createdAt || Date.now());
             nameRow.appendChild(titleEl);
             nameRow.appendChild(time);
+            var cost = s.raw && typeof s.raw.cost === "number" ? s.raw.cost : 0;
+            var tok = s.raw && s.raw.tokens ? (s.raw.tokens.input || 0) + (s.raw.tokens.output || 0) : 0;
+            if (cost > 0 || tok > 0) {
+                var meta = document.createElement("span");
+                meta.className = "session-meta";
+                var bits = [];
+                if (cost > 0) {
+                    bits.push("$" + (cost >= 0.01 ? cost.toFixed(2) : cost.toFixed(4)));
+                }
+                if (tok > 0) {
+                    bits.push(tok >= 1000 ? (tok / 1000).toFixed(1) + "k" : String(tok));
+                }
+                meta.textContent = bits.join(" · ");
+                meta.title = "Kosten / Tokens";
+                nameRow.appendChild(meta);
+            }
             var previewRow = document.createElement("div");
             previewRow.className = "preview-row";
             var preview = document.createElement("div");
@@ -1837,10 +2115,13 @@
                 answerQuestion(cur.req, payload);
             };
             if (opts.length) {
+                var isMulti = q.type === "multiselect";
+                var pickedMulti = [];
                 var optRow = document.createElement("div");
                 optRow.className = "question-opts";
                 opts.forEach(function(o) {
                     var label = typeof o === "string" ? o : o.label || "";
+                    var value = typeof o === "object" && o && o.value ? o.value : label;
                     var b = document.createElement("button");
                     b.type = "button";
                     b.className = "question-opt" + (o && o.description ? " has-desc" : "");
@@ -1855,16 +2136,59 @@
                         b.appendChild(d);
                     }
                     b.addEventListener("click", function() {
-                        submit([ label ]);
+                        if (isMulti) {
+                            // Mehrfachauswahl: an/aus, Absenden ueber den Fertig-Knopf
+                            var idx = pickedMulti.indexOf(value);
+                            if (idx === -1) {
+                                pickedMulti.push(value);
+                                b.classList.add("selected");
+                            } else {
+                                pickedMulti.splice(idx, 1);
+                                b.classList.remove("selected");
+                            }
+                            if (doneBtn) {
+                                doneBtn.hidden = pickedMulti.length === 0;
+                            }
+                            input.value = "";
+                            return;
+                        }
+                        // v2-Forms erwarten den Options-Value, Recovery den Text
+                        submit([ value ]);
                     });
                     optRow.appendChild(b);
                 });
+                if (isMulti) {
+                    var doneBtn = document.createElement("button");
+                    doneBtn.type = "button";
+                    doneBtn.className = "question-opt question-opt-done";
+                    doneBtn.textContent = t("sendAnswer");
+                    doneBtn.hidden = true;
+                    doneBtn.addEventListener("click", function() {
+                        if (pickedMulti.length) {
+                            submit(pickedMulti);
+                        }
+                    });
+                    optRow.appendChild(doneBtn);
+                }
                 bubble.appendChild(optRow);
             }
             input.addEventListener("keydown", function(e) {
                 if (e.key === "Enter") {
                     e.preventDefault();
                     var v = input.value.trim();
+                    if (isMulti) {
+                        // Freitext bei Mehrfachauswahl der Auswahl hinzufuegen
+                        if (v) {
+                            pickedMulti.push(v);
+                            input.value = "";
+                            if (doneBtn) {
+                                doneBtn.hidden = false;
+                            }
+                        } else if (pickedMulti.length) {
+                            submit(pickedMulti);
+                        }
+                        return;
+                    }
                     if (v) {
                         submit([ v ]);
                     } else if (opts.length) {
@@ -1948,6 +2272,12 @@
             title.className = "q";
             title.textContent = t("permPrefix") + (p.title || p.type || t("permAction"));
             box.appendChild(title);
+            (p.meta || []).forEach(function(line) {
+                var meta = document.createElement("div");
+                meta.className = "q-meta";
+                meta.textContent = line;
+                box.appendChild(meta);
+            });
             var opts = document.createElement("div");
             opts.className = "opts";
             [ [ "once", t("permAllow") ], [ "always", t("permAlways") ], [ "reject", t("permReject") ] ].forEach(function(pair) {
@@ -1996,29 +2326,13 @@
         state.generating = true;
         updateComposerState();
         setTyping(true);
-        var body = {
-            parts: [ {
-                type: "text",
+        // Plan-GO schaltet den Plan-Modus aus -> normaler Agent statt veronica-plan
+        var goAgent = window.CHAT_CONFIG && window.CHAT_CONFIG.agent ? window.CHAT_CONFIG.agent : "veronica";
+        applySessionPrefs(state.sessionId, goAgent).then(function() {
+            return api("POST", "/session/" + state.sessionId + "/prompt", {
                 text: text
-            } ]
-        };
-        var pref = preferredModel();
-        if (pref) {
-            body.model = {
-                providerID: pref.providerID,
-                modelID: pref.modelID
-            };
-            var goVariant = modelVariantFor(pref);
-            if (goVariant) {
-                body.variant = goVariant;
-            }
-        }
-        if (window.CHAT_CONFIG && window.CHAT_CONFIG.agent) {
-            body.agent = window.CHAT_CONFIG.agent;
-        } else {
-            body.agent = "veronica";
-        }
-        api("POST", "/session/" + state.sessionId + "/prompt_async", body).then(function() {
+            });
+        }).then(function() {
             return refresh();
         }).catch(function(e) {
             state.generating = false;
@@ -2033,9 +2347,6 @@
             return (qs.header ? qs.header + ": " : "") + (vals.join(", ") || "(keine Angabe)");
         }).join("\n");
         if (onEcho) onEcho(echoText);
-        var reply = api("POST", "/question/" + encodeURIComponent(req.id || req.requestID) + "/reply", {
-            answers: payload
-        });
         var done = function() {
             state.replyError = "";
             return refresh();
@@ -2044,25 +2355,39 @@
             state.replyError = "Antwort konnte nicht gesendet werden: " + e.message;
             renderPending();
         };
+        if (req.form) {
+            // v2: strukturierte Form-Antwort { answer: { fieldKey: value } }
+            var fsid = req.sessionID || state.sessionId;
+            var answer = {};
+            (req.questions || []).forEach(function(q, i) {
+                if (!q || !q.key) {
+                    return;
+                }
+                var vals = payload[i] || [];
+                answer[q.key] = q.type === "multiselect" ? vals : (vals.length ? vals[0] : "");
+            });
+            api("POST", "/session/" + encodeURIComponent(fsid) + "/form/" + encodeURIComponent(req.id) + "/reply", {
+                answer: answer
+            }).then(done).catch(fail);
+            return;
+        }
         if (req.recovered) {
             var sid = state.sessionId;
             var text = payload.map(function(vals, i) {
                 var qs = (req.questions || [])[i] || {};
                 return (qs.header ? qs.header + ": " : "") + (vals.join(", ") || "(keine Angabe)");
             }).join("\n");
-            api("POST", "/session/" + sid + "/prompt_async", {
-                parts: [ {
-                    type: "text",
-                    text: text
-                } ]
+            api("POST", "/session/" + encodeURIComponent(sid) + "/prompt", {
+                text: text
             }).then(done).catch(fail);
             return;
         }
-        reply.then(done).catch(fail);
+        done();
     }
-    function answerPermission(p, reply) {
-        api("POST", "/permission/" + encodeURIComponent(p.id || p.permissionID) + "/reply", {
-            reply: reply
+    function answerPermission(p, replyValue) {
+        var psid = p.sessionID || state.sessionId;
+        api("POST", "/session/" + encodeURIComponent(psid) + "/permission/" + encodeURIComponent(p.id || p.permissionID) + "/reply", {
+            decision: replyValue
         }).then(function() {
             state.replyError = "";
             return refresh();
@@ -2134,7 +2459,7 @@
     }
     function getMessages(sessionId) {
         if (state.backend === "api") {
-            return api("GET", "/session/" + encodeURIComponent(sessionId) + "/message");
+            return fetchAllMessagesV2(sessionId);
         }
         var s = findSession(sessionId);
         return Promise.resolve(s && s.messages || []);
@@ -2169,20 +2494,30 @@
                 updateComposerState();
                 setTyping(state.generating);
             }));
-            jobs.push(api("GET", "/question").then(function(qs) {
-                var live = (qs || []).filter(function(q) {
-                    return !q.sessionID || q.sessionID === state.sessionId;
-                });
+            jobs.push(api("GET", "/form").then(function(res) {
+                var forms = unwrap(res) || [];
+                var live = forms.filter(function(f) {
+                    return !f.sessionID || f.sessionID === state.sessionId;
+                }).map(formToReqV2);
                 state.pendingQuestions = live.length ? live : liveQuestions(state.lastMsgs) || [];
                 renderPending();
             }).catch(function() {
                 state.pendingQuestions = liveQuestions(state.lastMsgs) || [];
                 renderPending();
             }));
-            jobs.push(api("GET", "/permission").then(function(ps) {
-                var list = Array.isArray(ps) ? ps : ps && ps.permissions || [];
+            jobs.push(api("GET", "/permission/request").then(function(res) {
+                var list = unwrap(res) || [];
                 state.pendingPermissions = list.filter(function(p) {
                     return !p.sessionID || p.sessionID === state.sessionId;
+                }).map(function(p) {
+                    var info = permInfo(p);
+                    return {
+                        id: p.id,
+                        sessionID: p.sessionID,
+                        title: info.title,
+                        meta: info.meta,
+                        type: p.action
+                    };
                 });
                 renderPending();
             }).catch(function() {
@@ -2245,11 +2580,38 @@
     var modelGroups = [];
     var modelVariants = {};
     var modelMenuLoading = false;
+    function loadVariantMap() {
+        var raw = storageGet(MODEL_VARIANT_KEY);
+        var map = {};
+        try {
+            map = raw ? JSON.parse(raw) || {} : {};
+        } catch (e) {
+            map = {};
+        }
+        // model.json-Seed als Fallback ergaenzen (lokal gewaehlte gewinnen)
+        Object.keys(modelVariants).forEach(function(k) {
+            if (!map[k]) {
+                map[k] = modelVariants[k];
+            }
+        });
+        return map;
+    }
+    function saveVariant(pref, variant) {
+        var map = loadVariantMap();
+        var key = pref.providerID + "/" + pref.modelID;
+        if (variant) {
+            map[key] = variant;
+        } else {
+            delete map[key];
+        }
+        storageSet(MODEL_VARIANT_KEY, JSON.stringify(map));
+    }
     function modelVariantFor(pref) {
         if (!pref) {
             return null;
         }
-        return modelVariants[pref.providerID + "/" + pref.modelID] || null;
+        var map = loadVariantMap();
+        return map[pref.providerID + "/" + pref.modelID] || null;
     }
     function activeModelKey() {
         var saved = storageGet(MODEL_KEY);
@@ -2325,6 +2687,48 @@
                 el.chatModelItems.appendChild(b);
             });
         });
+        // Varianten (Reasoning-Stufen) des aktiven Modells anbieten
+        var activeEntry = knownModels[active];
+        var variants = activeEntry && activeEntry.variants || [];
+        if (variants.length) {
+            var pref = {
+                providerID: active.slice(0, active.indexOf("/")),
+                modelID: active.slice(active.indexOf("/") + 1)
+            };
+            var current = modelVariantFor(pref);
+            var row = document.createElement("div");
+            row.className = "model-variant-row";
+            var rowLabel = document.createElement("div");
+            rowLabel.className = "model-group-label";
+            rowLabel.textContent = t("variantLabel");
+            row.appendChild(rowLabel);
+            var chipRow = document.createElement("div");
+            chipRow.className = "model-variant-chips";
+            var defChip = document.createElement("button");
+            defChip.type = "button";
+            defChip.className = "chat-menu-item model-item variant-chip" + (!current ? " active" : "");
+            defChip.textContent = t("variantDefault");
+            defChip.addEventListener("click", function(e) {
+                e.stopPropagation();
+                saveVariant(pref, null);
+                renderModelMenu();
+            });
+            chipRow.appendChild(defChip);
+            variants.forEach(function(v) {
+                var chip = document.createElement("button");
+                chip.type = "button";
+                chip.className = "chat-menu-item model-item variant-chip" + (current === v ? " active" : "");
+                chip.textContent = v;
+                chip.addEventListener("click", function(e) {
+                    e.stopPropagation();
+                    saveVariant(pref, v);
+                    renderModelMenu();
+                });
+                chipRow.appendChild(chip);
+            });
+            row.appendChild(chipRow);
+            el.chatModelItems.appendChild(row);
+        }
     }
     function loadModelsForMenu(attempt) {
         if (modelMenuLoading || state.backend !== "api") {
@@ -2333,25 +2737,47 @@
         }
         modelMenuLoading = true;
         var tryN = attempt || 0;
-        api("GET", "/config/providers", null, 2e4).then(function(res) {
-            var providers = res && res.providers || [];
-            if (!providers.length) {
+        Promise.all([
+            api("GET", "/model", null, 2e4),
+            api("GET", "/provider", null, 2e4).catch(function() {
+                return null;
+            }),
+            api("GET", "/model/default", null, 2e4).catch(function() {
+                return null;
+            })
+        ]).then(function(results) {
+            var models = unwrap(results[0]) || [];
+            var provNames = {};
+            ((results[1] && unwrap(results[1])) || []).forEach(function(p) {
+                if (p && p.id) {
+                    provNames[p.id] = p.name || p.id;
+                }
+            });
+            var defaults = {};
+            var dm = results[2] && unwrap(results[2]);
+            if (dm && dm.providerID && dm.modelID) {
+                defaults[dm.providerID] = dm.modelID;
+            }
+            if (!models.length) {
                 throw new Error("no providers");
             }
-            var defaults = res && res.default || {};
             var known = {};
-            providers.forEach(function(p) {
-                var models = p.models || {};
-                Object.keys(models).forEach(function(mid) {
-                    var m = models[mid] || {};
-                    known[p.id + "/" + (m.id || mid)] = {
-                        key: p.id + "/" + (m.id || mid),
-                        label: m.name || m.id || mid,
-                        prov: p.name || p.id,
-                        def: defaults[p.id] === (m.id || mid),
-                        zen: p.id === "opencode"
-                    };
-                });
+            models.forEach(function(m) {
+                if (!m || !m.providerID || !m.modelID) {
+                    return;
+                }
+                known[m.providerID + "/" + m.modelID] = {
+                    key: m.providerID + "/" + m.modelID,
+                    label: m.name || m.modelID,
+                    prov: provNames[m.providerID] || m.providerID,
+                    def: defaults[m.providerID] === m.modelID,
+                    zen: m.providerID === "opencode",
+                    variants: (m.variants || []).map(function(v) {
+                        return v && v.id;
+                    }).filter(function(v) {
+                        return !!v;
+                    })
+                };
             });
             knownModels = known;
             var stateKeys = function(list) {
@@ -2421,8 +2847,7 @@
                 modelGroups = groups;
                 renderModelMenu();
             });
-        }).catch(function() {
-            if (tryN < 2) {
+        }).catch(function() {            if (tryN < 6) {
                 modelMenuLoading = false;
                 return new Promise(function(r) {
                     setTimeout(r, 2500);
@@ -2538,21 +2963,11 @@
     }
     function runCommand(found) {
         var cmd = found.command;
-        var body = {
-            command: cmd.name,
-            arguments: expandMentions(found.args)
-        };
-        if (window.CHAT_CONFIG && window.CHAT_CONFIG.agent) {
-            body.agent = window.CHAT_CONFIG.agent;
-        } else {
-            body.agent = "veronica";
-        }
-        var cmdModel = preferredModel();
-        if (cmdModel) {
-            body.model = cmdModel.providerID + "/" + cmdModel.modelID;
-        }
+        var v2agent = window.CHAT_CONFIG && window.CHAT_CONFIG.agent ? window.CHAT_CONFIG.agent : "veronica";
         var ensure = state.sessionId ? Promise.resolve() : createSession("/" + cmd.name);
         ensure.then(function() {
+            return applySessionPrefs(state.sessionId, v2agent);
+        }).then(function() {
             el.prompt.value = "";
             el.prompt.style.height = "auto";
             state.forcedIdle = false;
@@ -2561,7 +2976,11 @@
             state.generating = true;
             updateComposerState();
             setTyping(true);
-            return api("POST", "/session/" + state.sessionId + "/command", body).then(function() {
+            // v2: { name, text } - Model/Agent kommen aus den Session-Prefs
+            return api("POST", "/session/" + state.sessionId + "/command", {
+                name: cmd.name,
+                text: expandMentions(found.args)
+            }).then(function() {
                 return refresh();
             });
         }).catch(function(e) {
@@ -2579,7 +2998,14 @@
             return;
         }
         if (state.generating) {
-            queueMessage(text);
+            // v2: In der API den laufenden Lauf steuern ("steer") statt zu parken
+            if (state.backend === "api" && state.sessionId) {
+                api("POST", "/session/" + state.sessionId + "/prompt", {
+                    text: text
+                }).catch(function() {});
+            } else {
+                queueMessage(text);
+            }
             return;
         }
         dispatchMessage(text);
@@ -2609,31 +3035,13 @@
             updateComposerState();
             setTyping(true);
             if (state.backend === "api") {
-                var body = {
-                    parts: [ {
-                        type: "text",
+                var v2agent = state.planMode ? "veronica-plan" : (window.CHAT_CONFIG && window.CHAT_CONFIG.agent ? window.CHAT_CONFIG.agent : "veronica");
+                return applySessionPrefs(state.sessionId, v2agent).then(function() {
+                    // v2: reiner Text-Prompt - Model/Agent/Variant aus den Session-Prefs
+                    return api("POST", "/session/" + state.sessionId + "/prompt", {
                         text: text
-                    } ]
-                };
-                var pref = preferredModel();
-                if (pref) {
-                    body.model = {
-                        providerID: pref.providerID,
-                        modelID: pref.modelID
-                    };
-                    var prefVariant = modelVariantFor(pref);
-                    if (prefVariant) {
-                        body.variant = prefVariant;
-                    }
-                }
-                if (state.planMode) {
-                    body.agent = "veronica-plan";
-                } else if (window.CHAT_CONFIG && window.CHAT_CONFIG.agent) {
-                    body.agent = window.CHAT_CONFIG.agent;
-                } else {
-                    body.agent = "veronica";
-                }
-                return api("POST", "/session/" + state.sessionId + "/prompt_async", body).then(function() {
+                    });
+                }).then(function() {
                     return refresh();
                 });
             }
@@ -2656,7 +3064,7 @@
         setTyping(false);
         updateComposerState();
         if (state.backend === "api" && state.sessionId) {
-            api("POST", "/session/" + state.sessionId + "/abort", {}).then(refresh).catch(function() {});
+            api("POST", "/session/" + state.sessionId + "/interrupt").then(refresh).catch(function() {});
         }
     }
     function loadIncomingApi() {
@@ -3266,16 +3674,14 @@
             } else {
                 el.messages.appendChild(renderMessage(m));
                 scrollToBottom(true);
-                var body = {
-                    parts: [ {
-                        type: "text",
-                        text: t("voiceNote") + formatDuration(sec) + ")"
-                    } ]
-                };
                 state.generating = true;
                 updateComposerState();
                 setTyping(true);
-                api("POST", "/session/" + state.sessionId + "/prompt_async", body).then(refresh).catch(function() {
+                applySessionPrefs(state.sessionId).then(function() {
+                    return api("POST", "/session/" + state.sessionId + "/prompt", {
+                        text: t("voiceNote") + formatDuration(sec) + ")"
+                    });
+                }).then(refresh).catch(function() {
                     state.generating = false;
                     updateComposerState();
                     setTyping(false);
@@ -3386,6 +3792,21 @@
         }
         if (el.chatExportBtn) el.chatExportBtn.addEventListener("click", exportSession);
         if (el.chatDeleteBtn) el.chatDeleteBtn.addEventListener("click", deleteCurrentSession);
+        if (el.chatRevertBtn) el.chatRevertBtn.addEventListener("click", function() {
+            el.chatMenu.hidden = true;
+            if (state.backend !== "api" || !state.sessionId) {
+                return;
+            }
+            if (!window.confirm(t("menuRevert") + "?")) {
+                return;
+            }
+            api("DELETE", "/session/" + encodeURIComponent(state.sessionId)).then(function() {
+                state.lastMsgs = [];
+                state.lastRendered = null;
+                renderMessages([]);
+                return refresh();
+            }).catch(function() {});
+        });
         if (el.appDialogOk) el.appDialogOk.addEventListener("click", function() {
             settleDialog(true);
         });
@@ -3653,8 +4074,8 @@
         });
     }
     function loadCommandsApi() {
-        return api("GET", "/command").then(function(list) {
-            var real = (list || []).filter(function(c) {
+        return api("GET", "/command").then(function(res) {
+            var real = (unwrap(res) || []).filter(function(c) {
                 return c && c.name;
             });
             real.forEach(function(c) {
@@ -3765,8 +4186,48 @@
     document.addEventListener("i18n:change", rerenderI18n);
     setInterval(function() {
         if (state.user && state.backend === "api" && !document.hidden) {
+            // SSE liefert gerade? Dann uebernimmt scheduleRefresh
+            if (Date.now() - sseState.last < 2000) {
+                return;
+            }
             refresh();
         }
     }, 1500);
     document.addEventListener("DOMContentLoaded", init);
+    // ---- Live-Events (v2 SSE) ---------------------------------------------------
+    var sseState = {
+        last: 0,
+        ok: false,
+        source: null
+    };
+    var refreshTimer = null;
+    function scheduleRefresh() {
+        if (refreshTimer || !state.user || state.backend !== "api") {
+            return;
+        }
+        refreshTimer = setTimeout(function() {
+            refreshTimer = null;
+            refresh();
+        }, 250);
+    }
+    function startEvents() {
+        if (typeof EventSource === "undefined") {
+            return;
+        }
+        try {
+            var es = new EventSource(API_BASE + "/event");
+            sseState.source = es;
+            es.onopen = function() {
+                sseState.ok = true;
+            };
+            es.onerror = function() {
+                sseState.ok = false;
+            };
+            es.onmessage = function() {
+                sseState.last = Date.now();
+                scheduleRefresh();
+            };
+        } catch (e) {}
+    }
+    startEvents();
 })();

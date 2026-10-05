@@ -4,7 +4,7 @@
 
 # Vibe4Dock
 
-Diese Dokumentation beschreibt **Vibe4Dock 1.0.8**.
+Diese Dokumentation beschreibt **Vibe4Dock 2.0.0**.
 
 Vibe4Dock ist eine Docker-basierte Entwicklungsumgebung mit Weboberfläche für CLI-Tools, Shell-Zugänge und projektbezogene Runtime-Erweiterungen. Der Hauptgrund für das Projekt ist, dass man über das Web direkt in AI-CLI-Tools kommt und jederzeit am Projekt arbeiten kann: am Desktop, auf dem Handy, auf dem Tablet, unterwegs oder quasi von überall.
 
@@ -38,7 +38,7 @@ Für die CLI selbst wird nur PHP CLI ab Version 8 benötigt. Weitere Abhängigke
 Letzter stabiler Tag:
 
 ```bash
-git clone --branch 1.0.8 --depth 1 https://github.com/jbsnewmedia/vibe4dock.git
+git clone --branch 2.0.0 --depth 1 https://github.com/jbsnewmedia/vibe4dock.git
 cd vibe4dock
 chmod +x vibe4dock
 ```
@@ -276,7 +276,7 @@ Die eigentliche Arbeit bleibt im Container und damit in einer konsistenten Umgeb
 
 ## Tool- und Addon-Packs
 
-Die mitgelieferten Definitionen für **Vibe4Dock 1.0.8** werden aus folgenden Pfaden geladen:
+Die mitgelieferten Definitionen für **Vibe4Dock 2.0.0** werden aus folgenden Pfaden geladen:
 
 ```text
 docker/tools/category/
@@ -483,7 +483,7 @@ Jede Datei:
 - kann Kategorien und Tools definieren,
 - wird mit allen anderen Dateien zusammengeführt.
 
-Die mitgelieferten Tool-Dateien sind in Version 1.0.8 bereits Teil des Repositories, und zusätzliche team- oder projektspezifische Packs können über denselben Merge-Mechanismus darübergelegt werden.
+Die mitgelieferten Tool-Dateien sind in Version 2.0.0 bereits Teil des Repositories, und zusätzliche team- oder projektspezifische Packs können über denselben Merge-Mechanismus darübergelegt werden.
 
 ### Addon-Definitionen
 
@@ -599,8 +599,8 @@ Beispiele für mitgelieferte Browser-Endpunkte:
 - **code-server**: separater Addon-Service mit eigenem Port und passwortgeschützter Browser-IDE
 - **OneDev**: separater Addon-Service mit Web-UI auf Port `6610`, Git-SSH auf Port `6611` und Auto-Bootstrap für das aktuelle Workspace-Projekt
 - **Mailpit**: separater Addon-Service mit Web-UI auf Port `8025` zum Anzeigen abgefangener E-Mails und SMTP-Server auf Port `1025` für lokales Mail-Testing
-- **opencode**: separater Addon-Service, der den opencode AI-Coding-Agenten mit Browser-Web-UI auf Port `4096` und dem Projekt als Workspace bereitstellt
-- **Chat**: separater Addon-Service mit ChatGPT-ähnlicher Web-UI vor einem headless `opencode serve`-Agenten, der am Projekt arbeitet; Shell-Aktivität erscheint in einem einklappbaren Thinking-Panel, Agentenfragen und Berechtigungsanfragen als interaktive Blasen. Benötigt das mitgelieferte `opencode-cli`-Tool und unterstützt keinen anderen Agenten-Backend
+- **opencode**: separater Addon-Service, der den **OpenCode v2** AI-Coding-Agenten mit Browser-Web-UI auf Port `4096` und dem Projekt als Workspace bereitstellt. v2 schützt seine API mit einem pro Start generierten Passwort: Das Web-UI fragt einmalig danach - es steht im Container-Log und in `.opencode-password` im Projekt
+- **Chat**: separater Addon-Service mit ChatGPT-ähnlicher Web-UI vor einem headless `opencode serve`-Agenten (v2), der am Projekt arbeitet; Shell-Aktivität erscheint in einem einklappbaren Thinking-Panel, Agentenfragen und Berechtigungsanfragen (mit exaktem Befehl/Pfad) als interaktive Blasen. Server-Events streamen Updates nahezu in Echtzeit, Nachrichten während laufender Generierung steuern den Lauf, und pro Session gibt es Fork, Compact und einen Diff-Viewer mit Kosten-/Token-Zähler. Benötigt das mitgelieferte `opencode-cli`-Tool und unterstützt keinen anderen Agenten-Backend
 
 ## Einstellungen
 
@@ -734,7 +734,9 @@ Neue Settings werden als zusätzlicher Eintrag unter `docker/tools/settings/*.js
 
 ## Chat- und Veronica-Addon
 
-Beide Chat-Addons (Chat für das Team, Veronica für Endkunden) laufen als eigene Services vor einem `opencode serve`-Agent im Projektverzeichnis.
+Beide Chat-Addons (Chat für das Team, Veronica für Endkunden) laufen als eigene Services vor einem `opencode serve`-Agent (OpenCode **v2**, installiert aus `opencode.ai/v2/install`) im Projektverzeichnis.
+
+**OpenCode v2** schützt seine Server-API mit HTTP Basic Auth und einem bei jedem Start neu generierten Passwort. Die Addons übernehmen das transparent: Die Startskripte extrahieren das Passwort aus dem Server-Log und injizieren es als `Authorization`-Header in die lokale Weiterleitung - die Browser-UIs funktionieren unverändert. Neue v2-Fähigkeiten in beiden UIs: Live-Event-Streaming (`/api/event`) statt festen Poll-Intervallen, Nachricht-Steering während laufender Generierung, strukturierte Formular-Antworten für Agentenfragen, Kosten-/Token-Anzeige und Status-Icons pro Session, Reasoning-Varianten im Modell-Menü, Berechtigungsanfragen mit exaktem Befehl/Pfad, im Chat zusätzlich Session-Fork/Compact/Diff-Viewer und in Veronica eine „Letzte Änderung zurücknehmen"-Aktion (Revert).
 
 Veronica: Endkunden melden sich mit einem 1–3 Zeichen langen Alias und einer PIN gegen eine **serverseitige JSON-User-Datenbank** an (`/data/veronica-users.json` im Container, gemountet unter `docker/web/settings/veronica` auf dem Host - Konten überleben Container-Rebuilds und funktionieren browser-/geräteübergreifend). Jeder Chat wird als `[alias]` im OpenCode-Session-Titel getaggt; die Session-Liste zeigt die eigenen Chats plus Gruppen-Chats, in denen der eigene Alias als Mitglied getaggt ist. Mitglieder werden über das Chat-Menü hinzugefügt/entfernt - der `[alias]`-Tag im Session-Titel steuert die Sichtbarkeit. Die User-DB wird über einen eingebauten php-fpm-Endpoint bedient (`/api/users`, atomare Writes mit Lock-Datei) und beim ersten Start aus Umgebungsvariablen geseedet: `VERONICA_BOOTSTRAP_ADMIN` + `VERONICA_BOOTSTRAP_ADMIN_PIN_HASH` sowie `VERONICA_BOOTSTRAP_USERS` (kommaseparierte `alias:pinHash`-Liste; rohe PINs und `sha256:veronica:<alias>:<pin>`-Hashes werden beide akzeptiert). Das UI bringt i18n (DE/EN), einen Plan-Mode-Toggle (die read-only `veronica-plan`-Persona-Agents werden beim Containerstart in die OpenCode-Config generiert und lassen sich über `persona/veronica*/`-Regeldateien erweitern), ein Modell-Menü mit derselben Favoriten/Recent/Empfehlungen-Kette wie das Chat-Addon und selbstheilende Modell-Auswahl: ein nicht mehr angebotenes gespeichertes Modell wird verworfen, das Server-Standardmodell übernimmt. Fehlgeschlagene Assistenten-Antworten erscheinen als sichtbare Fehlerbox - OpenCode-Free-Tier-Modelle (403 außerhalb des OpenCode-Clients) erklären sich selbst mit Handlungshinweis.
 
