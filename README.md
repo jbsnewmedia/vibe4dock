@@ -6,7 +6,7 @@
 
 For the German version, see [README.de.md](readme/README.de.md).
 
-This documentation describes **Vibe4Dock 1.0.8**.
+This documentation describes **Vibe4Dock 1.0.9**.
 
 Vibe4Dock is a Docker-based development environment with a web interface for CLI tools, browser shells, and project-specific runtime extensions. The main reason this project exists is simple: it gives you direct web access to AI CLI tools so you can keep working on your project anytime - on your desktop, phone, tablet, while traveling, or basically from anywhere.
 
@@ -40,7 +40,7 @@ The CLI itself only requires PHP CLI version 8 or newer. No additional dependenc
 Latest stable tag:
 
 ```bash
-git clone --branch 1.0.8 --depth 1 https://github.com/jbsnewmedia/vibe4dock.git
+git clone --branch 1.0.9 --depth 1 https://github.com/jbsnewmedia/vibe4dock.git
 cd vibe4dock
 chmod +x vibe4dock
 ```
@@ -316,7 +316,7 @@ The real work stays inside the container and therefore inside one consistent env
 
 ## Tool and addon packs
 
-Bundled definitions for **Vibe4Dock 1.0.8** are loaded from:
+Bundled definitions for **Vibe4Dock 1.0.9** are loaded from:
 
 ```text
 docker/tools/category/
@@ -530,7 +530,7 @@ Each file:
 - can define categories and tools,
 - is merged with all other files.
 
-Bundled tool files are already part of the repository in version 1.0.8, and additional team-specific or project-specific packs can be layered on top through the same merge mechanism.
+Bundled tool files are already part of the repository in version 1.0.9, and additional team-specific or project-specific packs can be layered on top through the same merge mechanism.
 
 ### Addon definitions
 
@@ -677,7 +677,7 @@ ROOT_SHELL_PASSWORD="replace-with-a-strong-password"
 
 The Chat addon does not use `.env.local`. Its optional HTTP Basic Auth is configured through the Addons section of the tools UI (`CHAT_USERNAME` / `CHAT_PASSWORD`); both values are stored in the `chat` service environment of the generated `docker-compose.override.yml`. Without credentials the chat UI is accessible without authentication, like the shells.
 
-The Veronica addon works the same way (`VERONICA_USERNAME` / `VERONICA_PASSWORD` for optional HTTP Basic Auth in front of the end-customer login). Veronica end customers log in inside the app with a 1–3 character alias and PIN against a **server-side JSON user database** (`/data/veronica-users.json` in the container, mounted at `docker/web/settings/veronica` on the host - accounts survive container rebuilds and work across browsers/devices). Every chat they start is tagged `[alias]` in the opencode session title and the Veronica UI lists the sessions of the logged-in alias plus group chats where the alias is tagged as a member (members are added/removed from the chat menu, the `[alias]` tag is appended to the session title accordingly). The user database is served by a built-in php-fpm endpoint (`/api/users`, atomic writes with lock file) and is seeded once on first start from environment variables (`VERONICA_BOOTSTRAP_ADMIN` + `VERONICA_BOOTSTRAP_ADMIN_PIN_HASH`, `VERONICA_BOOTSTRAP_USERS` as comma-separated `alias:pinHash` list - raw PINs and `sha256:veronica:<alias>:<pin>` hashes are both accepted). The UI ships i18n (DE/EN), a plan-mode toggle (read-only `veronica-plan` persona agents are generated into the opencode config on container start and can be extended via `persona/veronica*/` rule files), a model selection menu with the same favorites/recent/recommendations chain as the chat addon, and self-healing model picks: a stored model that is no longer offered is dropped automatically and the server default takes over. Failed assistant messages render as visible error boxes - OpenCode free-tier models (403 outside the OpenCode client) explain themselves with an actionable hint. Provider access for Veronica is shared with the OpenCode CLI via the mounted opencode settings, or can be pinned with the `api_key` addon setting.
+The Veronica addon works the same way (`VERONICA_USERNAME` / `VERONICA_PASSWORD` for optional HTTP Basic Auth in front of the end-customer login). Veronica end customers log in inside the app with a 1–3 character alias and PIN against a **server-side JSON user database** (`/data/veronica-users.json` in the container, mounted at `docker/web/settings/veronica` on the host - accounts survive container rebuilds and work across browsers/devices). Every chat they start is tagged `[alias]` in the opencode session title and the Veronica UI lists the sessions of the logged-in alias plus group chats where the alias is tagged as a member (members are added/removed from the chat menu, the `[alias]` tag is appended to the session title accordingly). The user database is served by a built-in php-fpm endpoint (`/api/users`, atomic writes with lock file) and is seeded once on first start from environment variables (`VERONICA_BOOTSTRAP_ADMIN` + `VERONICA_BOOTSTRAP_ADMIN_PIN_HASH`, `VERONICA_BOOTSTRAP_USERS` as comma-separated `alias:pinHash` list - raw PINs and `sha256:veronica:<alias>:<pin>` hashes are both accepted). The UI ships i18n (DE/EN), a plan-mode toggle (read-only `veronica-plan` persona agents are generated into the opencode config on container start and can be extended via `persona/veronica*/` rule files; the addon also generates the visible `veronica-chat` agent - same persona - which the chat addon preselects by default, so the developer chat runs as Veronica out of the box), a model selection menu with the same favorites/recent/recommendations chain as the chat addon, and self-healing model picks: a stored model that is no longer offered is dropped automatically and the server default takes over. Failed assistant messages render as visible error boxes - OpenCode free-tier models (403 outside the OpenCode client) explain themselves with an actionable hint. Provider access for Veronica is shared with the OpenCode CLI via the mounted opencode settings, or can be pinned with the `api_key` addon setting.
 
 ## Persistence
 
